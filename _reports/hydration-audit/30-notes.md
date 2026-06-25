@@ -18,3 +18,12 @@ Entrée : `app/apps/web/src/app/(dashboard)/notes/page.tsx`.
 1. Silent error masquerading as empty: list fetch catch only console.warns and leaves loading=false (page.tsx:98-100), so a route 500 (route.ts:83) shows the 'No notes yet' empty state instead of an error state.
 2. Un-tenant-scoped entity-name lookups: companies/contacts/deals are queried by id with no tenantId filter (route.ts:51,60,71); relies entirely on note.entityId already being tenant-bound rather than enforcing it in the join.
 3. Stray 'general' badge: inline notes are stored with entityType='general' (POST default, route.ts:12,110), which is truthy at render (page.tsx:254) so they show a meaningless 'general' badge with no icon or link.
+
+## Résolution (P1 30 — fixed)
+
+- **Defect #1 (silent error→empty):** added a `loadError` state to `NotesPage` (page.tsx). `fetchNotes` now sets it on `!res.ok` and on `catch`, resets on retry, and the list renders `<EmptyState variant="error" title="Couldn't load notes" actionLabel="Retry" onAction={fetchNotes}>` BEFORE the `notes.length===0` empty check. A 500 no longer masquerades as an empty tenant.
+- **Defect #2 (un-scoped lookups):** the three entity-name lookups in route.ts now filter on `tenantId` — `and(inArray(<table>.id, ids), eq(<table>.tenantId, authCtx.tenantId))` for companies, contacts, deals. Defense-in-depth: even a cross-tenant `entityId` can no longer resolve a foreign name.
+- **Defect #3 (stray 'general' badge):** extracted `isLinkableNoteEntity(entityType, entityId)` into `_entity-badge.ts` (pure, 6 unit tests). The badge render is now gated on it, so only company/contact/deal (the types with an icon + href) show a badge; 'general' and 'inbox_thread' are hidden.
+- **Deliberately not changed (sensible scope):** no refresh-on-focus/poll. Notes are user-authored in-page; `addNote` already calls `fetchNotes` on save, so there is no external mutation source to poll for (unlike the inbox). Adding a focus/visibility poll here would be cost with no freshness gain.
+
+Verdict after fix: **H1** for the list + badge elements (faithful load/empty/error; tenant-scoped throughout). Tests: entity-badge (6) + inbox-notes + route-capability all green (65 total).
