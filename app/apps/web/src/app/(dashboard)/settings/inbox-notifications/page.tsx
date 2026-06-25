@@ -8,9 +8,10 @@
  * shouldNotify — this screen only manages the preferences.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Bell, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 
 type DigestMode = "off" | "morning" | "morning_evening";
 interface NotifiableEvent {
@@ -39,30 +40,36 @@ const inputStyle = {
 } as const;
 
 export default function InboxNotificationsPage() {
+  const { toast } = useToast();
   const [events, setEvents] = useState<NotifiableEvent[]>([]);
   const [prefs, setPrefs] = useState<NotificationPrefs>({ events: {}, digest: "morning", dndStart: null, dndEnd: null });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/inbox/notifications")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`))))
-      .then((data: { events?: NotifiableEvent[]; prefs?: NotificationPrefs }) => {
-        if (!cancelled) {
-          setEvents(data.events ?? []);
-          if (data.prefs) setPrefs(data.prefs);
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const r = await fetch("/api/inbox/notifications");
+      if (r.ok) {
+        const data = (await r.json()) as { events?: NotifiableEvent[]; prefs?: NotificationPrefs };
+        setEvents(data.events ?? []);
+        if (data.prefs) setPrefs(data.prefs);
+      } else {
+        // Was swallowed: a 500 left the event list empty + prefs at defaults,
+        // indistinguishable from a real config.
+        setLoadError(true);
+      }
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   function enabled(e: NotifiableEvent): boolean {
     const v = prefs.events[e.id];
@@ -90,9 +97,12 @@ export default function InboxNotificationsPage() {
         const data = (await r.json()) as { prefs?: NotificationPrefs };
         if (data.prefs) setPrefs(data.prefs);
         setSaved(true);
+      } else {
+        // Was fail-soft (silent): the user assumed it saved.
+        toast("Couldn't save your notification preferences.", "error");
       }
     } catch {
-      /* fail-soft */
+      toast("Couldn't save your notification preferences.", "error");
     } finally {
       setSaving(false);
     }
@@ -102,6 +112,20 @@ export default function InboxNotificationsPage() {
     return (
       <div className="flex h-40 items-center justify-center">
         <Loader2 size={18} className="animate-spin" style={{ color: "var(--color-text-tertiary)" }} />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="mx-auto max-w-2xl p-6">
+        <h1 className="flex items-center gap-2 text-[16px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          <Bell size={16} /> Notifications
+        </h1>
+        <p className="mt-2 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+          Couldn&apos;t load your notification preferences. This is not a reset — the request failed.
+        </p>
+        <Button size="sm" onClick={() => void load()} className="mt-3">Retry</Button>
       </div>
     );
   }

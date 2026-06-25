@@ -9,9 +9,10 @@
  * sending) cap at Suggest — the dial can never make the inbox act on its own.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Sliders, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 
 type FeatureAutonomy = "off" | "suggest" | "auto";
 interface AutonomyFeature {
@@ -31,30 +32,36 @@ function levelsUpTo(ceiling: FeatureAutonomy): FeatureAutonomy[] {
 }
 
 export default function InboxAutonomyPage() {
+  const { toast } = useToast();
   const [catalog, setCatalog] = useState<AutonomyFeature[]>([]);
   const [settings, setSettings] = useState<AutonomySettings>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/inbox/autonomy")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`))))
-      .then((data: { catalog?: AutonomyFeature[]; settings?: AutonomySettings }) => {
-        if (!cancelled) {
-          setCatalog(data.catalog ?? []);
-          setSettings(data.settings ?? {});
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const r = await fetch("/api/inbox/autonomy");
+      if (r.ok) {
+        const data = (await r.json()) as { catalog?: AutonomyFeature[]; settings?: AutonomySettings };
+        setCatalog(data.catalog ?? []);
+        setSettings(data.settings ?? {});
+      } else {
+        // Was swallowed: a 500 left the catalog empty (no dials shown) with no
+        // explanation — looked like the feature was unavailable.
+        setLoadError(true);
+      }
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   function effective(f: AutonomyFeature): FeatureAutonomy {
     const chosen = settings[f.id];
@@ -80,9 +87,12 @@ export default function InboxAutonomyPage() {
         const data = (await r.json()) as { settings?: AutonomySettings };
         if (data.settings) setSettings(data.settings);
         setSaved(true);
+      } else {
+        // Was fail-soft (silent): the user assumed the dials saved.
+        toast("Couldn't save your autonomy settings.", "error");
       }
     } catch {
-      /* fail-soft */
+      toast("Couldn't save your autonomy settings.", "error");
     } finally {
       setSaving(false);
     }
@@ -92,6 +102,20 @@ export default function InboxAutonomyPage() {
     return (
       <div className="flex h-40 items-center justify-center">
         <Loader2 size={18} className="animate-spin" style={{ color: "var(--color-text-tertiary)" }} />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="mx-auto max-w-2xl p-6">
+        <h1 className="flex items-center gap-2 text-[16px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          <Sliders size={16} /> Autonomy
+        </h1>
+        <p className="mt-2 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+          Couldn&apos;t load your autonomy settings. This is not a reset — the request failed.
+        </p>
+        <Button size="sm" onClick={() => void load()} className="mt-3">Retry</Button>
       </div>
     );
   }
