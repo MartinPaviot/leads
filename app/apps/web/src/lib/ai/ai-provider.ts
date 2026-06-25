@@ -214,7 +214,18 @@ type TaskType = keyof typeof MODEL_MAP;
  *
  * Returns `null` if neither provider is configured for the requested task.
  */
+/**
+ * Global AI kill-switch. When AI_DISABLED=1, getModelForTask returns null and
+ * the traced wrappers refuse to call a model, so every surface that handles a
+ * null model (heuristic fallback) stops spending immediately — no redeploy or
+ * key rotation needed. Default (unset) is a no-op: zero effect on normal runs.
+ */
+export function isAiDisabled(): boolean {
+  return process.env.AI_DISABLED === "1";
+}
+
 export function getModelForTask(task: TaskType) {
+  if (isAiDisabled()) return null;
   const useMistral = shouldUseMistral();
   const forceMistral = process.env.LLM_PROVIDER?.toLowerCase() === "mistral";
 
