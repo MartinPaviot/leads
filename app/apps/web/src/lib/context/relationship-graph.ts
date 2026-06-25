@@ -30,6 +30,7 @@ import {
   users,
 } from "@/db/schema";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { linkedinPath } from "@/db/canonical/identity";
 
 export const KNOWS = "KNOWS";
 
@@ -365,4 +366,135 @@ export async function findWarmPathsToCompanies(params: {
     list.sort((a, b) => b.strength - a.strength);
   }
   return result;
+}
+
+// ─── LinkedIn connections (spec 36, T9) ───────────────────────
+//
+// Unipile's relations API is the "LinkedIn connection exports" the module
+// header anticipated. A 1st-degree connection is one high-quality STRUCTURAL
+// fact, not a frequency — so it does NOT use interactionsToConfidence. It feeds
+// the same edge store through the shared upsertKnowsEdge entry point below, with
+// metadata.channel="linkedin" so findWarmPathsToCompanies surfaces it for free.
+
+/** A confirmed 1st-degree connection: a strong prior, not certainty (≈ email's
+ * 20-message tie, below the 0.95 frequency ceiling). 0.85 if Unipile also shows
+ * a recent interaction on the relation. */
+export const LINKEDIN_CONNECTION_CONFIDENCE = 0.8;
+
+export function linkedinConnectionConfidence(opts?: { recentInteraction?: boolean }): number {
+  return opts?.recentInteraction ? 0.85 : LINKEDIN_CONNECTION_CONFIDENCE;
+}
+
+/**
+ * Resolve a relation's public profile URL to a contact id, normalizing through
+ * the canonical `linkedinPath` so the match is identical to the `li:` identity
+ * key (a divergent normalization would split identities). Pure.
+ */
+export function matchRelationToContactId(
+  profileUrl: string | null | undefined,
+  byLinkedinPath: Map<string, string>,
+): string | null {
+  const path = linkedinPath(profileUrl);
+  if (!path) return null;
+  return byLinkedinPath.get(path) ?? null;
+}
+
+export interface UpsertKnowsEdgeParams {
+  tenantId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  confidence: number;
+  fact: string;
+  metadata: Record<string, unknown>;
+  /** Provenance: "activity" (email/meeting) | "enrichment" (linkedin) | ... */
+  sourceType: string;
+}
+
+/**
+ * The shared KNOWS upsert entry point the module header promised. Idempotent per
+ * (tenant, source, target): an existing valid edge is updated in place; we never
+ * create a second KNOWS edge for a pair. Returns whether it created or updated.
+ */
+export async function upsertKnowsEdge(p: UpsertKnowsEdgeParams): Promise<"created" | "updated"> {
+  const [existing] = await db
+    .select({ id: contextGraphEdges.id })
+    .from(contextGraphEdges)
+    .where(
+      and(
+        eq(contextGraphEdges.tenantId, p.tenantId),
+        eq(contextGraphEdges.sourceNodeId, p.sourceNodeId),
+        eq(contextGraphEdges.targetNodeId, p.targetNodeId),
+        eq(contextGraphEdges.relationType, KNOWS),
+        isNull(contextGraphEdges.tInvalid),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(contextGraphEdges)
+      .set({ confidence: p.confidence, metadata: p.metadata, fact: p.fact })
+      .where(eq(contextGraphEdges.id, existing.id));
+    return "updated";
+  }
+
+  await db.insert(contextGraphEdges).values({
+    tenantId: p.tenantId,
+    sourceNodeId: p.sourceNodeId,
+    targetNodeId: p.targetNodeId,
+    relationType: KNOWS,
+    fact: p.fact,
+    confidence: p.confidence,
+    sourceType: p.sourceType,
+    metadata: p.metadata,
+  });
+  return "created";
+}
+
+/** A Unipile relation already matched to a first-party contact. */
+export interface LinkedInRelationMatch {
+  contactId: string;
+  contactName: string;
+  profileUrl: string;
+  recentInteraction?: boolean;
+}
+
+/**
+ * Upsert KNOWS edges from a connected seat's 1st-degree relations. The seat's
+ * owner (viaUser) KNOWS each matched contact at fixed LinkedIn confidence. The
+ * profileUrl→contact match (via matchRelationToContactId) is done by the caller
+ * so this stays a thin DB orchestration over the shared helpers.
+ */
+export async function buildKnowsFromLinkedInRelations(params: {
+  tenantId: string;
+  viaUserId: string;
+  viaUserName: string;
+  relations: LinkedInRelationMatch[];
+}): Promise<{ edgesCreated: number; edgesUpdated: number }> {
+  const { tenantId, viaUserId, viaUserName, relations } = params;
+  let edgesCreated = 0;
+  let edgesUpdated = 0;
+
+  const userNodeId = await getOrCreatePersonNode({ tenantId, entityId: viaUserId, name: viaUserName });
+
+  for (const rel of relations) {
+    const contactNodeId = await getOrCreatePersonNode({ tenantId, entityId: rel.contactId, name: rel.contactName });
+    const outcome = await upsertKnowsEdge({
+      tenantId,
+      sourceNodeId: userNodeId,
+      targetNodeId: contactNodeId,
+      confidence: linkedinConnectionConfidence({ recentInteraction: rel.recentInteraction }),
+      fact: `${viaUserName} is a 1st-degree LinkedIn connection of ${rel.contactName}`,
+      metadata: {
+        channel: "linkedin",
+        source: "unipile.relations",
+        linkedinPath: linkedinPath(rel.profileUrl),
+      },
+      sourceType: "enrichment",
+    });
+    if (outcome === "created") edgesCreated++;
+    else edgesUpdated++;
+  }
+
+  return { edgesCreated, edgesUpdated };
 }

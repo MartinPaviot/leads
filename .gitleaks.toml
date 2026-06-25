@@ -1,19 +1,25 @@
 title = "leadsens gitleaks config"
 
 # Keep the FULL default ruleset active (never disable secret scanning) and add
-# a narrowly-scoped allowlist for a known false positive.
+# narrowly-scoped allowlists for known false positives.
 [extend]
 useDefault = true
 
-# False positive: the default `linkedin-client-id` rule matches a 14-char token
-# near "linkedin", which collides with TypeScript type identifiers such as
-# `LinkedInResult` / `LinkedInRequest` in the spec-24 LinkedIn / HeyReach ports
-# (e.g. `import type { LinkedInPort, LinkedInRequest, LinkedInResult }`). These
-# are type names, never credentials. Scoped to lines containing those exact
-# identifiers so genuine secrets are still detected.
 [allowlist]
-description = "TypeScript LinkedIn* type-name identifiers false-positive the linkedin-client-id rule"
+description = "spec-24/36 false positives — LinkedIn* TS identifiers + placeholder curl headers in API reference docs"
 regexTarget = "line"
+# (1) The default `linkedin-client-id` rule matches a 14-char token near
+# "linkedin", colliding with PascalCase TypeScript identifiers like
+# `LinkedInResult` / `LinkedInPort` / `LinkedInSendingAccount` across the spec-24
+# port and the spec-36 Unipile code. These are type/function names, never
+# credentials. PascalCase only — an all-caps `LINKEDIN_*` env-style line is NOT
+# matched, so a genuine LinkedIn client secret is still caught.
 regexes = [
-  '''LinkedIn(Port|Request|Result|Contact|Error|Outcome|Adapter|Deps|ActionType|ActionEvent|DailyLimits|IdempotencyStore|RefuseReason|Client)''',
+  '''LinkedIn[A-Za-z]+''',
+]
+# (2) The `curl-auth-header` rule fires on the `-H 'X-API-KEY: YOUR_TOKEN'`
+# placeholders in the spec-36 Unipile API reference (documentation curl
+# examples, not real credentials). Scoped to the generated API reference docs.
+paths = [
+  '''_specs/.*/API\.md''',
 ]

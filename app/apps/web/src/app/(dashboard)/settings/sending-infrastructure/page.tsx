@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { useT } from "@/lib/i18n/locale";
 import { InstantlyMailboxes } from "./_instantly-mailboxes";
+import { LinkedInConnect } from "./_linkedin-connect";
 // (VoiceSection uses Card, Button, Input, useToast above — useCallback +
 // useEffect + useState are already imported for the parent page.)
 
@@ -388,6 +389,9 @@ export default function SendingInfrastructurePage() {
             {payload?.providers.instantly.connected && <InstantlyMailboxes />}
           </CardBody>
         </Card>
+
+        {/* ── LinkedIn / Sales Navigator connect (spec 36, T6) ── */}
+        <LinkedInConnect />
 
         {/* ── Voice (Twilio + Deepgram) — voice-cold-call Phase 1 ── */}
         <VoiceSection />

@@ -3,6 +3,9 @@ import {
   interactionsToConfidence,
   shouldEmitEdge,
   KNOWS,
+  LINKEDIN_CONNECTION_CONFIDENCE,
+  linkedinConnectionConfidence,
+  matchRelationToContactId,
 } from "@/lib/context/relationship-graph";
 
 describe("relationship-graph pure helpers", () => {
@@ -65,6 +68,36 @@ describe("relationship-graph pure helpers", () => {
   describe("KNOWS constant", () => {
     it("uses the uppercase relation-type convention shared with other edges (WORKS_AT, DISCUSSED, ...)", () => {
       expect(KNOWS).toBe("KNOWS");
+    });
+  });
+});
+
+describe("LinkedIn connections (spec 36, T9)", () => {
+  it("a 1st-degree connection is a fixed structural prior (0.80), not a frequency", () => {
+    expect(LINKEDIN_CONNECTION_CONFIDENCE).toBe(0.8);
+    expect(linkedinConnectionConfidence()).toBe(0.8);
+    // Stronger than a 2-message email tie, weaker than the 0.95 frequency ceiling.
+    expect(LINKEDIN_CONNECTION_CONFIDENCE).toBeGreaterThan(interactionsToConfidence(2));
+    expect(LINKEDIN_CONNECTION_CONFIDENCE).toBeLessThan(0.95);
+  });
+
+  it("bumps to 0.85 when the relation shows a recent interaction", () => {
+    expect(linkedinConnectionConfidence({ recentInteraction: true })).toBe(0.85);
+    expect(linkedinConnectionConfidence({ recentInteraction: false })).toBe(0.8);
+  });
+
+  describe("matchRelationToContactId — normalizes via linkedinPath", () => {
+    const byPath = new Map<string, string>([["linkedin.com/in/jane-doe", "contact-jane"]]);
+
+    it("matches across scheme / www / case / trailing slash differences", () => {
+      expect(matchRelationToContactId("https://www.LinkedIn.com/in/jane-doe/", byPath)).toBe("contact-jane");
+      expect(matchRelationToContactId("linkedin.com/in/jane-doe", byPath)).toBe("contact-jane");
+    });
+
+    it("returns null for an unknown profile or a missing url", () => {
+      expect(matchRelationToContactId("https://linkedin.com/in/someone-else", byPath)).toBeNull();
+      expect(matchRelationToContactId(null, byPath)).toBeNull();
+      expect(matchRelationToContactId("", byPath)).toBeNull();
     });
   });
 });

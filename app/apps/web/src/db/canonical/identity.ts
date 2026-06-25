@@ -85,7 +85,11 @@ export interface ContactIdentityInput {
   companyId?: string | null;
 }
 
-function linkedinPath(url: string | null | undefined): string | null {
+/** Normalized LinkedIn path (lowercase, no scheme/www/trailing slash) — the
+ * `li:` identity key and the dedup/match basis. Exported so LinkedIn providers
+ * (spec 36) normalize URLs the SAME way before persistence; a divergent
+ * normalization would split identities and break the spec-14 lock. */
+export function linkedinPath(url: string | null | undefined): string | null {
   if (!url) return null;
   const m = url
     .toLowerCase()
