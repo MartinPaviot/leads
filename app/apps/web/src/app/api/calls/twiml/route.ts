@@ -13,6 +13,8 @@ import { eq } from "drizzle-orm";
 import { getVoiceProvider } from "@/lib/voice";
 import { buildTwiml } from "@/lib/voice/twilio";
 import { validateTwilioSignature } from "@/lib/voice/twilio-signature";
+import { resolveCallRecording } from "@/lib/voice/recording-policy";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { logger } from "@/lib/observability/logger";
 
 export async function POST(req: Request) {
@@ -74,7 +76,20 @@ export async function POST(req: Request) {
   // Romand wedge: prospects are FR/CH francophone → French transcription.
   const languageCode = "fr-FR";
 
-  const disclosureUrl = url.searchParams.get("disclosureUrl") ?? undefined;
+  // Recording decision — same policy as the agent (Call Mode) path: deployment
+  // + workspace opt-in + a lawful disclosure in two-party-consent regions. The
+  // disclosure <Play> is added only when we will actually record.
+  const settings = await getTenantSettings(callRow.tenantId);
+  const recording = resolveCallRecording({
+    toNumber: callRow.toNumber,
+    workspaceEnabled: settings.callRecordingEnabled === true,
+  });
+  if (recording.consent !== callRow.recordingConsent) {
+    await db
+      .update(calls)
+      .set({ recordingConsent: recording.consent })
+      .where(eq(calls.id, callId));
+  }
   const recordingStatusUrl = `${publicBase}/api/calls/recording-status`;
 
   const twiml = await buildTwiml({
@@ -82,8 +97,9 @@ export async function POST(req: Request) {
     fromNumber: callRow.fromNumber,
     transcriptionCallbackUrl,
     languageCode,
-    disclosureUrl,
+    disclosureUrl: recording.disclosureUrl,
     recordingStatusUrl,
+    record: recording.record,
   });
 
   // Mark the moment Twilio actually reached our webhook — this is the
