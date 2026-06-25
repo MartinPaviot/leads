@@ -12,6 +12,7 @@ import { buildUnsubscribeUrl } from "@/lib/emails/unsubscribe-token";
 import { signTrackingId } from "@/lib/emails/tracking-token";
 import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 import { sendViaMailbox } from "@/lib/emails/mailbox-transport";
+import { pickResendEligibleMailbox } from "@/lib/emails/resend-mailbox-select";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
 import { trackUsage } from "@/lib/billing/billing";
 import { trackPipeline } from "@/lib/analytics/pipeline-tracker";
@@ -258,17 +259,17 @@ export const processOutboundEmails = inngest.createFunction(
           };
         }
 
-        // Round-robin: pick mailbox with lowest sentToday ratio (most capacity left)
+        // Round-robin: pick mailbox with lowest sentToday ratio (most capacity left).
+        // Excludes provider 'instantly' — those boxes have no Resend/SMTP send path
+        // and would otherwise be sent from the Instantly address via Resend
+        // (unauthenticated → spam/bounce). See pickResendEligibleMailbox.
         if (mailboxes.length > 0) {
           const withLimits = mailboxes.map((m) => ({
             ...m,
             effectiveLimit: getEffectiveDailyLimit(m.dailyLimit, m.warmupStartedAt, m.createdAt, m.bounceCount7d),
           }));
-          const eligible = withLimits
-            .filter((m) => m.sentToday < m.effectiveLimit)
-            .sort((a, b) => (a.sentToday / a.effectiveLimit) - (b.sentToday / b.effectiveLimit));
-          const best = eligible[0] || withLimits[0];
-          map[`${tid}:default`] = {
+          const best = pickResendEligibleMailbox(withLimits);
+          if (best) map[`${tid}:default`] = {
             id: best.id,
             emailAddress: best.emailAddress,
             displayName: best.displayName,
