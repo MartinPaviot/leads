@@ -9,9 +9,10 @@
  * instructions are never honored — drafts stay approval-gated.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Sparkles, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 
 interface StandingInstruction {
   id: string;
@@ -44,31 +45,39 @@ const inputStyle = {
 } as const;
 
 export default function InboxMemoryPage() {
+  const { toast } = useToast();
   const [memory, setMemory] = useState<InboxMemory>({ standingInstructions: [], aboutMe: {} });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/inbox/memory")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`))))
-      .then((data: { memory?: InboxMemory }) => {
-        if (!cancelled && data.memory) {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const r = await fetch("/api/inbox/memory");
+      if (r.ok) {
+        const data = (await r.json()) as { memory?: InboxMemory };
+        if (data.memory) {
           setMemory({
             standingInstructions: data.memory.standingInstructions ?? [],
             aboutMe: data.memory.aboutMe ?? {},
           });
         }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      } else {
+        // Was swallowed: a failure left the form blank, indistinguishable from
+        // a user who never set any instructions.
+        setLoadError(true);
+      }
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   function setInstruction(id: string, text: string) {
     setMemory((m) => ({
@@ -110,9 +119,12 @@ export default function InboxMemoryPage() {
           aboutMe: data.memory.aboutMe ?? {},
         });
         setSaved(true);
+      } else {
+        // Was fail-soft (silent): the user assumed their instructions saved.
+        toast("Couldn't save your AI memory.", "error");
       }
     } catch {
-      /* fail-soft */
+      toast("Couldn't save your AI memory.", "error");
     } finally {
       setSaving(false);
     }
@@ -122,6 +134,20 @@ export default function InboxMemoryPage() {
     return (
       <div className="flex h-40 items-center justify-center">
         <Loader2 size={18} className="animate-spin" style={{ color: "var(--color-text-tertiary)" }} />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="mx-auto max-w-2xl p-6">
+        <h1 className="flex items-center gap-2 text-[16px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          <Sparkles size={16} /> AI memory &amp; standing instructions
+        </h1>
+        <p className="mt-2 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+          Couldn&apos;t load your AI memory. This is not empty — the request failed.
+        </p>
+        <Button size="sm" onClick={() => void load()} className="mt-3">Retry</Button>
       </div>
     );
   }

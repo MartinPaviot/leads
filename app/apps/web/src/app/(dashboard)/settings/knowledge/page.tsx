@@ -93,18 +93,28 @@ export default function KnowledgeSettingsPage() {
   /** Toggle a consumption stage on an entry — persisted immediately for
    * saved entries; temp rows carry it into their first POST. */
   async function toggleStage(topic: KnowledgeTopic, stageKey: string) {
+    const prevStages = topic.stages;
     const next = topic.stages.includes(stageKey)
       ? topic.stages.filter((s) => s !== stageKey)
       : [...topic.stages, stageKey];
     setTopics((prev) => prev.map((t) => (t.id === topic.id ? { ...t, stages: next } : t)));
     if (!topic.id.startsWith("temp-")) {
+      const revert = () =>
+        setTopics((prev) => prev.map((t) => (t.id === topic.id ? { ...t, stages: prevStages } : t)));
       try {
-        await fetch("/api/settings/knowledge", {
+        const res = await fetch("/api/settings/knowledge", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: topic.id, stages: next }),
         });
+        if (!res.ok) {
+          // The PUT was never status-checked: a 500 left the toggle visually
+          // flipped though it never persisted. Revert so the UI doesn't lie.
+          revert();
+          setError("Failed to update stages");
+        }
       } catch {
+        revert();
         setError("Failed to update stages");
       }
     }
@@ -130,11 +140,13 @@ export default function KnowledgeSettingsPage() {
           setError("Failed to save topic");
         }
       } else {
-        await fetch("/api/settings/knowledge", {
+        const res = await fetch("/api/settings/knowledge", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: topic.id, title: topic.topic, content: topic.content, stages: topic.stages }),
         });
+        // PUT edit was never status-checked → a 500 looked like a saved edit.
+        if (!res.ok) setError("Failed to save topic");
       }
     } catch {
       setError("Failed to save topic");
@@ -162,8 +174,14 @@ export default function KnowledgeSettingsPage() {
     setRemoving(true);
     setError("");
     try {
-      await fetch(`/api/settings/knowledge?id=${removeTopicId}`, { method: "DELETE" });
-      setTopics((prev) => prev.filter((t) => t.id !== removeTopicId));
+      const res = await fetch(`/api/settings/knowledge?id=${removeTopicId}`, { method: "DELETE" });
+      // DELETE was never status-checked → the topic vanished from the UI even
+      // if the server delete failed. Only drop it on a confirmed success.
+      if (res.ok) {
+        setTopics((prev) => prev.filter((t) => t.id !== removeTopicId));
+      } else {
+        setError("Failed to remove topic");
+      }
     } catch {
       setError("Failed to remove topic");
     } finally {

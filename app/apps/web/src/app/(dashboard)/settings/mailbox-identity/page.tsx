@@ -7,7 +7,7 @@
  * when composing from that box; the voice override layers on the per-user style.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Mail, Loader2, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -36,28 +36,36 @@ export default function MailboxIdentityPage() {
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [identities, setIdentities] = useState<Record<string, Identity>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetch("/api/settings/mailboxes").then((r) => (r.ok ? r.json() : { mailboxes: [] })),
-      fetch("/api/inbox/mailbox-identity").then((r) => (r.ok ? r.json() : { identities: {} })),
-    ])
-      .then(([b, i]: [{ mailboxes?: Box[] }, { identities?: Record<string, Identity> }]) => {
-        if (cancelled) return;
-        setBoxes((b.mailboxes ?? []).filter((m) => m.status === "active"));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const [br, ir] = await Promise.all([
+        fetch("/api/settings/mailboxes"),
+        fetch("/api/inbox/mailbox-identity"),
+      ]);
+      // The mailboxes fetch is load-bearing — without it there are no rows, so a
+      // failure used to render "No connected mailbox yet" (masked the 500).
+      if (!br.ok) { setLoadError(true); return; }
+      const b = (await br.json()) as { mailboxes?: Box[] };
+      setBoxes((b.mailboxes ?? []).filter((m) => m.status === "active"));
+      // identities are secondary — default to {} on failure, don't block.
+      if (ir.ok) {
+        const i = (await ir.json()) as { identities?: Record<string, Identity> };
         setIdentities(i.identities ?? {});
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      }
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   function patch(id: string, field: keyof Identity, value: string) {
     setIdentities((m) => ({ ...m, [id]: { ...m[id], [field]: value } }));
@@ -92,6 +100,20 @@ export default function MailboxIdentityPage() {
     return (
       <div className="flex h-40 items-center justify-center">
         <Loader2 size={18} className="animate-spin" style={{ color: "var(--color-text-tertiary)" }} />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="mx-auto max-w-2xl p-6">
+        <h1 className="flex items-center gap-2 text-[16px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          <PenLine size={16} /> Mailbox identity
+        </h1>
+        <p className="mt-2 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+          Couldn&apos;t load your mailboxes. This is not the same as having none — the request failed.
+        </p>
+        <Button size="sm" onClick={() => void load()} className="mt-3">Retry</Button>
       </div>
     );
   }
