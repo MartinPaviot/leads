@@ -178,14 +178,14 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   Follow-ups (heavier/by-design): campaign queue still emits localTime/tz='' (needs
   company-props query + tz/quiet-hours helpers); live transcript/levers depend on the
   Phase-1.5 streaming bridge (honest empty state today).
-- [~] **23 reports — DEFERRED (needs a decision, not a quick fix).** The analytics
-  (RevenueForecast, CohortInsights, AI report) are all H1/faithful. The one defect:
-  "Recent Reports" history lives in browser localStorage (`elevay-report-history`,
-  fixed key) — shared across tenants/users on the same machine, survives logout.
-  Proper fix = server-backed per-tenant history (a feature) OR scope the key by user
-  id; the page has NO session/user context today, so either needs new plumbing.
-  Not the swallowed-fetch pattern — flagged rather than rushed. Minor: revenue-goal
-  route tenant-scoping unverified; analytics fetch-once (staleness).
+- [x] **23 reports — RESOLVED.** The "Recent Reports" history stored the FULL
+  AI report content under a fixed localStorage key (`elevay-report-history`), so on
+  a shared machine the next tenant/user saw the prior tenant's complete reports and
+  it survived logout. Fix: scope the key by `tenantId` fetched from `/api/auth/session`
+  (`HISTORY_KEY_PREFIX:<tenantId>`), persist ONLY once the tenant is known (in-memory
+  otherwise — never a fixed key), and purge the legacy unscoped key on mount to clear
+  any already-leaked content. The analytics cards (RevenueForecast/CohortInsights/AI
+  report) were already H1. Minor left: analytics fetch-once staleness (P2).
 - [x] **24 insights** — a single `.catch(console.error)` over the 3-lane Promise.all
   swallowed all failures (page showed 0/$0K, Alerts+Briefs hidden — a 500 looked
   like an empty tenant). Restructured to independent lanes (per-lane r.ok → that lane

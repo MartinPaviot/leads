@@ -25,22 +25,29 @@ interface HistoryEntry {
   report: ReportData;
 }
 
-const HISTORY_KEY = "elevay-report-history";
+// History was stored under a single fixed key, so on a shared machine the full
+// AI report content (real tenant numbers) leaked to the next tenant/user and
+// survived logout. Scope the key by tenant id; persist only once it is known.
+const HISTORY_KEY_PREFIX = "elevay-report-history";
+const LEGACY_HISTORY_KEY = "elevay-report-history";
 const MAX_HISTORY = 5;
 
-function loadHistory(): HistoryEntry[] {
-  if (typeof window === "undefined") return [];
+function loadHistory(key: string | null): HistoryEntry[] {
+  if (typeof window === "undefined" || !key) return [];
   try {
-    const raw = localStorage.getItem(HISTORY_KEY);
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-function saveHistory(entries: HistoryEntry[]) {
+function saveHistory(key: string | null, entries: HistoryEntry[]) {
+  // No tenant scope resolved yet → keep history in-memory only, never persist
+  // (a fixed key is what caused the cross-tenant leak).
+  if (typeof window === "undefined" || !key) return;
   try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)));
+    localStorage.setItem(key, JSON.stringify(entries.slice(0, MAX_HISTORY)));
   } catch {
     // localStorage full or unavailable
   }
@@ -132,12 +139,32 @@ export default function ReportsPage() {
   const [copied, setCopied] = useState(false);
   const [progressStep, setProgressStep] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyKey, setHistoryKey] = useState<string | null>(null);
   const [schedulingType, setSchedulingType] = useState<string | null>(null);
   const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
 
-  // Load history on mount
+  // Resolve a tenant-scoped history key from the session, purge the old
+  // unscoped key (the cross-tenant leak vector), then load THIS tenant's history.
   useEffect(() => {
-    setHistory(loadHistory());
+    let cancelled = false;
+    (async () => {
+      // Best-effort: clear the legacy shared key so previously-leaked report
+      // content doesn't linger on the machine.
+      try { localStorage.removeItem(LEGACY_HISTORY_KEY); } catch { /* ignore */ }
+      let key: string | null = null;
+      try {
+        const res = await fetch("/api/auth/session");
+        const session = res.ok ? await res.json() : null;
+        const scope = session?.tenantId ?? session?.user?.id ?? null;
+        key = scope ? `${HISTORY_KEY_PREFIX}:${scope}` : null;
+      } catch {
+        key = null;
+      }
+      if (cancelled) return;
+      setHistoryKey(key);
+      setHistory(loadHistory(key));
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Progress animation while loading
@@ -187,7 +214,7 @@ export default function ReportsPage() {
       };
       const updated = [entry, ...history.filter((h) => h.id !== entry.id)].slice(0, MAX_HISTORY);
       setHistory(updated);
-      saveHistory(updated);
+      saveHistory(historyKey, updated);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to generate report");
     } finally {

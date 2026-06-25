@@ -28,3 +28,22 @@ Entrée : `app/apps/web/src/app/(dashboard)/reports/page.tsx`.
 1. Recent Reports history is client-only localStorage, not tenant-scoped server data — it is shared across tenants/users on the same browser and lost on device switch (app/apps/web/src/app/(dashboard)/reports/page.tsx:28-47,518-567)
 2. Monthly revenue-goal value is read from /api/analytics/revenue-goal but that route's tenant-scoping was not directly verified in this audit; the goal also round-trips through tenant settings jsonb in the forecast route (app/apps/web/src/app/(dashboard)/reports/_revenue-forecast.tsx:69-110)
 3. Always-on analytics fetch once on mount with no refetch/poll, so forecast and cohort numbers can silently go stale until a manual reload (app/apps/web/src/app/(dashboard)/reports/_revenue-forecast.tsx:87-89; _cohort-insights.tsx:62-77)
+
+## Résolution (P1 23 — fixed)
+
+- **Defect #1 (cross-tenant localStorage leak):** FIXED. The history stored the full
+  `ReportData` under a fixed key (`elevay-report-history`), so on a shared machine the
+  next tenant/user saw the prior tenant's complete reports (survived logout). Now:
+  (a) the key is scoped by `tenantId` resolved from `/api/auth/session`
+  (`elevay-report-history:<tenantId>`); (b) `saveHistory` is a no-op until the tenant is
+  known, so history is in-memory only until then — never persisted under a shared key;
+  (c) the legacy unscoped key is `removeItem`'d on mount to purge any already-leaked
+  content. `loadHistory`/`saveHistory` now take the scoped key (page.tsx:31-55, 138-165, ~205).
+- **Defect #2 (revenue-goal tenant scope unverified):** the route was not changed; left
+  as a verification follow-up (it round-trips through tenant settings jsonb, which is
+  tenant-scoped by construction).
+- **Defect #3 (fetch-once staleness):** NOT changed — P2 polish (add focus/poll refetch),
+  deferred.
+
+Verdict after fix: the history leak (the real fidelity gap) is closed; the page's
+analytics lanes were already H1.
