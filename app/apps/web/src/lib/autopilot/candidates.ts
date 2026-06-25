@@ -124,10 +124,13 @@ export async function loadCandidates(tenantId: string, limit: number, database: 
   for (const [, c] of bestByCompany) if (c.email) emailByContact.set(c.id, c.email.toLowerCase().trim());
 
   // 3. Already-enrolled (active) among the candidates.
+  // sequence_enrollments has no tenant_id column — the candidate contactIds are
+  // already this tenant's (from the tenant-scoped contacts query), so scoping by
+  // contactId + active status is sufficient.
   const enrolled = await database
     .select({ contactId: sequenceEnrollments.contactId })
     .from(sequenceEnrollments)
-    .where(and(eq(sequenceEnrollments.tenantId, tenantId), inArray(sequenceEnrollments.contactId, contactIds), eq(sequenceEnrollments.status, "active")));
+    .where(and(inArray(sequenceEnrollments.contactId, contactIds), eq(sequenceEnrollments.status, "active")));
   const alreadyEnrolledContactIds = new Set(enrolled.map((e) => e.contactId).filter((x): x is string => !!x));
 
   // 4. Suppressed (opt-out) among the candidate emails → back to contactIds.
