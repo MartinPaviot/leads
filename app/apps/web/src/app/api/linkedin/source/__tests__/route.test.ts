@@ -27,6 +27,12 @@ vi.mock("@/lib/providers/unipile/http", () => ({ readUnipileConfig: () => readUn
 const sourceFromSalesNav = vi.fn();
 vi.mock("@/lib/linkedin/sales-nav-sourcing", () => ({ sourceFromSalesNav: (...a: unknown[]) => sourceFromSalesNav(...a) }));
 
+// The route does a best-effort warm-path rematch after sourcing — mock it so the
+// route test stays focused (rematchStoredRelations has its own test).
+vi.mock("@/lib/sending/linkedin/graph-sync", () => ({
+  rematchStoredRelations: vi.fn(async () => ({ seats: 1, matched: 0, edgesCreated: 0, edgesUpdated: 0 })),
+}));
+
 import { getAuthContext } from "@/lib/auth/auth-utils";
 const route = await import("@/app/api/linkedin/source/route");
 

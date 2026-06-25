@@ -12,7 +12,7 @@
  */
 
 import { db } from "@/db";
-import { linkedinRelation, contacts } from "@/db/schema";
+import { linkedinRelation, linkedinAccount, contacts } from "@/db/schema";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { linkedinPath } from "@/db/canonical/identity";
 import { readUnipileConfig, listUnipileRelations, type UnipileRelation } from "@/lib/providers/unipile/http";
@@ -38,6 +38,29 @@ export interface GraphSyncResult {
 /** Display name from a relation, falling back to the public identifier. */
 function relationName(r: UnipileRelation): string {
   return [r.first_name, r.last_name].filter(Boolean).join(" ").trim() || r.public_identifier || "LinkedIn connection";
+}
+
+type CrmContactRow = { id: string; linkedinUrl: string | null; firstName: string | null; lastName: string | null };
+
+/**
+ * Match CRM contacts (those carrying a linkedin_url) to a seat's relations by
+ * the shared linkedinPath key — the same key contacts dedup on, so there is no
+ * identity split. Pure; shared by the live sync and the snapshot rematch.
+ */
+function matchContacts(crm: CrmContactRow[], byPath: Map<string, { name: string }>): LinkedInRelationMatch[] {
+  const matches: LinkedInRelationMatch[] = [];
+  for (const c of crm) {
+    const path = linkedinPath(c.linkedinUrl);
+    if (!path) continue;
+    const rel = byPath.get(path);
+    if (!rel) continue;
+    matches.push({
+      contactId: c.id,
+      contactName: [c.firstName, c.lastName].filter(Boolean).join(" ").trim() || rel.name,
+      profileUrl: path,
+    });
+  }
+  return matches;
 }
 
 /**
@@ -91,18 +114,7 @@ export async function syncLinkedInRelations(seat: SyncSeat, maxPages = 100): Pro
     .from(contacts)
     .where(and(eq(contacts.tenantId, seat.tenantId), isNotNull(contacts.linkedinUrl)));
 
-  const matches: LinkedInRelationMatch[] = [];
-  for (const c of crm) {
-    const path = linkedinPath(c.linkedinUrl);
-    if (!path) continue;
-    const rel = byPath.get(path);
-    if (!rel) continue;
-    matches.push({
-      contactId: c.id,
-      contactName: [c.firstName, c.lastName].filter(Boolean).join(" ").trim() || rel.name,
-      profileUrl: path,
-    });
-  }
+  const matches = matchContacts(crm, byPath);
 
   const { edgesCreated, edgesUpdated } =
     matches.length > 0
@@ -117,4 +129,57 @@ export async function syncLinkedInRelations(seat: SyncSeat, maxPages = 100): Pro
     edgesCreated,
     edgesUpdated,
   };
+}
+
+export interface RematchResult {
+  seats: number;
+  matched: number;
+  edgesCreated: number;
+  edgesUpdated: number;
+}
+
+/**
+ * Snapshot-based rematch — NO Unipile calls. For every connected seat in the
+ * tenant, match its ALREADY-STORED relation snapshot (linkedin_relation) against
+ * the current CRM contacts and (re)build KNOWS edges. Cheap to run right after a
+ * sourcing run so freshly-sourced contacts immediately light up warm paths,
+ * without re-pulling the network (the full pull happens on connect). Idempotent.
+ */
+export async function rematchStoredRelations(tenantId: string): Promise<RematchResult> {
+  const seats = await db
+    .select({ id: linkedinAccount.id, userId: linkedinAccount.userId, displayName: linkedinAccount.displayName })
+    .from(linkedinAccount)
+    .where(and(eq(linkedinAccount.tenantId, tenantId), eq(linkedinAccount.status, "connected")));
+  if (seats.length === 0) return { seats: 0, matched: 0, edgesCreated: 0, edgesUpdated: 0 };
+
+  const crm = await db
+    .select({ id: contacts.id, linkedinUrl: contacts.linkedinUrl, firstName: contacts.firstName, lastName: contacts.lastName })
+    .from(contacts)
+    .where(and(eq(contacts.tenantId, tenantId), isNotNull(contacts.linkedinUrl)));
+  if (crm.length === 0) return { seats: seats.length, matched: 0, edgesCreated: 0, edgesUpdated: 0 };
+
+  let matched = 0;
+  let edgesCreated = 0;
+  let edgesUpdated = 0;
+  for (const seat of seats) {
+    const rels = await db
+      .select({ profileUrl: linkedinRelation.profileUrl, displayName: linkedinRelation.displayName })
+      .from(linkedinRelation)
+      .where(eq(linkedinRelation.linkedinAccountId, seat.id));
+    if (rels.length === 0) continue;
+    const byPath = new Map<string, { name: string }>();
+    for (const r of rels) byPath.set(r.profileUrl, { name: r.displayName ?? "LinkedIn connection" });
+    const matches = matchContacts(crm, byPath);
+    if (matches.length === 0) continue;
+    matched += matches.length;
+    const res = await buildKnowsFromLinkedInRelations({
+      tenantId,
+      viaUserId: seat.userId,
+      viaUserName: seat.displayName ?? "LinkedIn seat owner",
+      relations: matches,
+    });
+    edgesCreated += res.edgesCreated;
+    edgesUpdated += res.edgesUpdated;
+  }
+  return { seats: seats.length, matched, edgesCreated, edgesUpdated };
 }
