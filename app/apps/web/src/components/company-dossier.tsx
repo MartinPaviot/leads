@@ -92,6 +92,7 @@ interface CompanyDossierProps {
 export function CompanyDossier({ accountId, accountDomain, accountName, onRegister }: CompanyDossierProps) {
   const [dossier, setDossier] = useState<Dossier | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState(true);
@@ -117,6 +118,7 @@ export function CompanyDossier({ accountId, accountDomain, accountName, onRegist
     if (!accountDomain) return;
     setLoading(true);
     setError(null);
+    setLoadError(false);
     try {
       const res = await fetch(`/api/research/dossier?company=${encodeURIComponent(accountDomain)}`);
       if (res.ok) {
@@ -124,13 +126,18 @@ export function CompanyDossier({ accountId, accountDomain, accountName, onRegist
         if (data && data.company) {
           setDossier(data);
         } else {
+          // 200 with no dossier = genuinely not generated yet → CTA.
           setDossier(null);
         }
       } else {
+        // A 500 used to fall through to the "Generate dossier" CTA, masking a
+        // backend failure as "no dossier yet". Flag it so we can say so.
         setDossier(null);
+        setLoadError(true);
       }
     } catch {
       setDossier(null);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -224,6 +231,37 @@ export function CompanyDossier({ accountId, accountDomain, accountName, onRegist
           <Loader2 size={14} className="animate-spin" style={{ color: "var(--color-accent)" }} />
           <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>Loading dossier...</span>
         </div>
+      </div>
+    );
+  }
+
+  // Load failed -- a 500/network error must NOT look like "no dossier yet".
+  if (loadError && !dossier) {
+    return (
+      <div
+        role="alert"
+        className="rounded-lg p-4"
+        style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-error)" }}
+      >
+        <div className="flex items-center gap-1.5 mb-2">
+          <AlertTriangle size={12} style={{ color: "var(--color-error)" }} />
+          <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-error)" }}>
+            Research Dossier
+          </span>
+        </div>
+        <p className="text-[12px] mb-3" style={{ color: "var(--color-text-secondary)" }}>
+          Couldn&apos;t load the research dossier for {accountName}. This is not the
+          same as no dossier — the request failed.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          icon={loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+          onClick={fetchDossier}
+          disabled={loading}
+        >
+          {loading ? "Retrying..." : "Retry"}
+        </Button>
       </div>
     );
   }

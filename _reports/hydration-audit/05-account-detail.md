@@ -30,3 +30,11 @@ Entrée : `app/apps/web/src/app/(dashboard)/accounts/[id]/page.tsx`.
 1. Contacts list is account-agnostic: page.tsx:90 calls /api/contacts?companyId=accountId, but contacts/route.ts (GET, lines 29-52) never reads searchParams.get('companyId') — so 'Contacts (N)' at api/contacts/route.ts returns the first 50 of ALL tenant contacts, not this account's. The properly-scoped set is already returned by api/accounts/[id]/route.ts:54-69 and thrown away (page.tsx:91-92).
 2. Research Dossier masks server errors: a 500 from GET /api/research/dossier (research/dossier/route.ts:27-31) is caught as a generic non-ok and rendered as the 'No research dossier / Generate' CTA (company-dossier.tsx:129-131), so a backend failure looks like an empty state.
 3. Silent error degradation on several mutate/fetch paths: contacts fetch only console.warn (page.tsx:93), inline field-save errors swallowed on Enter path (page.tsx:585-588), owner reassign errors swallowed (page.tsx:128-130) — no user-visible error state on these lanes.
+
+## Résolution (P1 05 residue)
+
+- **Defect #1 (contacts account-agnostic):** FIXED earlier as R2/T3 (`77762b0f`) — the contacts route now honors `?companyId`. Done.
+- **Defect #2 (dossier masks errors):** FIXED. `company-dossier.tsx` now has a distinct `loadError` flag set on `!res.ok`/catch in `fetchDossier` (was collapsed into the same `setDossier(null)` as a genuine no-dossier 200). A new `role="alert"` branch renders BEFORE the "Generate dossier" CTA when `loadError && !dossier`: "Couldn't load the research dossier … the request failed." + a Retry button (`onClick={fetchDossier}`). A 500 no longer reads as "no dossier yet".
+- **Defect #3 (silent field-save / owner-reassign swallows):** NOT changed in this pass — documented follow-up. These are write-path errors (a failed save leaves the field visibly unchanged, unlike a read-path mask that actively misleads), and surfacing them is a separate toast-migration task. Lower severity, deferred to stay in sensible scope.
+
+Verdict after fix: the dossier lane (the H2 read-path mask) is now H1. Field-save/owner write-path swallows remain a documented P2 follow-up. tsc clean.
