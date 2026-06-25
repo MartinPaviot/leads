@@ -6,6 +6,7 @@ import {
   LINKEDIN_CONNECTION_CONFIDENCE,
   linkedinConnectionConfidence,
   matchRelationToContactId,
+  fuseKnowsConfidence,
 } from "@/lib/context/relationship-graph";
 
 describe("relationship-graph pure helpers", () => {
@@ -84,6 +85,26 @@ describe("LinkedIn connections (spec 36, T9)", () => {
   it("bumps to 0.85 when the relation shows a recent interaction", () => {
     expect(linkedinConnectionConfidence({ recentInteraction: true })).toBe(0.85);
     expect(linkedinConnectionConfidence({ recentInteraction: false })).toBe(0.8);
+  });
+
+  describe("fuseKnowsConfidence — multi-channel corroboration (no clobber)", () => {
+    it("a single channel keeps its own confidence", () => {
+      expect(fuseKnowsConfidence({ email: 0.72 })).toBeCloseTo(0.72, 5);
+      expect(fuseKnowsConfidence({ linkedin: 0.8 })).toBeCloseTo(0.8, 5);
+    });
+    it("two channels score HIGHER than either alone (base + 0.05 bonus)", () => {
+      const fused = fuseKnowsConfidence({ email: 0.85, linkedin: 0.8 });
+      expect(fused).toBeCloseTo(0.9, 5);
+      expect(fused).toBeGreaterThan(0.85); // never a downgrade
+      expect(fused).toBeGreaterThan(0.8);
+    });
+    it("never exceeds the 0.95 ceiling", () => {
+      expect(fuseKnowsConfidence({ email: 0.95, linkedin: 0.8, meeting: 0.9 })).toBe(0.95);
+    });
+    it("ignores zero/empty channels; empty map → 0", () => {
+      expect(fuseKnowsConfidence({})).toBe(0);
+      expect(fuseKnowsConfidence({ email: 0, linkedin: 0.8 })).toBeCloseTo(0.8, 5);
+    });
   });
 
   describe("matchRelationToContactId — normalizes via linkedinPath", () => {

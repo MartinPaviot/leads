@@ -212,46 +212,21 @@ export async function buildKnowsFromActivities(tenantId: string): Promise<{
     const confidence = interactionsToConfidence(Number(row.count));
     const lastAtIso = row.lastAt ? new Date(row.lastAt).toISOString() : null;
 
-    const [existing] = await db
-      .select({ id: contextGraphEdges.id, metadata: contextGraphEdges.metadata, confidence: contextGraphEdges.confidence })
-      .from(contextGraphEdges)
-      .where(
-        and(
-          eq(contextGraphEdges.tenantId, tenantId),
-          eq(contextGraphEdges.sourceNodeId, userNodeId),
-          eq(contextGraphEdges.targetNodeId, contactNodeId),
-          eq(contextGraphEdges.relationType, KNOWS),
-          isNull(contextGraphEdges.tInvalid),
-        ),
-      )
-      .limit(1);
-
-    const metadata = {
+    // Multi-channel: fuse with any LinkedIn edge for this pair instead of
+    // overwriting it (and vice-versa). See upsertKnowsEdge.
+    const outcome = await upsertKnowsEdge({
+      tenantId,
+      sourceNodeId: userNodeId,
+      targetNodeId: contactNodeId,
       channel: "email",
-      interactionCount: Number(row.count),
-      lastInteractionAt: lastAtIso,
-      source: "activities.outbound",
-    };
-
-    if (existing) {
-      await db
-        .update(contextGraphEdges)
-        .set({ confidence, metadata, fact: `${userName} knows ${contactName} (${row.count} outbound interactions)` })
-        .where(eq(contextGraphEdges.id, existing.id));
-      edgesUpdated++;
-    } else {
-      await db.insert(contextGraphEdges).values({
-        tenantId,
-        sourceNodeId: userNodeId,
-        targetNodeId: contactNodeId,
-        relationType: KNOWS,
-        fact: `${userName} knows ${contactName} (${row.count} outbound interactions)`,
-        confidence,
-        sourceType: "activity",
-        metadata,
-      });
-      edgesCreated++;
-    }
+      channelConfidence: confidence,
+      sourceType: "activity",
+      viaName: userName,
+      contactName,
+      detail: { interactionCount: Number(row.count), lastInteractionAt: lastAtIso, source: "activities.outbound" },
+    });
+    if (outcome === "created") edgesCreated++;
+    else edgesUpdated++;
   }
 
   return {
@@ -399,25 +374,46 @@ export function matchRelationToContactId(
   return byLinkedinPath.get(path) ?? null;
 }
 
-export interface UpsertKnowsEdgeParams {
+export interface UpsertKnowsEdgeInput {
   tenantId: string;
   sourceNodeId: string;
   targetNodeId: string;
-  confidence: number;
-  fact: string;
-  metadata: Record<string, unknown>;
+  /** The corroborating channel for this observation: "email" | "linkedin" | ... */
+  channel: string;
+  /** This channel's standalone confidence (0..0.95). */
+  channelConfidence: number;
   /** Provenance: "activity" (email/meeting) | "enrichment" (linkedin) | ... */
   sourceType: string;
+  viaName: string;
+  contactName: string;
+  /** Per-channel detail merged into metadata (interactionCount, linkedinPath, …). */
+  detail?: Record<string, unknown>;
 }
 
 /**
- * The shared KNOWS upsert entry point the module header promised. Idempotent per
- * (tenant, source, target): an existing valid edge is updated in place; we never
- * create a second KNOWS edge for a pair. Returns whether it created or updated.
+ * Fuse per-channel confidences into one edge confidence. The strongest channel
+ * sets the base; each ADDITIONAL corroborating channel adds a small bonus —
+ * independent signals (you email them AND you're LinkedIn-connected) are stronger
+ * evidence of a real relationship than either alone — capped at 0.95 (a strong
+ * prior, never certainty). Pure.
  */
-export async function upsertKnowsEdge(p: UpsertKnowsEdgeParams): Promise<"created" | "updated"> {
+export function fuseKnowsConfidence(channelConfidence: Record<string, number>): number {
+  const vals = Object.values(channelConfidence).filter((v) => typeof v === "number" && v > 0);
+  if (vals.length === 0) return 0;
+  return Math.min(0.95, Math.max(...vals) + 0.05 * (vals.length - 1));
+}
+
+/**
+ * The shared KNOWS upsert entry point. MULTI-CHANNEL: an existing edge is MERGED,
+ * never clobbered — each channel keeps its own confidence in
+ * metadata.channelConfidence and the edge confidence is the fused value. So a
+ * contact you BOTH email and are LinkedIn-connected to scores higher than either
+ * alone, and a LinkedIn sync can never downgrade a strong email tie. Idempotent
+ * per (tenant, source, target). Returns whether it created or updated.
+ */
+export async function upsertKnowsEdge(p: UpsertKnowsEdgeInput): Promise<"created" | "updated"> {
   const [existing] = await db
-    .select({ id: contextGraphEdges.id })
+    .select({ id: contextGraphEdges.id, confidence: contextGraphEdges.confidence, metadata: contextGraphEdges.metadata })
     .from(contextGraphEdges)
     .where(
       and(
@@ -431,22 +427,32 @@ export async function upsertKnowsEdge(p: UpsertKnowsEdgeParams): Promise<"create
     .limit(1);
 
   if (existing) {
+    const meta = (existing.metadata ?? {}) as Record<string, unknown>;
+    // Seed the per-channel map, migrating a legacy single-channel edge in place.
+    const cc: Record<string, number> = {
+      ...((meta.channelConfidence as Record<string, number> | undefined) ??
+        (typeof meta.channel === "string" ? { [meta.channel]: existing.confidence ?? 0 } : {})),
+    };
+    cc[p.channel] = Math.max(cc[p.channel] ?? 0, p.channelConfidence);
+    const channels = Object.keys(cc);
+    const metadata = { ...meta, ...(p.detail ?? {}), channel: channels.join("+"), channels, channelConfidence: cc };
     await db
       .update(contextGraphEdges)
-      .set({ confidence: p.confidence, metadata: p.metadata, fact: p.fact })
+      .set({ confidence: fuseKnowsConfidence(cc), metadata, fact: `${p.viaName} knows ${p.contactName} (via ${channels.join(" + ")})` })
       .where(eq(contextGraphEdges.id, existing.id));
     return "updated";
   }
 
+  const cc: Record<string, number> = { [p.channel]: p.channelConfidence };
   await db.insert(contextGraphEdges).values({
     tenantId: p.tenantId,
     sourceNodeId: p.sourceNodeId,
     targetNodeId: p.targetNodeId,
     relationType: KNOWS,
-    fact: p.fact,
-    confidence: p.confidence,
+    fact: `${p.viaName} knows ${p.contactName} (via ${p.channel})`,
+    confidence: p.channelConfidence,
     sourceType: p.sourceType,
-    metadata: p.metadata,
+    metadata: { ...(p.detail ?? {}), channel: p.channel, channels: [p.channel], channelConfidence: cc },
   });
   return "created";
 }
@@ -483,14 +489,12 @@ export async function buildKnowsFromLinkedInRelations(params: {
       tenantId,
       sourceNodeId: userNodeId,
       targetNodeId: contactNodeId,
-      confidence: linkedinConnectionConfidence({ recentInteraction: rel.recentInteraction }),
-      fact: `${viaUserName} is a 1st-degree LinkedIn connection of ${rel.contactName}`,
-      metadata: {
-        channel: "linkedin",
-        source: "unipile.relations",
-        linkedinPath: linkedinPath(rel.profileUrl),
-      },
+      channel: "linkedin",
+      channelConfidence: linkedinConnectionConfidence({ recentInteraction: rel.recentInteraction }),
       sourceType: "enrichment",
+      viaName: viaUserName,
+      contactName: rel.contactName,
+      detail: { source: "unipile.relations", linkedinPath: linkedinPath(rel.profileUrl) },
     });
     if (outcome === "created") edgesCreated++;
     else edgesUpdated++;
