@@ -11,7 +11,7 @@ import type { SkillRunOptions } from "@/skills/types";
 import type { JobPostingIntentInput, JobPostingIntentOutput } from "./schema";
 
 function getLLMModel() {
-  if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
+  if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-haiku-4-5-20251001");
   if (process.env.OPENAI_API_KEY) return openai("gpt-4o-mini");
   return null;
 }
