@@ -8,9 +8,10 @@
  * the standing-instructions screen (O02).
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MessageSquareText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 
 type VoiceTone = "neutral" | "warm" | "direct" | "formal" | "concise";
 interface VoiceOption {
@@ -24,52 +25,53 @@ interface VoicePrefs {
 }
 
 export default function InboxVoicePage() {
+  const { toast } = useToast();
   const [options, setOptions] = useState<VoiceOption[]>([]);
   const [voice, setVoice] = useState<VoicePrefs>({ tone: "neutral" });
   // B1: pre-draft reply-worthy threads on open (default off). Persisted by the
   // same Save action, owner-scoped in user_preferences (resource inbox, key auto_draft).
   const [autoDraft, setAutoDraft] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/inbox/voice")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`))))
-      .then((data: { options?: VoiceOption[]; voice?: VoicePrefs }) => {
-        if (!cancelled) {
-          setOptions(data.options ?? []);
-          if (data.voice) setVoice(data.voice);
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const [vr, ar] = await Promise.all([
+        fetch("/api/inbox/voice"),
+        fetch("/api/inbox/auto-draft"),
+      ]);
+      if (vr.ok) {
+        const data = (await vr.json()) as { options?: VoiceOption[]; voice?: VoicePrefs };
+        setOptions(data.options ?? []);
+        if (data.voice) setVoice(data.voice);
+      } else {
+        // The voice fetch is load-bearing: a swallowed failure left the tone
+        // list empty, so the page looked broken (no tones) with no explanation.
+        setLoadError(true);
+      }
+      // auto-draft is non-critical (defaults to off); don't fail the page on it.
+      if (ar.ok) {
+        const data = (await ar.json()) as { autoDraft?: { enabled?: boolean } };
+        setAutoDraft(data.autoDraft?.enabled === true);
+      }
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/inbox/auto-draft")
-      .then((r) => (r.ok ? r.json() : { autoDraft: { enabled: false } }))
-      .then((data: { autoDraft?: { enabled?: boolean } }) => {
-        if (!cancelled) setAutoDraft(data.autoDraft?.enabled === true);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  useEffect(() => { load(); }, [load]);
 
   async function save() {
     setSaving(true);
     setSaved(false);
     try {
-      const [r] = await Promise.all([
+      const [vr, ar] = await Promise.all([
         fetch("/api/inbox/voice", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -81,13 +83,24 @@ export default function InboxVoicePage() {
           body: JSON.stringify({ enabled: autoDraft }),
         }),
       ]);
-      if (r.ok) {
-        const data = (await r.json()) as { voice?: VoicePrefs };
+      if (vr.ok) {
+        const data = (await vr.json()) as { voice?: VoicePrefs };
         if (data.voice) setVoice(data.voice);
+      }
+      // Reflect the persisted auto-draft state back (was never read, so a
+      // server-side coercion wouldn't surface).
+      if (ar.ok) {
+        const data = (await ar.json().catch(() => null)) as { autoDraft?: { enabled?: boolean } } | null;
+        if (data?.autoDraft) setAutoDraft(data.autoDraft.enabled === true);
+      }
+      if (vr.ok && ar.ok) {
         setSaved(true);
+      } else {
+        // Was fail-soft (silent): the user saw nothing and assumed it saved.
+        toast("Couldn't save your writing voice.", "error");
       }
     } catch {
-      /* fail-soft */
+      toast("Couldn't save your writing voice.", "error");
     } finally {
       setSaving(false);
     }
@@ -97,6 +110,20 @@ export default function InboxVoicePage() {
     return (
       <div className="flex h-40 items-center justify-center">
         <Loader2 size={18} className="animate-spin" style={{ color: "var(--color-text-tertiary)" }} />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="mx-auto max-w-2xl p-6">
+        <h1 className="flex items-center gap-2 text-[16px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          <MessageSquareText size={16} /> Writing voice
+        </h1>
+        <p className="mt-2 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+          Couldn&apos;t load your writing voice settings. This is not a reset — the request failed.
+        </p>
+        <Button size="sm" onClick={() => void load()} className="mt-3">Retry</Button>
       </div>
     );
   }

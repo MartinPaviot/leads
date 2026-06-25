@@ -72,8 +72,10 @@ export default function AutonomySettingsPage() {
   const [neverContactInput, setNeverContactInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const fetchConfig = useCallback(async () => {
+    setLoadError(false);
     try {
       const res = await fetch("/api/settings/autonomy");
       if (res.ok) {
@@ -89,13 +91,19 @@ export default function AutonomySettingsPage() {
         }
         setTrustScore(data.trustScore);
         setThresholds(data.thresholds ?? null);
+      } else {
+        // Was silent: a 500 left the guardrails at hardcoded defaults (40/25/5),
+        // indistinguishable from the tenant's real saved limits.
+        setLoadError(true);
+        toast("Couldn't load autonomy settings.", "error");
       }
     } catch {
-      // silent
+      setLoadError(true);
+      toast("Couldn't load autonomy settings.", "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => { fetchConfig(); }, [fetchConfig]);
 
@@ -144,6 +152,17 @@ export default function AutonomySettingsPage() {
   return (
     <div className="mx-auto max-w-3xl p-6 space-y-6">
       <PageHeader title="Autonomy & Guardrails" subtitle="Control how much the campaign engine acts on its own" />
+
+      {loadError && (
+        <div
+          role="alert"
+          className="flex items-center gap-3 rounded-lg p-3 text-[12px]"
+          style={{ background: "var(--color-error-soft, rgba(220,38,38,0.08))", color: "var(--color-error, #b91c1c)" }}
+        >
+          <span>Couldn&apos;t load your settings — the guardrail values below are defaults and may not reflect your saved configuration.</span>
+          <button onClick={fetchConfig} className="ml-auto shrink-0 font-medium underline">Retry</button>
+        </div>
+      )}
 
       {/* Trust Score */}
       {trustScore && (

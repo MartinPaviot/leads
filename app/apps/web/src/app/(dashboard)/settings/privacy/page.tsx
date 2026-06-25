@@ -13,6 +13,7 @@ import {
   CheckCircle,
   AlertTriangle,
   FileText,
+  Users,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { Card, CardBody } from "@/components/ui/card";
@@ -62,6 +63,12 @@ const VISIBILITY_OPTIONS: {
     icon: <Globe size={15} />,
   },
   {
+    value: "team",
+    label: "Team",
+    description: "Members see records they own or are assigned to, plus their team's.",
+    icon: <Users size={15} />,
+  },
+  {
     value: "private",
     label: "Private",
     description: "Users see only records they own or are assigned to.",
@@ -73,23 +80,32 @@ export default function PrivacyPage() {
   const { toast } = useToast();
   const [compliance, setCompliance] = useState<ComplianceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [visibilitySaving, setVisibilitySaving] = useState(false);
 
   const fetchCompliance = useCallback(async () => {
+    setLoadError(false);
     try {
       const res = await fetch("/api/settings/compliance");
       if (res.ok) {
         const data: ComplianceData = await res.json();
         setCompliance(data);
+      } else {
+        // Was silent: a 500 left compliance=null, so the page silently fell back
+        // to "everyone" visibility + "Default" region instead of flagging that
+        // the real settings never loaded.
+        setLoadError(true);
+        toast("Couldn't load your privacy settings.", "error");
       }
     } catch {
-      // Compliance endpoint may not exist yet
+      setLoadError(true);
+      toast("Couldn't load your privacy settings.", "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     fetchCompliance();
@@ -202,6 +218,20 @@ export default function PrivacyPage() {
           GDPR controls, data processing agreements, and data management.
         </p>
       </header>
+
+      {!loading && loadError && (
+        <div
+          role="alert"
+          className="flex items-center gap-3 rounded-lg p-3 text-[12px]"
+          style={{ background: "var(--color-error-soft, rgba(220,38,38,0.08))", color: "var(--color-error, #b91c1c)" }}
+        >
+          <AlertTriangle size={14} className="shrink-0" />
+          <span>Couldn&apos;t load your privacy settings — the values below are defaults, not your saved configuration.</span>
+          <button onClick={fetchCompliance} className="ml-auto shrink-0 font-medium underline">
+            Retry
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div
