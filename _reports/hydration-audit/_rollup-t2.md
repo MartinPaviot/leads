@@ -71,3 +71,17 @@ Most of the billing page is genuinely wired: plan, trial countdown, renewal date
 - Mailboxes usage meter is hardcoded current={0} and never loads the tenant's real connected-mailbox count — always shows 0/limit (app/apps/web/src/app/(dashboard)/settings/billing/billing-client.tsx:439).
 - Whole page is hidden in production via notFound() — BILLING_PAGE_ENABLED = process.env.NODE_ENV !== 'production' (app/apps/web/src/lib/billing/page-visibility.ts:9; gate at app/apps/web/src/app/(dashboard)/settings/billing/page.tsx:6), so prod users never see any of this real data.
 - Loading/empty/error are coarse-grained: a single shared spinner + one global error banner cover all lanes (billing-client.tsx:91,227-237), so usage and subscription cannot degrade independently — if /api/billing/usage returns null the meters silently render zeros rather than a written empty state (billing-client.tsx:421-433).
+
+## CORRECTION (2026-06-25) — H1 ratings revised after hostile re-verification
+
+Re-verifying the 16 "H1" settings pages (workflow `verify-h1-settings-pages`) found this
+distribution was **over-generous: 14 of 16 were actually H2** (same error-as-empty /
+swallowed-save / silent-stale class). Genuinely H1 (re-confirmed): **S16 llm-budget,
+S29 capture-approvals** only.
+
+Fixed (commits `aabea9e9` A, `1906768a` B, `7ef6aa69` C+D): S02 · S03 · S06 · S11 · S13 ·
+S15 · S19 · S23 · S25 · S27 · S35 · S36. S17 verified actually-fine (agent over-reported —
+fetchKeys already setError's). S28 sending-infrastructure has real defects but was EXCLUDED
+(parallel-session WIP — hand to them). Detail: `_h1-settings-reverify-worklist.md` +
+`_specs/hydration-fidelity/tasks.md`. Lesson: don't trust an LLM audit's H1 rating — across
+T1+T2 it was wrong ~73% of the time (4/7 product + 14/16 settings).
