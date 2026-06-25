@@ -12,6 +12,21 @@ Run any existing page test before commit.
 
 Status: [ ] todo · [x] done · [~] excluded.
 
+## DONE (2026-06-25) — 12 fixed, S17 verified fine, S28 excluded
+
+- batch A `aabea9e9`: S02 · S35 · S06 · S23.
+- batch B `1906768a`: S13 · S25 · S19.
+- batch C+D (this commit): S11 · S27 · S15 (onboarding-velocity-tile) · S36 · S03.
+- **S17 mcp = NO FIX (agent over-reported):** verified `fetchKeys` already `throw`s on
+  !res.ok → catch → `setError` (renders). Only a P2 rawKey-guard remains; deferred.
+- **S03 members = narrower than claimed (agent over-reported 4/5):** handleRoleChange/
+  confirmRemove/confirmCancelInvite ALL check `err` before mutating (not optimistic).
+  Real gaps fixed: invites GET was `silent:true` (now toasts) + roster rendered blank on
+  load failure (now loadError + Retry). The "return persisted value" route changes the
+  agent suggested were NOT needed.
+- LESSON (again): the VERIFICATION agents over-report too — verify their findings against
+  code, exactly like the audit. S17/S03 would've been needless churn.
+
 - [ ] **S02 workspace** — GET no res.ok check (page.tsx:35-36); logo-reload-after-save no
   res.ok (125). Add res.ok guards.
 - [ ] **S06 signals** — GET swallow (51) + bare catch marks loaded with empty (55-56) +

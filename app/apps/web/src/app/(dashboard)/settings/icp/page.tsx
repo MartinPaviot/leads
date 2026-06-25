@@ -142,6 +142,9 @@ export default function IcpPage() {
       ]);
       if (icpsRes.ok) setList((await icpsRes.json()).icps ?? []);
       if (catRes.ok) setCatalog((await catRes.json()).fields ?? []);
+      // The catch only fires on a network throw; an HTTP 500 left the list
+      // empty with no signal. Surface the non-throw failure too.
+      if (!icpsRes.ok || !catRes.ok) toast("Failed to load ICP profiles", "error");
     } catch {
       toast("Failed to load ICP profiles", "error");
     } finally {

@@ -42,6 +42,7 @@ export default function MembersSettingsPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member" | "viewer">("member");
   const [inviting, setInviting] = useState(false);
@@ -112,16 +113,22 @@ export default function MembersSettingsPage() {
     if (data) setMembers(data.members || []);
   }, [sfetch]);
 
-  useEffect(() => {
-    Promise.all([
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    const [m, i] = await Promise.all([
       sfetch<{ members: Member[] }>("/api/settings/members", { errorMessage: "Failed to load members" }),
-      sfetch<{ invites: PendingInvite[] }>("/api/settings/members/invites", { silent: true }),
-    ]).then(([m, i]) => {
-      if (m.data) setMembers(m.data.members || []);
-      if (i.data) setInvites(i.data.invites || []);
-      setLoading(false);
-    });
+      // Was silent:true — a failed invites load was invisible. Toast it so the
+      // admin can tell "no pending invites" from "couldn't load invites".
+      sfetch<{ invites: PendingInvite[] }>("/api/settings/members/invites", { errorMessage: "Failed to load pending invitations" }),
+    ]);
+    if (m.data) setMembers(m.data.members || []);
+    else setLoadError(true); // the roster otherwise rendered blank on a failed load
+    if (i.data) setInvites(i.data.invites || []);
+    setLoading(false);
   }, [sfetch]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   async function handleRoleChange(memberId: string, role: string) {
     setError("");
@@ -490,6 +497,11 @@ export default function MembersSettingsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="rounded-lg p-4 text-[13px]" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-error, #b91c1c)", color: "var(--color-text-secondary)" }}>
+            Couldn&apos;t load the member roster — this is not an empty workspace.{" "}
+            <button onClick={() => void loadAll()} className="font-medium underline" style={{ color: "var(--color-accent)" }}>Retry</button>
           </div>
         ) : (
           members.map((member) => (

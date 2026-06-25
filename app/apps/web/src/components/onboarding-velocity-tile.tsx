@@ -58,6 +58,7 @@ function formatPercent(n: number): string {
 export function OnboardingVelocityTile() {
   const [data, setData] = useState<VelocityResponse | null>(null);
   const [hidden, setHidden] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,17 +68,20 @@ export function OnboardingVelocityTile() {
           "/api/admin/onboarding-velocity?scope=all",
         );
         if (res.status === 403 || res.status === 401) {
+          // Not an admin / not entitled — hiding is correct here.
           if (!cancelled) setHidden(true);
           return;
         }
         if (!res.ok) {
-          if (!cancelled) setHidden(true);
+          // A transient 500 used to hide the tile too, indistinguishable from
+          // "no access". Surface it instead so an admin sees the failure.
+          if (!cancelled) setError(true);
           return;
         }
         const payload = (await res.json()) as VelocityResponse;
         if (!cancelled) setData(payload);
       } catch {
-        if (!cancelled) setHidden(true);
+        if (!cancelled) setError(true);
       }
     })();
     return () => {
@@ -86,6 +90,17 @@ export function OnboardingVelocityTile() {
   }, []);
 
   if (hidden) return null;
+  if (error) {
+    return (
+      <section
+        role="alert"
+        className="rounded-xl p-4 text-[12px]"
+        style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", color: "var(--color-error, #b91c1c)" }}
+      >
+        Couldn&apos;t load onboarding velocity.
+      </section>
+    );
+  }
   if (!data) return null;
   if (data.stats.totalStarted === 0) return null;
 

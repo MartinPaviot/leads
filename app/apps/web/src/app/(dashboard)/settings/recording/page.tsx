@@ -57,8 +57,13 @@ export default function RecordingSettingsPage() {
   useEffect(() => {
     fetch("/api/features")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d && typeof d.recallai === "boolean") setNotetakerOn(d.recallai); })
-      .catch(() => {});
+      .then((d) => {
+        // Fail CLOSED: if we can't confirm Recall is configured, assume it's OFF
+        // so the "records automatically" copy never over-promises a bot join.
+        if (d && typeof d.recallai === "boolean") setNotetakerOn(d.recallai);
+        else setNotetakerOn(false);
+      })
+      .catch(() => setNotetakerOn(false));
   }, []);
 
   useEffect(() => {
