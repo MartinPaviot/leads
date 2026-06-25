@@ -22,9 +22,9 @@ export const syncLinkedInRelationsForSeat = inngest.createFunction(
     id: "linkedin-relations-sync",
     name: "LinkedIn: Relations -> Warm-Path Graph",
     retries: 2,
-    concurrency: { limit: 1, key: "event.data.seatId" },
+    concurrency: [{ limit: 1, key: "event.data.seatId" }],
+    triggers: [{ event: "linkedin/relations.sync" }],
   },
-  { event: "linkedin/relations.sync" },
   async ({ event, step }) => {
     const data = (event.data ?? {}) as { seatId?: string; unipileAccountId?: string };
     if (!readUnipileConfig()) return { skipped: "unipile-not-configured" };
