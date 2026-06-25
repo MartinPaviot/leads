@@ -11,12 +11,12 @@ Branch: `feat/hydration-fidelity` (from main). R1 already shipped separately on
 - [x] **T1 (R1) deliverability tenant leak** — DONE (`fix/deliverability-tenant-leak`,
   305cf5a2). Regression in `deliverability-api.test.ts`, 5/5 green.
 
-- [ ] **T2 (R7) notifications Slack webhook hydration**
-  - Code: `api/notifications/preferences/route.ts` GET also returns
-    `slackWebhook` from `tenants.settings.slackWebhookUrl` (both branches).
-  - Test: vitest — GET returns the stored webhook when tenant settings hold one.
-  - Verify: open `/settings/notifications`, save a webhook, reload → input pre-filled,
-    "Connected" badge shows.
+- [x] **T2 (R7) notifications Slack webhook hydration** — DONE (`7dad288c`, ancestor
+  of HEAD; checkbox was stale). `api/notifications/preferences/route.ts` GET now
+  returns `slackWebhook` from `tenants.settings.slackWebhookUrl` on BOTH branches
+  (defaults + persisted), with a documenting comment. The page reads `data.slackWebhook`
+  → `slackConnected` (notifications/page.tsx:68,163), so the webhook input + "Connected"
+  badge round-trip on reload. Confirmed live in code 2026-06-25.
 
 - [x] **T3 (R2) account contacts** — DONE (`feat/hydration-fidelity`).
   - Code: `api/contacts/route.ts` GET now honors `?companyId` (direct
@@ -247,6 +247,37 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   `role="alert"` error card with a Retry button (matching the page's bespoke styling)
   before the empty state. decide() already degraded correctly (unchanged). Freshness
   (once-on-mount, no focus refetch) flagged as a follow-up, not rushed. tsc clean.
-- [ ] **then T2 H2 settings pages** (S01–S38) + remaining non-spine pages
-  (04, 05, 11, 14, 15, 18, 21, 22, 25, 28, 29, 33, 34, 36, T01–T15) — sweep for the
-  same swallowed-fetch / error-as-empty class, uncompromising.
+## T1 residue (H5/H4 secondary defects, after P0 primaries fixed)
+
+- [x] **05 account-detail** — dossier load-error stopped masking as "no dossier"
+  (`company-dossier.tsx` loadError + role="alert" Retry branch before the Generate
+  CTA). Contacts account-agnostic was R2 (77762b0f). Field-save/owner write-path
+  swallows = documented P2 follow-up. (`0837f9d5`)
+- [x] **11 opportunity-detail** — total deal-intelligence load failure now surfaced
+  via the page's toast (network catch + all-three-lanes !ok); optional score/at-risk/
+  win-loss lanes self-hide (no spam). Dead split was R3 (e3562ed3). Per-lane loading
+  skeletons = P2 follow-up. (`e7fef0f8`)
+- [~] **22 deliverability** — ACCEPTABLE as-is. The tenant leak (P0) was R1
+  (305cf5a2). The page ALREADY shows "Failed to load deliverability data." when the
+  fetch returns null (page.tsx:349) — error IS surfaced page-level. Remaining
+  per-element degradation + fetch-once freshness are P2 refactors, not the
+  error-as-empty class; not worth the risk ("ne fais rien d'insensé").
+- Also: fixed a latent TS2367 in `route-companyid.test.ts` (from 874cb894) that kept
+  the whole branch at tsc exit 2 — branch is now genuinely tsc-green. (`276d8bc6`)
+
+## T2 settings (H2 → H1) — verified worklist
+
+Verified 2026-06-25 via the `verify-settings-hydration` workflow (17 hostile Explore
+agents vs CURRENT code). Full per-page defects + fixes: `_reports/hydration-audit/
+_settings-p1-worklist.md`. ~15 pages confirmed `usesSafeFetch:false` → genuine
+swallowed-error/save defects (the audit H2 ratings held). Fix order (high-impact first):
+S07 · S08 · S10 · S34 · S38 · S22 · S24 · S26 · S31 · S01 · S21 · S09 · S14 · S05(route).
+S18/S20 already use safeFetch (lower value). S33 = verify (likely write-only by design).
+Pattern: route loads/saves through `useSafeFetch`/`safeFetch` (toasts on failure) or add
+explicit `res.ok` + error state BEFORE the empty/default render; revert optimistic state
+on save failure. Per-page commit; tsc per batch.
+
+## T3 periphery — DONE (no work)
+
+Auth (T01–T07) action-driven, marketing/legal (T08–T15) static-by-design — all H0/H1,
+zero defects per `_rollup-t3.md`. Nothing to fix.
