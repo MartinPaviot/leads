@@ -46,8 +46,17 @@ export function rowsToEvents(rows: OutRow[]): DeliverabilityEvent[] {
     if (sent != null) events.push({ type: "send", at: sent });
     const bounced = ms(r.bouncedAt);
     if (bounced != null) {
+      // bounce_type carries TWO provider vocabularies: Resend writes
+      // "permanent"/"temporary"/"complaint" (resend/route.ts:139,176); EmailEngine
+      // writes "hard"/"soft" (emailengine/route.ts:150) and never "complaint".
+      // Recognize BOTH hard spellings so a hard bounce is classified hard whoever
+      // wrote it — else hardBounceAddresses() under-reports EmailEngine bounces
+      // (latent today: it's unwired + the EmailEngine webhook opt-outs hard bounces
+      // directly, but this closes the footgun for when it's wired to spec-22).
+      // NOTE: EmailEngine has no complaint signal (IMAP has no FBL), so spamRate is
+      // structurally 0 on the owner-SMTP/IMAP path — the spam breach is inert there.
       if (r.bounceType === "complaint") events.push({ type: "complaint", at: bounced });
-      else events.push({ type: "bounce", at: bounced, hard: r.bounceType === "permanent", address: r.toAddress });
+      else events.push({ type: "bounce", at: bounced, hard: r.bounceType === "permanent" || r.bounceType === "hard", address: r.toAddress });
     }
     const replied = ms(r.repliedAt);
     if (replied != null) events.push({ type: "reply", at: replied });

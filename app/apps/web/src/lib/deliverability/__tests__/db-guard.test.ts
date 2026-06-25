@@ -22,6 +22,20 @@ describe("rowsToEvents", () => {
     expect(ev).toContainEqual({ type: "reply", at: 5000 });
     expect(ev.filter((e) => e.type === "send")).toHaveLength(2);
   });
+
+  it("classifies the EmailEngine 'hard'/'soft' vocabulary too (not just Resend's 'permanent'/'temporary')", () => {
+    // EmailEngine (emailengine/route.ts:150) writes "hard"/"soft"; the guard must
+    // treat "hard" as a hard bounce so hardBounceAddresses() doesn't under-report
+    // it. "soft"/"temporary" are bounces but not hard.
+    const ev = rowsToEvents([
+      { sentAt: new Date(1000), bouncedAt: new Date(2000), bounceType: "hard", toAddress: "ee@hard.com", repliedAt: null },
+      { sentAt: new Date(1000), bouncedAt: new Date(2000), bounceType: "soft", toAddress: "ee@soft.com", repliedAt: null },
+      { sentAt: new Date(1000), bouncedAt: new Date(2000), bounceType: "temporary", toAddress: "rs@temp.com", repliedAt: null },
+    ]);
+    expect(ev).toContainEqual({ type: "bounce", at: 2000, hard: true, address: "ee@hard.com" });
+    expect(ev).toContainEqual({ type: "bounce", at: 2000, hard: false, address: "ee@soft.com" });
+    expect(ev).toContainEqual({ type: "bounce", at: 2000, hard: false, address: "rs@temp.com" });
+  });
 });
 
 // Stub db: distinguishes the guard-state select (table has `.scope`) from the
