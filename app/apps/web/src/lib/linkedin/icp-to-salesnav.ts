@@ -41,7 +41,10 @@ export interface ResolvedFilter {
   matched: string | null;
 }
 
-export interface SalesNavSearchBody {
+// A `type` (not an interface) on purpose: type aliases get an implicit index
+// signature, so this is assignable to the `{ …; [k: string]: unknown }` query
+// param of searchLinkedIn/sourceFromSalesNav (an interface is not — TS2322).
+export type SalesNavSearchBody = {
   api: LinkedInSearchApi;
   category: LinkedInSearchCategory;
   keywords?: string;
@@ -53,7 +56,7 @@ export interface SalesNavSearchBody {
    * titles fold into `keywords` there (verified against the live SN schema). */
   job_title?: string[];
   network_distance?: number[];
-}
+};
 
 /**
  * Assemble the POST /linkedin/search body from resolved filter IDs. Pure. The
