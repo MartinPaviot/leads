@@ -141,13 +141,22 @@ export async function isSuppressed(
   tenantId: string,
   email: string,
 ): Promise<boolean> {
+  const e = email.toLowerCase().trim();
   const [row] = await db
     .select({ id: emailOptouts.id })
     .from(emailOptouts)
     .where(
       and(
         eq(emailOptouts.tenantId, tenantId),
-        eq(emailOptouts.emailAddress, email.toLowerCase().trim()),
+        // Lower the COLUMN in-query (not an exact `eq` on the value) so a
+        // non-lowercased stored opt-out — a legacy import, a manual ops insert, a
+        // future writer that forgets `.toLowerCase()` — still matches. THE opt-out
+        // check must be at least as robust as the sibling gates that already do
+        // this (db-status.ts:32, db-gate.ts:45); a missed opt-out = mailing an
+        // unsubscribed recipient, the worst compliance failure. Tenant-scoped, so
+        // the eq(tenantId) still prefixes the index; the lower() compare runs over
+        // that tenant's (small) opt-out set only.
+        sql`lower(${emailOptouts.emailAddress}) = ${e}`,
       ),
     )
     .limit(1);

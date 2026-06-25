@@ -13,6 +13,10 @@ let optoutRows: Array<{ tenantId: string; emailAddress: string }> = [];
 let activityRows: Array<{ tenantId: string; to?: string; from?: string }> = [];
 // When set, the next db.select(...).limit() throws — proves fail-closed.
 let throwOnSelect = false;
+// Captures the WHERE clause of the opt-out select so a test can pin its SQL shape
+// (the email column must be lowered in-query, not exact-matched on the value).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let capturedOptoutWhere: any = null;
 
 vi.mock("@/db/schema", () => ({
   activities: { tenantId: "tenant_id", channel: "channel" },
@@ -35,13 +39,15 @@ vi.mock("@/db", () => ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     select: vi.fn((proj?: any) => ({
       from: () => ({
-        where: () => ({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        where: (clause: any) => ({
           limit: () => {
             if (throwOnSelect) {
               return Promise.reject(new Error("db boom"));
             }
             const keys = proj ? Object.keys(proj) : [];
             if (keys.includes("id")) {
+              capturedOptoutWhere = clause;
               // opt-out lookup — return the first matching row (or none)
               return Promise.resolve(optoutRows.length > 0 ? [{ id: "o1" }] : []);
             }
@@ -119,6 +125,7 @@ beforeEach(() => {
   optoutRows = [];
   activityRows = [];
   throwOnSelect = false;
+  capturedOptoutWhere = null;
   settingsState.throwOnSettings = false;
   settingsState.settingsToReturn = { ...DEFAULTS };
   suppressionState.hit = null;
@@ -163,6 +170,22 @@ describe("isSuppressed", () => {
   });
   it("false when none", async () => {
     expect(await isSuppressed("t1", "x@a.com")).toBe(false);
+  });
+  it("lowercases the email COLUMN in-query (sql lower()), not an exact eq on the value, so a non-lowercased stored opt-out still matches", async () => {
+    // THE opt-out check must be at least as robust as the sibling gates
+    // (db-status.ts:32, db-gate.ts:45): a mixed-case legacy/manual row must not
+    // slip the most-absolute suppression. A regression to `eq(col, value)` would
+    // miss it → mailing an unsubscribed recipient.
+    await isSuppressed("t1", "X@A.com");
+    // where = and( eq(tenantId), sql`lower(email_address) = ${e}` )
+    const sqlNode = capturedOptoutWhere?.args?.find((a: { op?: string }) => a?.op === "sql");
+    expect(sqlNode).toBeTruthy();
+    expect(sqlNode.vals).toContain("x@a.com"); // compared against the normalized input
+    // and NOT a bare exact-match eq on the email value (the brittle form)
+    const eqOnEmail = capturedOptoutWhere?.args?.find(
+      (a: { op?: string; val?: unknown }) => a?.op === "eq" && a?.val === "x@a.com",
+    );
+    expect(eqOnEmail).toBeUndefined();
   });
 });
 
