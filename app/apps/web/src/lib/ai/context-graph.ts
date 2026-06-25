@@ -132,7 +132,7 @@ OUTPUT:
       const { anthropic } = await import("@ai-sdk/anthropic");
       const { generateText } = await import("ai");
       const result = await generateText({
-        model: anthropic("claude-sonnet-4-6"),
+        model: anthropic("claude-haiku-4-5-20251001"),
         prompt,
       });
       resultText = result.text;
@@ -355,7 +355,7 @@ NOT a contradiction: "Sarah works at Acme" vs "Sarah is VP Sales at Acme" (refin
     if (anthropicKey) {
       const { anthropic } = await import("@ai-sdk/anthropic");
       const { generateText } = await import("ai");
-      const result = await generateText({ model: anthropic("claude-sonnet-4-6"), prompt });
+      const result = await generateText({ model: anthropic("claude-haiku-4-5-20251001"), prompt });
       answer = result.text.trim().toLowerCase();
     } else {
       const { openai } = await import("@ai-sdk/openai");

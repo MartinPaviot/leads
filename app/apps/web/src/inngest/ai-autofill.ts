@@ -8,7 +8,7 @@ import { openai } from "@ai-sdk/openai";
 import type { CustomFieldDef } from "@/lib/context/custom-fields";
 
 function getLLMModel() {
-  if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
+  if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-haiku-4-5-20251001");
   if (process.env.OPENAI_API_KEY) return openai("gpt-4o-mini");
   return null;
 }
@@ -121,8 +121,7 @@ Fields to fill:
 ${JSON.stringify(fieldsToFill, null, 2)}
 
 Extract values for these fields from the entity data and conversation history. Return a JSON object with field IDs as keys.`,
-        // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-        maxTokens: 500,
+        maxOutputTokens: 1500,
         _trace: { agentId: "ai-autofill", tenantId },
       });
 

@@ -17,6 +17,7 @@
  */
 
 import { inngest } from "./client";
+import { isFeatureEnabled } from "@/lib/config/feature-gate";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -66,6 +67,9 @@ export const dealPropertyLlmSynthesize = inngest.createFunction(
     event: SynthesizeEvent;
     step: { run<T>(id: string, fn: () => Promise<T> | T): Promise<T> };
   }) => {
+    if (!isFeatureEnabled(process.env.DEAL_PROPERTY_ENABLED)) {
+      return { skipped: "DEAL_PROPERTY_ENABLED=off" };
+    }
     const { tenantId, dealId, field } = event.data;
 
     if (!SUPPORTED_FIELDS.has(field)) {

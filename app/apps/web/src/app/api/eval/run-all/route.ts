@@ -237,8 +237,7 @@ async function runSingleCase(evalCase: EvalCase, config: AgentEvalConfig): Promi
       model,
       system: systemPrompt,
       prompt: evalCase.input,
-      // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-      maxTokens: 2000,
+      maxOutputTokens: 2000,
     });
 
     const latencyMs = Date.now() - start;
@@ -432,8 +431,7 @@ Think step by step. End with SCORE: X.XX`;
 
     if (!model) return { score: 0.5, reasoning: "No judge model available" };
 
-    // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-    const result = await generateText({ model, prompt, maxTokens: 800 });
+    const result = await generateText({ model, prompt, maxOutputTokens: 800 });
     const scoreMatch = result.text.match(/SCORE:\s*(\d+\.?\d*)/i);
     const score = scoreMatch ? Math.min(1, Math.max(0, parseFloat(scoreMatch[1]))) : 0.5;
 

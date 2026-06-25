@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   if (adminCheck) return adminCheck;
 
   const model = process.env.ANTHROPIC_API_KEY
-    ? anthropic("claude-sonnet-4-6")
+    ? anthropic("claude-haiku-4-5-20251001")
     : process.env.OPENAI_API_KEY
       ? openai("gpt-4o-mini")
       : null;

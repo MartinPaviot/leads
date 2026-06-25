@@ -7,6 +7,7 @@ import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { z } from "zod";
 import { verifyCronRequest } from "@/lib/auth/cron-auth";
+import { isFeatureEnabled } from "@/lib/config/feature-gate";
 
 const revivalEmailSchema = z.object({
   subject: z.string().describe("Short, personal email subject line"),
@@ -23,6 +24,10 @@ const revivalEmailSchema = z.object({
 export async function GET(req: Request) {
   const unauthorized = verifyCronRequest(req);
   if (unauthorized) return unauthorized;
+
+  if (!isFeatureEnabled(process.env.STALE_DEALS_ENABLED)) {
+    return Response.json({ skipped: "STALE_DEALS_ENABLED=off" });
+  }
 
   try {
     const allTenants = await db.select({ id: tenants.id }).from(tenants);

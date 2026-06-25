@@ -76,7 +76,7 @@ Transcript (may be incomplete):
 ${partialTranscript.slice(-5000)}
 
 Extract: budget, team size, current tools/CRM, competitors, overall sentiment.`,
-      maxTokens: 150,
+      maxOutputTokens: 600,
       providerOptions: {
         anthropic: { cacheControl: { type: "ephemeral" } },
       },

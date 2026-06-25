@@ -16,6 +16,7 @@
  */
 
 import { inngest } from "./client";
+import { isFeatureEnabled } from "@/lib/config/feature-gate";
 import { db } from "@/db";
 import {
   agentReactions,
@@ -93,6 +94,9 @@ export const agentReactor = inngest.createFunction(
     triggers: [{ event: "agent/react" }],
   },
   async ({ event, step }: { event: { data: AgentReactEventData }; step: any }) => {
+    if (!isFeatureEnabled(process.env.AGENT_REACTOR_ENABLED)) {
+      return { skipped: "AGENT_REACTOR_ENABLED=off" };
+    }
     const data = event.data;
     const startMs = Date.now();
 
@@ -145,7 +149,7 @@ export const agentReactor = inngest.createFunction(
           prompt: buildDecisionUserPrompt(data.trigger, context),
           schema: decisionSchema,
           temperature: 0.2,
-          maxTokens: 1000,
+          maxOutputTokens: 1000,
           _trace: {
             agentId: "agent-reactor",
             tenantId: data.tenantId,
@@ -331,6 +335,9 @@ export const agentDailySweep = inngest.createFunction(
     triggers: [{ cron: "0 8 * * *" }],
   },
   async ({ step }: { step: any }) => {
+    if (!isFeatureEnabled(process.env.AGENT_REACTOR_ENABLED)) {
+      return { skipped: "AGENT_REACTOR_ENABLED=off" };
+    }
     const staleDealRows = await step.run("find-stale-deals", async () => {
       // Single query: open deals with no activity in 7d AND no reactor eval in 24h.
       // Window bounds use SQL interval arithmetic, NOT JS `Date` params: a bare

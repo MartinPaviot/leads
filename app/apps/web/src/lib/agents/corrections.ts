@@ -386,7 +386,10 @@ export async function onlineEval(
     const model = process.env.OPENAI_API_KEY
       ? openai("gpt-4o-mini")
       : process.env.ANTHROPIC_API_KEY
-        ? anthropic("claude-sonnet-4-6")
+        // Online-eval judge is a scoring task — Haiku grades on par with Sonnet
+        // at 0.21x the price. Sonnet here only fired on Anthropic-only setups
+        // (no OPENAI_API_KEY), i.e. the EU-sovereign profile.
+        ? anthropic("claude-haiku-4-5-20251001")
         : null;
 
     if (!model) return null;
@@ -421,8 +424,7 @@ Provide brief reasoning, then end with: SCORE: X.XX`;
     const result = await generateText({
       model,
       prompt: judgePrompt,
-      // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-      maxTokens: 500,
+      maxOutputTokens: 700,
     });
 
     const scoreMatch = result.text.match(/SCORE:\s*(\d+\.?\d*)/i);

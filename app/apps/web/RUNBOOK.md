@@ -26,6 +26,62 @@ git push origin main
 
 ---
 
+## AI Cost Controls
+
+### Where do the Anthropic credits go? (run this first)
+
+The real per-surface spend lives in **`agent_traces`** (the chat route + most
+surfaces write here via `tracedStreamText`/`tracedGenerateObject`). The
+`llm_calls` table only covers ~4 surfaces (<5% of call sites) — do NOT use it
+for the breakdown.
+
+```sql
+SELECT agent_id, model, SUM(estimated_cost) AS cost, COUNT(*) AS calls
+FROM agent_traces
+WHERE created_at >= date_trunc('month', now())
+GROUP BY agent_id, model
+ORDER BY cost DESC;
+-- per tenant: add  AND tenant_id = '<id>'
+```
+
+`estimated_cost` is now priced via `lib/ai/model-pricing.ts` (single source) so
+Haiku/Opus are no longer mispriced as Sonnet. The true monthly total is
+`SUM(agent_traces.estimated_cost) + SUM(llm_calls.cost_usd)` (disjoint ledgers).
+
+### Emergency: spend is running away right now
+
+1. **Global stop (seconds, no redeploy):** set `AI_DISABLED=1` in Vercel env and
+   redeploy env (or set on the running deployment). `getModelForTask` returns
+   null and the traced wrappers throw — every surface that handles a null model
+   degrades to its heuristic fallback. Unset to resume.
+2. **Stop the per-trace LLM-as-judge fan-out:** `EVAL_ONLINE_SAMPLING=0`.
+3. **Kill one subsystem at a time** (default ON; set to `0`/`off`/`false`):
+
+   | Env var | Stops |
+   |---------|-------|
+   | `AGENT_REACTOR_ENABLED` | event reactor (fires per CRM event) + daily sweep |
+   | `COACHING_ENABLED` | pre-send + post-interaction + deal-event + weekly coaching |
+   | `PLAYBOOK_EXTRACT_ENABLED` | playbook extraction on every logged interaction |
+   | `MEMORY_EXTRACT_ENABLED` | chat-thread memory extraction |
+   | `WORLD_MODEL_ENABLED` | nightly per-tenant world-model rebuild (cron only) |
+   | `STALE_DEALS_ENABLED` | daily stale-deal revival drafts (cron only) |
+   | `DEAL_PROPERTY_ENABLED` | why_now/summary synthesis on deal changes |
+
+   The cron routes gate the scheduled GET path only — the authed POST manual
+   trigger still works. Helper: `lib/config/feature-gate.ts`.
+
+### Model tiering policy
+
+`lib/ai/ai-provider.ts` maps task → model: **`chat` = claude-sonnet-4-6**
+(generation), **`lightweight` = claude-haiku-4-5-20251001** (classification /
+extraction / scoring). Rule of thumb when adding an LLM call: if the work is
+NL-parse / classification / extraction / scoring, use Haiku (or
+`getModelForTask("lightweight")`); reserve Sonnet for prose generation
+(emails, proposals, briefings, chat). The cron cadence for the prompt-tuning
+flywheel is weekly (`inngest/eval-functions.ts`), not 6-hourly.
+
+---
+
 ## Common Issues
 
 ### Database Connection Errors

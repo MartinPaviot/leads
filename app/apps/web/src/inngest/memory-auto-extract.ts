@@ -1,4 +1,5 @@
 import { inngest } from "./client";
+import { isFeatureEnabled } from "@/lib/config/feature-gate";
 import { db } from "@/db";
 import { chatMessages, chatMemories } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
@@ -42,7 +43,9 @@ const extractedMemorySchema = z.object({
 });
 
 function getLLMModel() {
-  if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
+  // Memory extraction is a structured-extraction task (its OpenAI fallback is
+  // already gpt-4o-mini) — Haiku gives equivalent quality at 0.21x Sonnet.
+  if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-haiku-4-5-20251001");
   if (process.env.OPENAI_API_KEY) return openai("gpt-4o-mini");
   return null;
 }
@@ -56,6 +59,9 @@ export const memoryAutoExtract = inngest.createFunction(
     triggers: [{ event: "memory/auto-extract" }],
   },
   async ({ event, step }) => {
+    if (!isFeatureEnabled(process.env.MEMORY_EXTRACT_ENABLED)) {
+      return { ok: false, skipped: "MEMORY_EXTRACT_ENABLED=off" };
+    }
     const { tenantId, userId, threadId } = event.data as {
       tenantId: string;
       userId: string;

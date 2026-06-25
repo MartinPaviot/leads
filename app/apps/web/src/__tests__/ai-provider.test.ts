@@ -46,6 +46,7 @@ import {
   getModelForTask,
   getConfiguredAnthropicBaseUrl,
   isAnthropicEuConfigured,
+  isAiDisabled,
   _resetProviderForTesting,
   anthropic,
 } from "@/lib/ai/ai-provider";
@@ -55,6 +56,7 @@ const origAnthropicKey = process.env.ANTHROPIC_API_KEY;
 const origAnthropicRegion = process.env.ANTHROPIC_REGION;
 const origAnthropicBase = process.env.ANTHROPIC_API_BASE;
 const origOpenaiKey = process.env.OPENAI_API_KEY;
+const origAiDisabled = process.env.AI_DISABLED;
 
 beforeEach(() => {
   _resetProviderForTesting();
@@ -83,6 +85,11 @@ afterEach(() => {
     process.env.OPENAI_API_KEY = origOpenaiKey;
   } else {
     delete process.env.OPENAI_API_KEY;
+  }
+  if (origAiDisabled !== undefined) {
+    process.env.AI_DISABLED = origAiDisabled;
+  } else {
+    delete process.env.AI_DISABLED;
   }
 });
 
@@ -152,6 +159,31 @@ describe("getModelForTask", () => {
 
     const model = getModelForTask("embedding");
     expect(model).not.toBeNull();
+  });
+
+  it("returns null for every task when AI_DISABLED=1 (global kill-switch)", () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    process.env.AI_DISABLED = "1";
+    _resetProviderForTesting();
+
+    expect(getModelForTask("chat")).toBeNull();
+    expect(getModelForTask("lightweight")).toBeNull();
+    expect(getModelForTask("embedding")).toBeNull();
+  });
+});
+
+describe("isAiDisabled", () => {
+  it("is false when AI_DISABLED is unset and true when set to '1'", () => {
+    delete process.env.AI_DISABLED;
+    expect(isAiDisabled()).toBe(false);
+
+    process.env.AI_DISABLED = "1";
+    expect(isAiDisabled()).toBe(true);
+
+    // Any value other than "1" leaves AI enabled.
+    process.env.AI_DISABLED = "true";
+    expect(isAiDisabled()).toBe(false);
   });
 });
 

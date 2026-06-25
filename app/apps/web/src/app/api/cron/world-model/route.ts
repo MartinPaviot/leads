@@ -4,6 +4,7 @@ import { eq, desc, sql, gte, and } from "drizzle-orm";
 import { createHash } from "crypto";
 import { verifyCronRequest } from "@/lib/auth/cron-auth";
 import { embedKnowledgeEntry } from "@/lib/knowledge/retrieval";
+import { isFeatureEnabled } from "@/lib/config/feature-gate";
 
 /**
  * World Model Generator — analyzes accumulated interactions to auto-build
@@ -15,6 +16,10 @@ import { embedKnowledgeEntry } from "@/lib/knowledge/retrieval";
 export async function GET(req: Request) {
   const unauthorized = verifyCronRequest(req);
   if (unauthorized) return unauthorized;
+
+  if (!isFeatureEnabled(process.env.WORLD_MODEL_ENABLED)) {
+    return Response.json({ skipped: "WORLD_MODEL_ENABLED=off" });
+  }
 
   // Also support per-tenant generation via query param
   const url = new URL(req.url);

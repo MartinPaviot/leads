@@ -411,7 +411,7 @@ export async function analyzeWinLoss(
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const { object } = await tracedGenerateObject({
-        model: anthropic("claude-haiku-3-5"),
+        model: anthropic("claude-haiku-4-5-20251001"),
         schema: z.object({
           keyFactors: z.array(
             z.object({

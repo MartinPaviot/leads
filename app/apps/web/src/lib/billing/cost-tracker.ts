@@ -6,16 +6,7 @@
 import { db } from "@/db";
 import { usageEvents } from "@/db/billing-schema";
 import { eq, and, gte } from "drizzle-orm";
-
-// Cost per token (approximate, as of April 2026)
-const COST_PER_TOKEN = {
-  "claude-sonnet": { input: 0.003 / 1000, output: 0.015 / 1000 },
-  "claude-haiku": { input: 0.00025 / 1000, output: 0.00125 / 1000 },
-  "gpt-4o-mini": { input: 0.00015 / 1000, output: 0.0006 / 1000 },
-  "text-embedding-3-small": { input: 0.00002 / 1000, output: 0 },
-} as const;
-
-type ModelKey = keyof typeof COST_PER_TOKEN;
+import { computeCallCostUsd } from "@/lib/ai/model-pricing";
 
 interface TokenUsage {
   model: string;
@@ -29,13 +20,9 @@ interface TokenUsage {
  * Track AI token usage and estimated cost.
  */
 export async function trackTokenUsage(usage: TokenUsage): Promise<void> {
-  const modelKey = (Object.keys(COST_PER_TOKEN).find((k) =>
-    usage.model.includes(k)
-  ) || "claude-sonnet") as ModelKey;
-
-  const rates = COST_PER_TOKEN[modelKey];
+  // Single price source (model-pricing) so Haiku/Opus aren't mispriced as Sonnet.
   const estimatedCost =
-    usage.inputTokens * rates.input + usage.outputTokens * rates.output;
+    computeCallCostUsd(usage.model, usage.inputTokens, usage.outputTokens) ?? 0;
 
   try {
     await db.insert(usageEvents).values({
