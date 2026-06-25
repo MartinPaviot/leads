@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { activities } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { eq, desc, and, sql } from "drizzle-orm";
 
 export async function GET(req: Request) {
@@ -8,6 +8,9 @@ export async function GET(req: Request) {
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Admin-only — the audit trail is a privileged, compliance-sensitive view.
+  const adminCheck = requireAdmin(authCtx);
+  if (adminCheck) return adminCheck;
 
   const url = new URL(req.url);
   const entityType = url.searchParams.get("entityType");

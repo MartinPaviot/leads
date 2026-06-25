@@ -7,6 +7,10 @@ import type { WorkflowDef } from "@/lib/config/workflow-types";
 export async function GET() {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Admin-only — workflow definitions include webhook URLs, AI prompts, and
+  // send/enroll action params (the PUT is already admin-gated).
+  const adminCheck = requireAdmin(authCtx);
+  if (adminCheck) return adminCheck;
 
   try {
     const [tenant] = await db.select().from(tenants).where(eq(tenants.id, authCtx.tenantId)).limit(1);

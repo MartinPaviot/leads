@@ -23,6 +23,15 @@ export async function GET() {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Admin-only — workspace AI spend + budget is a privileged view. The PUT
+  // below is already admin-gated; the read MUST match, otherwise a member
+  // (end user) could pull the whole spend breakdown by calling this endpoint
+  // directly. The settings sidebar only HIDES the nav item — that is not an
+  // access control, and GET requests are never gated by the middleware.
+  if (authCtx.role !== "admin") {
+    return Response.json({ error: "Admin only" }, { status: 403 });
+  }
+
   const [status, byFeatureTotals] = await Promise.all([
     getLlmBudgetStatus(authCtx.tenantId),
     getTenantCost(authCtx.tenantId, startOfMonthUtc()),

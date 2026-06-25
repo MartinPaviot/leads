@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { tenants } from "@/db/schema";
 import { subscriptions } from "@/db/billing-schema";
@@ -9,6 +9,9 @@ export async function GET() {
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Admin-only — exposes plan + Stripe customer/price identifiers.
+  const adminCheck = requireAdmin(authCtx);
+  if (adminCheck) return adminCheck;
 
   try {
     const tenantId = authCtx.tenantId;

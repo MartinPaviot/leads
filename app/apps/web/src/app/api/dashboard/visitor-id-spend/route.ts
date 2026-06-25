@@ -7,13 +7,13 @@
  * cap. The Inngest worker already logs warnings + emits metrics ;
  * this endpoint is the surface the founder-facing UI reads from.
  *
- * Tenant-scoped (no admin gate) — every founder needs visibility
- * into their own spend. The pure decider (`loadSpendDecision`) is
+ * Admin-only (AI spend is an admin-scoped view) and tenant-scoped. The
+ * pure decider (`loadSpendDecision`) is
  * shared with the worker so the banner state matches the worker's
  * gating decision exactly.
  */
 
-import { getAuthContext } from "@/lib/auth/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import {
   tenants,
@@ -31,6 +31,10 @@ export async function GET() {
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Admin-only — AI spend figures (spend / cap / remaining) are a privileged
+  // view; a member must not read the workspace's spend from the dashboard.
+  const adminCheck = requireAdmin(authCtx);
+  if (adminCheck) return adminCheck;
 
   const decision = await loadSpendDecision({
     tenantId: authCtx.tenantId,

@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { pendingInvites } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
@@ -7,6 +7,10 @@ import { and, desc, eq } from "drizzle-orm";
 export async function GET() {
   const authCtx = await getAuthContext();
   if (!authCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Admin-only — the pending-invitation roster (invitee emails + assigned
+  // roles); the sibling POST already gates on members:invite.
+  const adminCheck = requireAdmin(authCtx);
+  if (adminCheck) return adminCheck;
 
   const invites = await db
     .select({

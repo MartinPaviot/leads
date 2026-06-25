@@ -16,8 +16,19 @@ import { logger } from "@/lib/observability/logger";
 
 export async function GET() {
   return withAuthRLS(async (authCtx) => {
+    // Member-readable: call-mode lists the pool to pick a caller ID. But
+    // twilioSid is an infra resource credential — never send it to the client.
+    // Provisioning/release (POST/DELETE) stay admin-gated (outbound:paid).
     const rows = await db
-      .select()
+      .select({
+        id: phoneNumberPool.id,
+        e164: phoneNumberPool.e164,
+        countryCode: phoneNumberPool.countryCode,
+        areaCode: phoneNumberPool.areaCode,
+        voiceCapability: phoneNumberPool.voiceCapability,
+        smsCapability: phoneNumberPool.smsCapability,
+        active: phoneNumberPool.active,
+      })
       .from(phoneNumberPool)
       .where(eq(phoneNumberPool.tenantId, authCtx.tenantId));
     return Response.json({ numbers: rows });

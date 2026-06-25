@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/lib/auth/auth-utils";
+import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import {
   users,
@@ -17,6 +17,12 @@ export async function GET(req: Request) {
   if (!authCtx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Admin-only — this streams the ENTIRE workspace (all contacts/companies/
+  // deals/activities/notes/tasks) as a downloadable JSON export. A member must
+  // not be able to exfiltrate the whole CRM; GETs are never gated by the
+  // middleware, so the role check has to live here.
+  const adminCheck = requireAdmin(authCtx);
+  if (adminCheck) return adminCheck;
 
   try {
     const tenantId = authCtx.tenantId;

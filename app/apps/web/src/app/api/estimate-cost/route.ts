@@ -78,11 +78,16 @@ export async function POST(req: Request) {
         { capUsd: status.capUsd, spentUsd: status.spentUsd },
         estimate.llmEstimateUsd,
       );
-      currentCapStatus = {
-        capUsd: status.capUsd,
-        spentUsd: status.spentUsd,
-        percentUsed: status.percentUsed ?? 0,
-      };
+      // The near-cap BOOLEAN is a useful guardrail for any member about to
+      // spend, but the actual spend/cap figures are an admin-only view — a
+      // member must not learn the workspace's spentUsd/capUsd from here.
+      if (authCtx.role === "admin") {
+        currentCapStatus = {
+          capUsd: status.capUsd,
+          spentUsd: status.spentUsd,
+          percentUsed: status.percentUsed ?? 0,
+        };
+      }
     }
   } catch (err) {
     logger.warn("estimate-cost: budget status fetch failed", { err });

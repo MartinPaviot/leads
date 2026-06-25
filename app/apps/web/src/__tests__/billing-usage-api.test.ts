@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/auth/auth-utils", () => ({
   getAuthContext: vi.fn(),
   withAuthRLS: vi.fn(async (handler) => { const ctx = await (await import("@/lib/auth/auth-utils")).getAuthContext(); if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 }); return handler(ctx); }),
+  requireAdmin: (ctx: { role?: string } | null) => (ctx?.role === "admin" ? null : Response.json({ error: "Admin only" }, { status: 403 })),
 }));
 
 vi.mock("@/db", () => ({
@@ -39,11 +40,14 @@ import { db } from "@/db";
 
 const mod = await import("@/app/api/billing/usage/route");
 
+// AI billing/usage is admin-only (the GET now calls requireAdmin), so the
+// data-path tests authenticate as an admin. Member -> 403 is covered in
+// admin-get-gates.test.ts.
 const authCtx = {
   userId: "auth-1",
   tenantId: "t1",
   appUserId: "u1",
-  role: "member" as const,
+  role: "admin" as const,
 };
 
 beforeEach(() => vi.clearAllMocks());
