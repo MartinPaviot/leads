@@ -35,23 +35,32 @@ export const dailyRollup = inngest.createFunction(
 
     let campaignsSnapshotted = 0;
     let regressionsFired = 0;
+    let tenantsFailed = 0;
     for (const tenantId of tenantIds) {
-      const n = await step.run(`snapshot-${tenantId}`, () => persistDailyRollups(tenantId, today));
-      campaignsSnapshotted += n;
-      // Spec 32 — regression pass over the fresh snapshot history (fire-once/dedup/resolve).
-      const events = (await step.run(`regressions-${tenantId}`, () =>
-        evaluateTenantRegressions(tenantId),
-      )) as AlertEvent[];
-      const firing = events.filter((e) => e.status === "firing");
-      regressionsFired += firing.length;
-      // Spec 28 (notify) — surface each NEW regression as an in-app notification.
-      if (firing.length > 0) {
-        await step.run(`notify-regressions-${tenantId}`, async () => {
-          for (const e of firing) await notifyTenant(tenantId, regressionAlertCopy(e.alert));
-        });
+      // Per-tenant isolation: one tenant's failure must NOT abort the loop and
+      // starve every later tenant (the steps have unique ids, so the function
+      // still completes and Inngest doesn't retry the whole run for one tenant).
+      try {
+        const n = await step.run(`snapshot-${tenantId}`, () => persistDailyRollups(tenantId, today));
+        campaignsSnapshotted += n;
+        // Spec 32 — regression pass over the fresh snapshot history (fire-once/dedup/resolve).
+        const events = (await step.run(`regressions-${tenantId}`, () =>
+          evaluateTenantRegressions(tenantId),
+        )) as AlertEvent[];
+        const firing = events.filter((e) => e.status === "firing");
+        regressionsFired += firing.length;
+        // Spec 28 (notify) — surface each NEW regression as an in-app notification.
+        if (firing.length > 0) {
+          await step.run(`notify-regressions-${tenantId}`, async () => {
+            for (const e of firing) await notifyTenant(tenantId, regressionAlertCopy(e.alert));
+          });
+        }
+      } catch (err) {
+        tenantsFailed++;
+        console.error(`[daily-rollup] tenant ${tenantId} failed:`, err instanceof Error ? err.message : String(err));
       }
     }
 
-    return { day: today, tenants: tenantIds.length, campaignsSnapshotted, regressionsFired };
+    return { day: today, tenants: tenantIds.length, campaignsSnapshotted, regressionsFired, tenantsFailed };
   },
 );

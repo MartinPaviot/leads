@@ -52,11 +52,17 @@ export async function eraseSubject(personId: string, deps: EraseDeps): Promise<E
   const now = deps.now ?? (() => Date.now());
   const alreadyErased = await deps.hasDoNotResurrect(personId);
 
+  // ORDER MATTERS (no transaction spans these stores): suppress + mark
+  // do-not-resurrect FIRST, BEFORE the destructive delete. If eraseCanonical then
+  // fails, the subject is already suppressed (never re-contacted) and the delete —
+  // which is idempotent — can be safely retried. The reverse order would leave a
+  // window where the PII is gone but the subject is still re-sourceable.
+  await deps.addSuppression(personId); // AC2 — not re-sourced
+  await deps.setDoNotResurrect(personId); // AC4 — permanent
+
   await deps.eraseCanonical(personId); // idempotent
   const erasedCaches = await deps.eraseCaches(personId);
   const crmPropagated = await deps.propagateCrm(personId);
-  await deps.addSuppression(personId); // AC2 — not re-sourced
-  await deps.setDoNotResurrect(personId); // AC4 — permanent
 
   // AC5 — verify no residual personal data remains.
   const residual = await deps.findResidual(personId);

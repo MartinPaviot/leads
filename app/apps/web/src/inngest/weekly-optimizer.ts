@@ -35,20 +35,27 @@ export const weeklyOptimizer = inngest.createFunction(
 
     let proposalsPersisted = 0;
     let gated = 0;
+    let tenantsFailed = 0;
     for (const tenantId of tenantIds) {
-      const result = (await step.run(`review-${tenantId}`, () =>
-        runWeeklyReviewForTenant(tenantId, week),
-      )) as { proposals: unknown[]; decisions: Array<{ applied: boolean }> };
-      proposalsPersisted += result.proposals.length;
-      gated += result.decisions.filter((d) => !d.applied).length;
-      // Spec 28 (notify) — tell the tenant a reviewed proposal queue is waiting.
-      if (result.proposals.length > 0) {
-        await step.run(`notify-proposals-${tenantId}`, () =>
-          notifyTenant(tenantId, optimizerProposalsCopy(result.proposals.length, week)),
-        );
+      // Per-tenant isolation — one tenant's failure must not starve the rest.
+      try {
+        const result = (await step.run(`review-${tenantId}`, () =>
+          runWeeklyReviewForTenant(tenantId, week),
+        )) as { proposals: unknown[]; decisions: Array<{ applied: boolean }> };
+        proposalsPersisted += result.proposals.length;
+        gated += result.decisions.filter((d) => !d.applied).length;
+        // Spec 28 (notify) — tell the tenant a reviewed proposal queue is waiting.
+        if (result.proposals.length > 0) {
+          await step.run(`notify-proposals-${tenantId}`, () =>
+            notifyTenant(tenantId, optimizerProposalsCopy(result.proposals.length, week)),
+          );
+        }
+      } catch (err) {
+        tenantsFailed++;
+        console.error(`[weekly-optimizer] tenant ${tenantId} failed:`, err instanceof Error ? err.message : String(err));
       }
     }
 
-    return { week, tenants: tenantIds.length, proposalsPersisted, gated };
+    return { week, tenants: tenantIds.length, proposalsPersisted, gated, tenantsFailed };
   },
 );

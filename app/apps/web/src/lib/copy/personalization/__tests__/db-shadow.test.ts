@@ -22,13 +22,16 @@ afterEach(() => {
   else process.env.COPY_ENGINE_PRIMARY = ORIG_PRIMARY;
 });
 
+// Grounds on a PROVIDER-VERIFIED fact (funding) — synthesized public content is
+// now sub-floor and would not ground, so a high-personalization fixture must use
+// a verified fact.
 const highCtx = () =>
   ({
     contact: { id: "c1", seniority: "vp", firstName: "Sam", lastName: "Lee", fullName: "Sam Lee", email: "s@x.com", title: "VP", departments: [], linkedinUrl: null, score: null, scoreReasons: [] },
-    funding: { stage: null, amount: null, amountPrinted: null },
+    funding: { stage: "Series A", amount: null, amountPrinted: "$12M" },
     technologies: [],
     bestSignal: null,
-    researchBrief: { bestAngle: null, painPoints: [], competitorDetected: null, warmthSignals: [], publicContent: [{ type: "linkedin_post", title: "t", quote: "We just shipped X" }] },
+    researchBrief: { bestAngle: null, painPoints: [], competitorDetected: null, warmthSignals: [], publicContent: [] },
   }) as unknown;
 
 const agentInput = (over: Partial<PersonalizationAgentInput> = {}): PersonalizationAgentInput => ({
@@ -90,24 +93,18 @@ describe("generateShadowCopy", () => {
     expect(res).toEqual({ ran: false, reason: "no_prospect_context" });
   });
 
-  it("generates a grounded high-personalization sample and persists it", async () => {
+  it("generates a grounded high-personalization sample (on a provider fact) and persists it", async () => {
     process.env.COPY_ENGINE_SHADOW = "1";
-    ctxState.ctx = {
-      contact: { id: "c1", seniority: "vp", firstName: "Sam", lastName: "Lee", fullName: "Sam Lee", email: "s@x.com", title: "VP", departments: [], linkedinUrl: null, score: null, scoreReasons: [] },
-      funding: { stage: null, amount: null, amountPrinted: null },
-      technologies: [],
-      bestSignal: null,
-      researchBrief: { bestAngle: null, painPoints: [], competitorDetected: null, warmthSignals: [], publicContent: [{ type: "linkedin_post", title: "t", quote: "We just shipped X" }] },
-    } as unknown as ProspectContext;
+    ctxState.ctx = highCtx() as ProspectContext; // grounds on the verified funding fact
 
     let inserted: any;
     const res = await generateShadowCopy("c1", "t1", {
       database: stubDb({ assets: [{ id: "a1", tenantId: "t1", campaignId: null, lang: "en", kind: "positioning", content: "We cut onboarding time.", version: 1, isCurrent: true, createdAt: new Date() }], onInsert: (v) => (inserted = v) }),
-      generate: async () => JSON.stringify({ line: "Saw you just shipped X, relevant to onboarding speed.", citedIds: ["pc-0"] }),
+      generate: async () => JSON.stringify({ line: "Congrats on the Series A, relevant to onboarding speed.", citedIds: ["funding"] }),
     });
     expect(res.ran).toBe(true);
     expect(res.message?.personalization_level).toBe("high");
-    expect(res.message?.body).toContain("shipped X");
+    expect(res.message?.body).toContain("Series A");
     expect(res.evidenceCount).toBe(1);
     expect(inserted).toMatchObject({ tenantId: "t1", contactId: "c1", lang: "en", personalizationLevel: "high" });
   });
@@ -133,7 +130,7 @@ describe("generateCopyMessage (no flag gate — the cutover core)", () => {
     let inserted = false;
     const res = await generateCopyMessage("c1", "t1", {
       database: stubDb({ assets: [{ id: "a1", tenantId: "t1", campaignId: null, lang: "en", kind: "positioning", content: "We cut onboarding time.", version: 1, isCurrent: true, createdAt: new Date() }], onInsert: () => (inserted = true) }),
-      generate: async () => JSON.stringify({ line: "Saw you just shipped X, relevant to onboarding speed.", citedIds: ["pc-0"] }),
+      generate: async () => JSON.stringify({ line: "Congrats on the Series A, relevant to onboarding speed.", citedIds: ["funding"] }),
     });
     expect(res.ran).toBe(true);
     expect(res.message?.personalization_level).toBe("high");
