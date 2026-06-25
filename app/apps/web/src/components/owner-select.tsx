@@ -36,13 +36,20 @@ export function OwnerSelect({
 }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let alive = true;
     fetch("/api/settings/members")
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        // Was `r.ok ? r.json() : null` → a 500 left the picker with zero
+        // options, indistinguishable from a workspace with no members (and the
+        // user then can't reassign). Flag the failure instead.
+        if (!r.ok) { if (alive) { setLoadError(true); setLoaded(true); } return null; }
+        return r.json();
+      })
       .then((d) => {
-        if (!alive) return;
+        if (!alive || !d) return;
         const list = ((d?.members ?? []) as Member[]).filter((m) => m.id);
         setMembers(list);
         setLoaded(true);
@@ -52,7 +59,7 @@ export function OwnerSelect({
         }
       })
       .catch(() => {
-        if (alive) setLoaded(true);
+        if (alive) { setLoadError(true); setLoaded(true); }
       });
     return () => {
       alive = false;
@@ -75,12 +82,16 @@ export function OwnerSelect({
       }}
     >
       <option value="">Unassigned</option>
-      {members.map((m) => (
-        <option key={m.id} value={m.id}>
-          {m.name}
-          {m.isSelf ? " (you)" : ""}
-        </option>
-      ))}
+      {loadError && members.length === 0 ? (
+        <option value="" disabled>Couldn&apos;t load members</option>
+      ) : (
+        members.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.name}
+            {m.isSelf ? " (you)" : ""}
+          </option>
+        ))
+      )}
     </select>
   );
 }

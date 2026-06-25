@@ -285,9 +285,14 @@ export function CampaignWizard({ onClose, onComplete, sequenceId: existingSequen
       if (res.ok) {
         const data = await res.json();
         setEmails(data.emails || []);
+      } else {
+        // Was silent: a 500 left the review step empty, looking like there were
+        // no emails to review when the load actually failed.
+        setError("Couldn't load the emails to review. Please retry.");
       }
     } catch (e) {
       console.warn("campaign-wizard: review emails fetch failed", e);
+      setError("Couldn't load the emails to review. Please retry.");
     }
   }
 
@@ -298,11 +303,18 @@ export function CampaignWizard({ onClose, onComplete, sequenceId: existingSequen
   async function approveAll() {
     const draftIds = emails.filter((e) => e.status === "draft").map((e) => e.id);
     if (draftIds.length === 0) return;
-    await fetch("/api/outbound/review", {
+    setError(null);
+    const res = await fetch("/api/outbound/review", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ emailIds: draftIds, action: "approve_all" }),
     });
+    if (!res.ok) {
+      // Approving queues these emails to SEND — a silent failure here is
+      // consequential (the user thinks they're approved when they aren't).
+      setError("Couldn't approve the drafts. Please retry.");
+      return;
+    }
     if (sequenceId) loadReviewEmails(sequenceId);
   }
 

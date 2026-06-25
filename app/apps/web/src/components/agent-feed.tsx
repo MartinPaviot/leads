@@ -16,6 +16,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
 import {
   Mail, Target, AlertTriangle, Zap, Search, CheckCircle2,
@@ -115,8 +116,10 @@ function humanizeAction(type: string): string {
 
 export function AgentFeed() {
   const router = useRouter();
+  const { toast } = useToast();
   const [data, setData] = useState<FeedData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const fetchFeed = useCallback(async () => {
     try {
@@ -124,9 +127,15 @@ export function AgentFeed() {
       if (res.ok) {
         const feedData = await res.json();
         setData(feedData);
+        setLoadError(false);
+      } else {
+        // Was silently swallowed: a 500 left data null → the "No agent activity
+        // yet" empty state, masking a backend failure. (Keep any prior polled
+        // data on screen; only the no-data case shows the error.)
+        setLoadError(true);
       }
     } catch {
-      // silently fail
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -139,12 +148,22 @@ export function AgentFeed() {
   }, [fetchFeed]);
 
   async function handleApprove(actionId: string) {
-    await fetch(`/api/agent-actions/${actionId}/approve`, { method: "POST" });
+    const res = await fetch(`/api/agent-actions/${actionId}/approve`, { method: "POST" });
+    if (!res.ok) {
+      // Was fire-and-forget: a failed approval silently refetched, so the user
+      // thought they'd approved the action when they hadn't.
+      toast("Couldn't approve the action. Please retry.", "error");
+      return;
+    }
     fetchFeed();
   }
 
   async function handleDismiss(actionId: string) {
-    await fetch(`/api/agent-actions/${actionId}/reverse`, { method: "POST" });
+    const res = await fetch(`/api/agent-actions/${actionId}/reverse`, { method: "POST" });
+    if (!res.ok) {
+      toast("Couldn't dismiss the action. Please retry.", "error");
+      return;
+    }
     fetchFeed();
   }
 
@@ -157,6 +176,20 @@ export function AgentFeed() {
   }
 
   const hasContent = data && (data.reactions.length > 0 || data.pendingActions.length > 0 || data.workItems.length > 0);
+
+  if (!hasContent && loadError) {
+    return (
+      <div role="alert" className="py-12 text-center">
+        <Compass className="mx-auto h-10 w-10 mb-3" style={{ color: "var(--color-error, #b91c1c)" }} />
+        <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+          Couldn&apos;t load the agent feed. This is not the same as no activity.
+        </p>
+        <button onClick={() => { setLoading(true); fetchFeed(); }} className="mt-2 text-xs font-medium" style={{ color: "var(--color-accent)" }}>
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   if (!hasContent) {
     return (
