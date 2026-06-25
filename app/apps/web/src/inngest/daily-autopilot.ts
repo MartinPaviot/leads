@@ -16,13 +16,14 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import { logger } from "@/lib/observability/logger";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { readApprovalMode } from "@/lib/guardrails/approval-mode";
+import { coerceConfigBudget } from "@/lib/autopilot/budget";
 import { loadTenantCapacity } from "@/lib/autopilot/capacity-source";
 import { loadCandidates } from "@/lib/autopilot/candidates";
 import { prepareProspect } from "@/lib/autopilot/prepare";
 import { enrollOne } from "@/lib/autopilot/enroll";
 import { runAutopilotForTenant, type RunAutopilotDeps, type TenantAutopilotSummary } from "@/lib/autopilot/run";
 
-/** Default per-tenant daily budget until B5.1 wires the `dailyAutopilotBudget` setting. */
+/** Fallback if a tenant predates the `dailyAutopilotBudget` default (DEFAULTS sets 100). */
 const DEFAULT_BUDGET = 100;
 
 export function isDailyAutopilotEnabled(): boolean {
@@ -47,7 +48,10 @@ function realDeps(now: Date): RunAutopilotDeps {
     loadCapacity: (tenantId) => loadTenantCapacity(tenantId),
     getConfig: async (tenantId) => {
       const s = await getTenantSettings(tenantId);
-      return { configBudget: DEFAULT_BUDGET, maxEmailsPerDay: null, approvalMode: readApprovalMode(s) };
+      // `dailyAutopilotBudget` is the per-tenant ceiling (DEFAULTS = 100; 0 pauses
+      // this tenant). Coerced: non-finite/negative → the global default.
+      const configBudget = coerceConfigBudget(s.dailyAutopilotBudget, DEFAULT_BUDGET);
+      return { configBudget, maxEmailsPerDay: null, approvalMode: readApprovalMode(s) };
     },
     spentToday: (tenantId) => countEnrolledToday(tenantId, startOfDay),
     getActiveSequenceId: async (tenantId) => {

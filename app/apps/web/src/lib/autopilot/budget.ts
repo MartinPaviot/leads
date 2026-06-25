@@ -20,6 +20,16 @@ export interface ChannelBudget {
 const finite = (n: number, fallback = 0): number => (Number.isFinite(n) ? n : fallback);
 
 /**
+ * Coerce a raw `dailyAutopilotBudget` setting into a usable config budget.
+ * Accepts 0 (a deliberate per-tenant pause). Anything non-numeric, non-finite,
+ * or negative falls back to `fallback` (the global default, 100). Fractions are
+ * floored — you can't enroll half a prospect.
+ */
+export function coerceConfigBudget(raw: unknown, fallback: number): number {
+  return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : fallback;
+}
+
+/**
  * email = max(0, floor(min(configBudget, maxEmailsPerDay ?? configBudget,
  *                          capacity.totalAvailable)) - max(0, spentToday))
  * linkedin = 0 (reserved).

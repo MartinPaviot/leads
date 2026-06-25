@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveAutopilotBudget } from "../budget";
+import { resolveAutopilotBudget, coerceConfigBudget } from "../budget";
 
 const r = (over: Partial<Parameters<typeof resolveAutopilotBudget>[0]> = {}) =>
   resolveAutopilotBudget({ configBudget: 100, maxEmailsPerDay: null, capacity: { totalAvailable: 100 }, spentToday: 0, ...over });
@@ -50,4 +50,25 @@ describe("resolveAutopilotBudget", () => {
   it("floors a fractional ceiling", () => {
     expect(r({ capacity: { totalAvailable: 12.9 } }).email).toBe(12);
   });
+});
+
+describe("coerceConfigBudget", () => {
+  it("passes a valid positive integer through", () => {
+    expect(coerceConfigBudget(50, 100)).toBe(50);
+  });
+
+  it("accepts 0 — a deliberate per-tenant pause (NOT the fallback)", () => {
+    expect(coerceConfigBudget(0, 100)).toBe(0);
+  });
+
+  it("floors a fractional setting", () => {
+    expect(coerceConfigBudget(42.7, 100)).toBe(42);
+  });
+
+  it.each([undefined, null, "100", Number.NaN, Infinity, -5, {}])(
+    "falls back to the default for invalid input %p",
+    (bad) => {
+      expect(coerceConfigBudget(bad, 100)).toBe(100);
+    },
+  );
 });
