@@ -35,19 +35,26 @@ export default function TamReviewPage() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await fetch("/api/tam/proposals?status=pending&limit=200");
-      if (!res.ok) return;
+      if (!res.ok) {
+        // Used to silently return, leaving the "No pending proposals" empty
+        // state — a 500 looked identical to a genuinely empty review queue.
+        setLoadError(true);
+        return;
+      }
       const data = await res.json();
       setProposals(data.proposals ?? []);
       setCounts(data.counts ?? {});
     } catch {
-      // non-fatal
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -141,6 +148,24 @@ export default function TamReviewPage() {
         {loading ? (
           <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
             <Loader2 size={14} className="animate-spin" /> Loading proposals…
+          </div>
+        ) : loadError ? (
+          <div
+            role="alert"
+            className="mx-auto mt-16 max-w-md rounded-lg border p-8 text-center"
+            style={{ borderColor: "var(--color-error, #b91c1c)", color: "var(--color-text-secondary)" }}
+          >
+            <Ban size={24} className="mx-auto mb-3" style={{ color: "var(--color-error, #b91c1c)" }} />
+            <div className="text-[14px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+              Couldn&apos;t load proposals
+            </div>
+            <div className="mt-1 text-[13px]">
+              Something went wrong fetching the review queue. This is not an empty
+              queue.
+            </div>
+            <Button variant="outline" size="sm" icon={<RotateCcw size={13} />} onClick={load} className="mt-4">
+              Retry
+            </Button>
           </div>
         ) : proposals.length === 0 ? (
           <div
