@@ -318,3 +318,20 @@ The other 4 were actually H2 (same error-as-empty / swallowed-save class) and ar
 Verified: accounts/proposals/knowledge page tests 54/54 green; objects has no test (tsc only).
 Kept `toast` OUT of every useCallback dep array (the opp infinite-loop lesson —
 [[reference_test-and-tsc-gotchas]]).
+
+## H1 SETTINGS re-verification (2026-06-25) — 14/16 were over-rated too
+
+Same logic applied to the 16 settings pages rated H1 (`verify-h1-settings-pages`, 16
+agents). Only **S16 llm-budget · S29 capture-approvals** are genuinely H1. 12 fixed,
+S17 verified fine (no fix), S28 excluded (parallel WIP). Worklist:
+`_reports/hydration-audit/_h1-settings-reverify-worklist.md`.
+- [x] batch A `aabea9e9`: S02 workspace · S35 product · S06 signals · S23 inbox-ai-profile.
+- [x] batch B `1906768a`: S13 knowledge · S25 inbox-memory · S19 mailbox-identity.
+- [x] batch C+D `7ef6aa69`: S11 icp · S27 recording · S15 onboarding-velocity-tile ·
+  S36 guardrails · S03 members.
+- S17 mcp: NO FIX — `fetchKeys` already throws on !res.ok → setError (agent over-reported).
+- S28 sending-infrastructure: EXCLUDED (parallel session owns the file) — real defects
+  exist (VoiceSection/InstantlyMailboxes/LinkedInConnect error-as-empty), hand to them.
+- KEY LESSON: the verification agents over-report too (S17 + 4/5 of S03 were false) —
+  verify their findings against code, same as the audit. Net across BOTH re-verifications:
+  the LLM audit's H1 rating was wrong ~73% of the time (4/7 product + 14/16 settings).
