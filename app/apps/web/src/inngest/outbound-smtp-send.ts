@@ -24,6 +24,8 @@ import { decryptSecret } from "@/lib/crypto/settings-encryption";
 import { logger } from "@/lib/observability/logger";
 import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 import { evaluateSend } from "@/lib/guardrails/sending-gate";
+import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { isWithinSendWindow } from "@/lib/emails/send-window";
 
 const BATCH = 25;
 
@@ -80,6 +82,22 @@ export const dispatchOutboundSmtp = inngest.createFunction(
           .limit(1);
         if (!mb || !mb.smtpHost || !mb.secretEncrypted) return "skipped";
         if ((mb.sentToday ?? 0) >= (mb.dailyLimit ?? 50)) return "skipped";
+
+        // Send window (08-18 in the TENANT's timezone). The campaign worker enforces
+        // this (email-send-worker.ts) — the SMTP cron must too, or smtp_custom mail
+        // goes out at 3am. tz sourced like the campaign worker (tenant settings, null
+        // → Europe/Paris in localClock). Outside the window the row stays queued and
+        // retries on a later tick.
+        const tenantTz = (await getTenantSettings(o.tenantId))?.timezone ?? null;
+        if (
+          !isWithinSendWindow(new Date(), tenantTz, {
+            sendDays: (mb.sendDays as string[]) || ["mon", "tue", "wed", "thu", "fri"],
+            sendWindowStart: mb.sendWindowStart || "08:00",
+            sendWindowEnd: mb.sendWindowEnd || "18:00",
+          })
+        ) {
+          return "skipped";
+        }
 
         // CLE-13 (items 1 + 3): opt-out/suppression + sending-identity gate. This
         // path had NO opt-out check before — the shared gate closes that gap
