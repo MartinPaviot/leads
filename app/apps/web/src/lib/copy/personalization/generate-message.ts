@@ -89,7 +89,9 @@ export interface GenerateMessageDeps {
   minConfidence?: number;
 }
 
-const DEFAULT_MIN_CONFIDENCE = 0.6;
+/** Evidence confidence floor for grounding. Exported so the evidence adapter can
+ *  keep model-synthesized prose strictly below it (never-invent). */
+export const DEFAULT_MIN_CONFIDENCE = 0.6;
 /** Always banned regardless of the injected voice (AC5: no em-dashes). */
 const ALWAYS_BANNED = ["—", "–", "--"];
 /** Informal FR pronouns — a vouvoiement violation (AC3). */
