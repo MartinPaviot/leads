@@ -6,6 +6,7 @@ import {
   aggregateOpens,
   mapAddBatches,
   formatCallDuration,
+  shouldSurfaceInboundEvent,
   isTestLabel,
   money,
   type ReplyInput,
@@ -232,5 +233,91 @@ describe("formatCallDuration", () => {
     expect(formatCallDuration(372)).toBe("6m12");
     expect(formatCallDuration(0)).toBeNull();
     expect(formatCallDuration(null)).toBeNull();
+  });
+});
+
+describe("shouldSurfaceInboundEvent — feed shows prospects, not noise", () => {
+  const base = {
+    entityType: "contact" as string | null,
+    fromHeader: "Alex Prospect <alex@acme.ch>",
+    contactEmail: "alex@acme.ch",
+    contactProperties: null as Record<string, unknown> | null,
+    engaged: true,
+  };
+
+  it("surfaces an engaged human contact not ruled out as a lead", () => {
+    expect(shouldSurfaceInboundEvent(base)).toBe(true);
+  });
+
+  it("drops unassigned events (service/newsletter mail with no contact)", () => {
+    expect(shouldSurfaceInboundEvent({ ...base, entityType: "unassigned" })).toBe(false);
+    expect(shouldSurfaceInboundEvent({ ...base, entityType: null })).toBe(false);
+  });
+
+  it("drops machine senders by the From header (bots, notifications)", () => {
+    expect(
+      shouldSurfaceInboundEvent({
+        ...base,
+        fromHeader: "vercel[bot] <notifications@github.com>",
+      }),
+    ).toBe(false);
+  });
+
+  it("drops machine senders via the contact-email fallback when From is empty (#260 clobber)", () => {
+    expect(
+      shouldSurfaceInboundEvent({
+        ...base,
+        fromHeader: null,
+        contactEmail: "no-reply@infomaniak.com",
+      }),
+    ).toBe(false);
+  });
+
+  it("drops an un-engaged human we never worked (colleague, person-shaped newsletter)", () => {
+    expect(
+      shouldSurfaceInboundEvent({
+        ...base,
+        fromHeader: "Paul Madelénat <paul.madelenat@pilae.ch>",
+        contactEmail: "paul.madelenat@pilae.ch",
+        engaged: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("surfaces an un-engaged contact the LLM confirmed as an inbound lead", () => {
+    expect(
+      shouldSurfaceInboundEvent({
+        ...base,
+        engaged: false,
+        contactProperties: {
+          leadRelationship: {
+            isInboundLead: true,
+            relationshipToUs: "prospect",
+            reason: "asked for a demo",
+            at: "2026-06-20T10:00:00Z",
+          },
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it("surfaces an un-engaged contact the user marked a lead", () => {
+    expect(
+      shouldSurfaceInboundEvent({
+        ...base,
+        engaged: false,
+        contactProperties: { leadFeedback: { isLead: true, at: "2026-06-20T10:00:00Z" } },
+      }),
+    ).toBe(true);
+  });
+
+  it("drops a contact ruled NOT a lead even when engaged (human verdict wins)", () => {
+    expect(
+      shouldSurfaceInboundEvent({
+        ...base,
+        engaged: true,
+        contactProperties: { leadFeedback: { isLead: false, at: "2026-06-20T10:00:00Z" } },
+      }),
+    ).toBe(false);
   });
 });

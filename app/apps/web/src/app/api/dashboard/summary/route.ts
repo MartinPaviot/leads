@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { activities, deals, tasks, sequenceEnrollments, companies, contacts, outboundEmails } from "@/db/schema";
-import { sql, eq, and, gte, lte, ne, desc, isNull } from "drizzle-orm";
+import { sql, eq, and, gte, lte, ne, desc, isNull, isNotNull } from "drizzle-orm";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 
 function getGreeting(): string {
@@ -237,7 +237,14 @@ export async function GET() {
             isNull(companies.excludedReason),
           ),
         ),
-      // Email deliverability (last 7 days)
+      // Email deliverability (last 7 days) — PROSPECT outreach only. A send
+      // counts as "Outreach" (and feeds open/reply rate) only when it's tied to
+      // a contact that isn't ruled "not a lead". This excludes self-tests and
+      // plumbing sends with no contact_id (e.g. the outbound-loop test email),
+      // which otherwise inflate the KPI to "1 outreach this week" when the
+      // founder ran none. The not-a-lead predicate mirrors isExcludedAsLead's
+      // precedence (human verdict wins, else LLM verdict, else include) and is
+      // null-safe so contacts with empty properties still count.
       db
         .select({
           sent: sql<number>`count(*)::int`,
@@ -246,11 +253,18 @@ export async function GET() {
           bounced: sql<number>`SUM(CASE WHEN ${outboundEmails.bouncedAt} IS NOT NULL THEN 1 ELSE 0 END)::int`,
         })
         .from(outboundEmails)
+        .leftJoin(contacts, eq(contacts.id, outboundEmails.contactId))
         .where(
           and(
             eq(outboundEmails.tenantId, authCtx.tenantId),
             eq(outboundEmails.status, "sent"),
-            gte(outboundEmails.sentAt, new Date(Date.now() - 7 * 86400000))
+            gte(outboundEmails.sentAt, new Date(Date.now() - 7 * 86400000)),
+            isNotNull(outboundEmails.contactId),
+            sql`COALESCE(CASE
+              WHEN (${contacts.properties} -> 'leadFeedback' ->> 'isLead') = 'false' THEN false
+              WHEN (${contacts.properties} -> 'leadFeedback' ->> 'isLead') = 'true'  THEN true
+              WHEN (${contacts.properties} -> 'leadRelationship' ->> 'isInboundLead') = 'false' THEN false
+              ELSE true END, true)`
           )
         ),
       // Top deals at risk (stalled 7+ days)

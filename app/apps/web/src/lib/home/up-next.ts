@@ -21,6 +21,13 @@
  * analysis — never reflexively.
  */
 
+import { classifyInboundSender } from "@/lib/inbound/lead-classification";
+import {
+  isExcludedAsLead,
+  getLeadFeedback,
+  getLeadRelationship,
+} from "@/lib/inbound/lead-status";
+
 // ── Shared helpers ──────────────────────────────────────────────────
 
 /** Founder-facing feeds must never show seed/e2e rows. Only test markers — no
@@ -201,6 +208,49 @@ export function aggregateOpens(rows: OpenRow[]): Actualite[] {
     at: g.newest,
     href: `/contacts/${contactId}`,
   }));
+}
+
+/**
+ * Gate for the Actualités feed's inbound email events (email_received /
+ * email_replied). The feed must show PROSPECT activity, not every email the
+ * founder happens to correspond with (newsletters, bots, colleagues, vendor
+ * receipts). An inbound email event is feed-worthy only when ALL hold:
+ *
+ *   1. it's attributed to a contact — `unassigned` service/newsletter mail
+ *      is never news;
+ *   2. the sender isn't machine-generated — checked on the From header,
+ *      falling back to the contact's email because legacy rows lost their
+ *      From header (clobber bug #260) so the machine check would otherwise
+ *      silently pass;
+ *   3. the contact isn't ruled "not a lead" (the user's or the LLM's verdict);
+ *   4. the contact is actually in the pipeline: we ENGAGED them (an outbound
+ *      send or a sequence enrollment ties us to them) OR a human/LLM CONFIRMED
+ *      them an inbound lead. A pure inbound-only contact we never worked — a
+ *      colleague, a person-shaped newsletter address — is noise, not news.
+ *
+ * Pure: the route resolves `engaged` (a DB fact) and the contact fields; this
+ * is the unit-testable decision. See _specs/up-next-redesign/ + the inbound
+ * lead funnel (_specs/inbound-lead-recognition/).
+ */
+export function shouldSurfaceInboundEvent(input: {
+  entityType: string | null;
+  fromHeader: string | null;
+  contactEmail: string | null;
+  contactProperties: Record<string, unknown> | null;
+  /** True when an outbound send or sequence enrollment ties us to this contact. */
+  engaged: boolean;
+}): boolean {
+  if (input.entityType !== "contact") return false;
+  const senderHint = (input.fromHeader || "").trim() || (input.contactEmail || "");
+  if (senderHint && classifyInboundSender({ fromHeader: senderHint }).isMachineSent) {
+    return false;
+  }
+  if (isExcludedAsLead(input.contactProperties)) return false;
+  const feedback = getLeadFeedback(input.contactProperties);
+  const relationship = getLeadRelationship(input.contactProperties);
+  const confirmedLead =
+    feedback?.isLead === true || relationship?.isInboundLead === true;
+  return input.engaged || confirmedLead;
 }
 
 /** Provenance in PRODUCT language only — provider names (Apollo, SIRENE,

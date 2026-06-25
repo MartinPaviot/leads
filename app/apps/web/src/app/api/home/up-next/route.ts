@@ -1,7 +1,15 @@
 import { withAuthRLS } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { activities, deals, companies, contacts, calls } from "@/db/schema";
-import { and, eq, isNull, desc, inArray, sql } from "drizzle-orm";
+import {
+  activities,
+  deals,
+  companies,
+  contacts,
+  calls,
+  outboundEmails,
+  sequenceEnrollments,
+} from "@/db/schema";
+import { and, eq, isNull, isNotNull, desc, inArray, sql } from "drizzle-orm";
 import { GET as getSummary } from "@/app/api/dashboard/summary/route";
 import { conversationKeyFor } from "@/lib/inbox/conversations";
 import {
@@ -11,6 +19,7 @@ import {
   aggregateOpens,
   mapAddBatches,
   formatCallDuration,
+  shouldSurfaceInboundEvent,
   type AddBatch,
   type ReplyInput,
   type DealRiskInput,
@@ -288,7 +297,8 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
       `),
     ]);
 
-    // Resolve every referenced contact name in ONE query (acts + opens + calls).
+    // Resolve every referenced contact in ONE query (acts + opens + calls):
+    // name for display, email + properties for the inbound-event lead gate.
     const contactIds = [
       ...new Set([
         ...acts.filter((a) => a.entityType === "contact" && a.entityId).map((a) => a.entityId as string),
@@ -296,16 +306,40 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
         ...recentCalls.map((c) => c.contactId).filter((id): id is string => !!id),
       ]),
     ];
-    const nameMap = new Map<string, string>();
+    interface ContactInfo {
+      name: string | null;
+      email: string | null;
+      properties: Record<string, unknown> | null;
+    }
+    const contactInfo = new Map<string, ContactInfo>();
+    // Contacts we've ENGAGED (an outbound send or a sequence enrollment): the
+    // signal that separates a worked prospect from a stray inbound correspondent.
+    const engagedContactIds = new Set<string>();
     if (contactIds.length) {
-      const rs = await db
-        .select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName, email: contacts.email })
-        .from(contacts)
-        .where(and(eq(contacts.tenantId, tenantId), inArray(contacts.id, contactIds)));
+      const [rs, sentRows, enrollRows] = await Promise.all([
+        db
+          .select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName, email: contacts.email, properties: contacts.properties })
+          .from(contacts)
+          .where(and(eq(contacts.tenantId, tenantId), inArray(contacts.id, contactIds))),
+        db
+          .selectDistinct({ id: outboundEmails.contactId })
+          .from(outboundEmails)
+          .where(and(eq(outboundEmails.tenantId, tenantId), inArray(outboundEmails.contactId, contactIds))),
+        db
+          .selectDistinct({ id: sequenceEnrollments.contactId })
+          .from(sequenceEnrollments)
+          .where(inArray(sequenceEnrollments.contactId, contactIds)),
+      ]);
       for (const c of rs) {
-        const n = [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email;
-        if (n) nameMap.set(c.id, n);
+        const n = [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || null;
+        contactInfo.set(c.id, {
+          name: n,
+          email: c.email ?? null,
+          properties: (c.properties as Record<string, unknown> | null) ?? null,
+        });
       }
+      for (const r of sentRows) if (r.id) engagedContactIds.add(r.id);
+      for (const r of enrollRows) if (r.id) engagedContactIds.add(r.id);
     }
 
     // Resolve deal names; events on deleted deals are DROPPED — never surface
@@ -324,19 +358,28 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
     const items: Actualite[] = [];
 
     for (const a of acts) {
-      // Skip automated/role inbound (noreply@, notifications@…) — a "reply"
-      // from a service the user subscribes to is not a feed-worthy event
-      // (inbound-lead audit, tranche 3).
-      if (a.activityType === "email_received") {
-        // Prefer the From header; fall back to the resolved contact name/email
-        // (legacy rows lost their From header — clobber bug #260).
+      const info = a.entityType === "contact" && a.entityId ? contactInfo.get(a.entityId) ?? null : null;
+      // Inbound email events (received / replied) must be PROSPECT activity, not
+      // every message the founder happens to correspond with — newsletters,
+      // bots, colleagues, vendor receipts. Gate on the shared rule: attributed
+      // to a contact, human sender (From header → contact email fallback for the
+      // #260 clobbered rows), not ruled out as a lead, and someone we've engaged
+      // or confirmed as an inbound lead. See shouldSurfaceInboundEvent.
+      if (a.activityType === "email_received" || a.activityType === "email_replied") {
         const meta = a.metadata as Record<string, unknown> | null;
-        const senderHint =
-          String(meta?.from ?? "") ||
-          (a.entityType === "contact" && a.entityId ? nameMap.get(a.entityId) ?? "" : "");
-        if (senderHint && classifyInboundSender({ fromHeader: senderHint }).isMachineSent) continue;
+        if (
+          !shouldSurfaceInboundEvent({
+            entityType: a.entityType,
+            fromHeader: typeof meta?.from === "string" ? meta.from : null,
+            contactEmail: info?.email ?? null,
+            contactProperties: info?.properties ?? null,
+            engaged: !!(a.entityId && engagedContactIds.has(a.entityId)),
+          })
+        ) {
+          continue;
+        }
       }
-      const who = a.entityType === "contact" && a.entityId ? nameMap.get(a.entityId) ?? null : null;
+      const who = info?.name ?? null;
       const href = a.entityType === "contact" && a.entityId ? `/contacts/${a.entityId}` : null;
       if (a.activityType === "email_received" || a.activityType === "email_replied") {
         // email_received rows ARE inbox conversations (same key derivation) —
@@ -375,7 +418,7 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
         opens.map((o) => ({
           id: o.id,
           contactId: o.entityId,
-          name: o.entityId ? nameMap.get(o.entityId) ?? null : null,
+          name: o.entityId ? contactInfo.get(o.entityId)?.name ?? null : null,
           at: iso(o.occurredAt),
         })),
       ),
@@ -408,7 +451,7 @@ async function loadActualites(tenantId: string): Promise<Actualite[]> {
     }
 
     for (const c of recentCalls) {
-      const who = nameMap.get(c.contactId) ?? null;
+      const who = contactInfo.get(c.contactId)?.name ?? null;
       const outcome = c.outcome as (typeof FEED_CALL_OUTCOMES)[number] | null;
       const parts = [outcome ? CALL_OUTCOME_LABEL[outcome] : null, formatCallDuration(c.durationSec), c.summary || null];
       items.push({
