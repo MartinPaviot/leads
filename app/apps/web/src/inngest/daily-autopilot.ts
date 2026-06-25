@@ -17,6 +17,7 @@ import { logger } from "@/lib/observability/logger";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { readApprovalMode } from "@/lib/guardrails/approval-mode";
 import { coerceConfigBudget } from "@/lib/autopilot/budget";
+import { isDailyAutopilotEnabled } from "@/lib/autopilot/flag";
 import { loadTenantCapacity } from "@/lib/autopilot/capacity-source";
 import { loadCandidates } from "@/lib/autopilot/candidates";
 import { prepareProspect } from "@/lib/autopilot/prepare";
@@ -26,10 +27,9 @@ import { runAutopilotForTenant, type RunAutopilotDeps, type TenantAutopilotSumma
 /** Fallback if a tenant predates the `dailyAutopilotBudget` default (DEFAULTS sets 100). */
 const DEFAULT_BUDGET = 100;
 
-export function isDailyAutopilotEnabled(): boolean {
-  const v = process.env.DAILY_AUTOPILOT_ENABLED;
-  return v === "1" || v === "true";
-}
+// Re-exported so existing importers keep their path; the impl now lives in the pure
+// flag module (lib/autopilot/flag.ts) so it can be unit-tested without @/db.
+export { isDailyAutopilotEnabled };
 
 /** Autopilot/any enrollments created for a tenant since UTC midnight — the per-day spend. */
 async function countEnrolledToday(tenantId: string, since: Date): Promise<number> {
