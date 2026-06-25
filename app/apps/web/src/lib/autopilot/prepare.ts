@@ -17,6 +17,7 @@
 
 import { buildIntelligenceBrief } from "@/lib/campaign-engine/build-intelligence-brief";
 import { generateCopyMessage } from "@/lib/copy/personalization/db-shadow";
+import { verifyAndPersistEmailStatus } from "@/lib/contacts/email/persist-verification";
 
 type CopyOutcome = Awaited<ReturnType<typeof generateCopyMessage>>;
 type CopyOpts = NonNullable<Parameters<typeof generateCopyMessage>[2]>;
@@ -44,6 +45,11 @@ export async function prepareProspect(
     // Repopulate the brief cache so the grounded copy reflects today's signals.
     await buildIntelligenceBrief(companyId, tenantId, contactId, { forceRefresh: true });
   }
+  // Spec 17 (A2): verify the recipient domain and persist `email_status` BEFORE the
+  // step is sent, so evaluateSend's deliverability gate refuses dead-domain
+  // addresses (it reads contacts.email_status; nothing wrote it before). Best-effort
+  // — a verification miss must never block the prepare/enroll path.
+  await verifyAndPersistEmailStatus(tenantId, contactId).catch(() => {});
   // generateCopyMessage internally builds the (cached-or-fresh) context + enforces
   // never-invent; no flag gate (the cutover flag governs the LIVE send path, not
   // this generation).
