@@ -216,5 +216,16 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
   "refreshing" branch keeps the list but dims it (opacity .5) + `aria-busy` + a
   "Refreshing…" label. Follow-ups (lower, not done): no focus/poll revalidation so
   LLM-captured entries need a manual reload; `updatedAt` fetched but never shown.
-- [ ] 30 notes · 31 graph · 32 voice-of-customer · 35 tam-review
-  · then T2 H2 settings.
+- [x] **30 notes** — three fixes, no scope creep: (1) list fetch swallowed failures
+  (catch→console.warn) so a route 500 rendered the "No notes yet" empty state; added
+  `loadError` set on `!res.ok`/catch + a retryable `EmptyState variant="error"`
+  rendered BEFORE the empty checks. (2) the three server-side entity-name lookups
+  (companies/contacts/deals) were queried by id with NO tenant filter; now
+  `and(inArray(id, ids), eq(tenantId, authCtx.tenantId))` on all three
+  (defense-in-depth). (3) inline notes default entityType='general' (truthy) rendered
+  a stray icon-less/link-less badge; extracted pure `isLinkableNoteEntity` into
+  `_entity-badge.ts` (6 tests) and gated the badge on it (company/contact/deal only).
+  Deliberately NO focus/poll refresh: notes are user-authored, addNote already
+  refetches, no external mutation source. tsc clean; 65 tests green
+  (entity-badge 6 + inbox-notes + route-capability).
+- [ ] 31 graph · 32 voice-of-customer · 35 tam-review · then T2 H2 settings.

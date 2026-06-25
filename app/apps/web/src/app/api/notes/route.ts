@@ -48,7 +48,7 @@ export async function GET() {
       const rows = await db
         .select({ id: companies.id, name: companies.name })
         .from(companies)
-        .where(inArray(companies.id, ids));
+        .where(and(inArray(companies.id, ids), eq(companies.tenantId, authCtx.tenantId)));
       for (const r of rows) nameMap.set(r.id, r.name);
     }
 
@@ -57,7 +57,7 @@ export async function GET() {
       const rows = await db
         .select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName })
         .from(contacts)
-        .where(inArray(contacts.id, ids));
+        .where(and(inArray(contacts.id, ids), eq(contacts.tenantId, authCtx.tenantId)));
       for (const r of rows) {
         nameMap.set(r.id, [r.firstName, r.lastName].filter(Boolean).join(" ") || "Unknown");
       }
@@ -68,7 +68,7 @@ export async function GET() {
       const rows = await db
         .select({ id: deals.id, name: deals.name })
         .from(deals)
-        .where(inArray(deals.id, ids));
+        .where(and(inArray(deals.id, ids), eq(deals.tenantId, authCtx.tenantId)));
       for (const r of rows) nameMap.set(r.id, r.name);
     }
 

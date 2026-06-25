@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isLinkableNoteEntity } from "./_entity-badge";
 import Link from "next/link";
 
 interface Note {
@@ -84,19 +85,26 @@ export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [newNote, setNewNote] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
 
   const fetchNotes = useCallback(async () => {
+    setLoadError(false);
     try {
       const res = await fetch("/api/notes");
       if (res.ok) {
         const data = await res.json();
         setNotes(data.notes || []);
+      } else {
+        // A 500 here used to fall through to the empty state, so a broken
+        // tenant looked identical to one with no notes. Surface it instead.
+        setLoadError(true);
       }
     } catch (e) {
       console.warn("notes: list fetch failed", e);
+      setLoadError(true);
     } finally { setLoading(false); }
   }, []);
 
@@ -222,6 +230,14 @@ export default function NotesPage() {
           <div className="space-y-2 p-6">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
           </div>
+        ) : loadError ? (
+          <EmptyState
+            variant="error"
+            title="Couldn't load notes"
+            description="Something went wrong fetching your notes. This is not an empty list."
+            actionLabel="Retry"
+            onAction={fetchNotes}
+          />
         ) : notes.length === 0 ? (
           <EmptyState
             icon={<FileText size={24} />}
@@ -251,7 +267,7 @@ export default function NotesPage() {
                       {note.title}
                     </span>
                   )}
-                  {note.entityType && (() => {
+                  {isLinkableNoteEntity(note.entityType, note.entityId) && (() => {
                     const href = entityHref(note.entityType, note.entityId);
                     const badge = (
                       <Badge variant="neutral" size="sm">
