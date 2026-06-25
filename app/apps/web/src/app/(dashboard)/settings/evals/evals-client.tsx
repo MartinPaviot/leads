@@ -19,6 +19,7 @@ export default function EvalsPage() {
   const [results, setResults] = useState<Result[]>([]);
   const [runDetail, setRunDetail] = useState<Run | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showNewCase, setShowNewCase] = useState(false);
   const [newCaseInput, setNewCaseInput] = useState("");
   const [newCaseExpected, setNewCaseExpected] = useState("");
@@ -29,12 +30,21 @@ export default function EvalsPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [dsRes, runRes] = await Promise.all([
-      fetch("/api/eval/datasets"), fetch("/api/eval/runs"),
-    ]);
-    if (dsRes.ok) setDatasets((await dsRes.json()).datasets || []);
-    if (runRes.ok) setRuns((await runRes.json()).runs || []);
-    setLoading(false);
+    setLoadError(false);
+    try {
+      const [dsRes, runRes] = await Promise.all([
+        fetch("/api/eval/datasets"), fetch("/api/eval/runs"),
+      ]);
+      if (dsRes.ok) setDatasets((await dsRes.json()).datasets || []);
+      if (runRes.ok) setRuns((await runRes.json()).runs || []);
+      // Both lanes down = a real failure, not just an empty harness (dev-only
+      // page, so a console-readable banner is enough — no toast wired here).
+      if (!dsRes.ok && !runRes.ok) setLoadError(true);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -123,6 +133,13 @@ export default function EvalsPage() {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div role="alert" className="flex items-center gap-3 px-6 py-2 text-[12px]" style={{ color: "var(--color-error, #b91c1c)", borderBottom: "1px solid var(--color-border-default)" }}>
+          <span>Couldn&apos;t load eval datasets/runs. This is not an empty harness — the request failed.</span>
+          <button onClick={fetchData} className="ml-auto font-medium underline">Retry</button>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Datasets */}

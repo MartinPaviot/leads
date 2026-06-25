@@ -1,5 +1,22 @@
 # Settings (T2) P1 hydration worklist — verified 2026-06-25
 
+## STATUS: COMPLETE (2026-06-25)
+
+All confirmed P1 error-masking defects fixed across 14 settings pages, in 5 commits:
+- batch 1 `c33d67d9`: S07 objects · S08 data-model · S10 plays
+- batch 2 `73293cbf`: S34 privacy (+ 'team' visibility option) · S38 autonomy · S22 inbox-voice
+- batch 3 `c1907293`: S24 inbox-autonomy · S26 inbox-notifications · S31 agent-memory
+- batch 4 `24190141`: S01 profile · S21 writing-style · S09 workflows · S05 stages (route)
+- batch 5 (this commit): S14 evals (dev-only, minimal) · S20 mail-calendar (post-PUT re-sync)
+
+S33 security = verified write-only-by-design (no on-mount load; handleSubmit checks
+res.ok + toasts) — no fix. S18 mailboxes = redirect to S20. The deferred P2s below
+(skeletons, gdprRegion-from-env architectural change, audit-log entry, no-refresh
+polish) are NOT done — flagged, lower severity than the error-masking class.
+
+---
+
+
 Source: `verify-settings-hydration` workflow (17 Explore agents, hostile-verify
 against CURRENT code). All pages confirmed `usesSafeFetch: false` UNLESS noted.
 The repo standard `safeFetch`/`useSafeFetch` (`src/lib/infra/safe-fetch.ts`)

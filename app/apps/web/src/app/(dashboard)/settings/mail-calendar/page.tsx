@@ -279,6 +279,9 @@ export default function MailCalendarPage() {
       if (res.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
+        // Re-sync server-canonicalized values (e.g. deduped doNotTrackDomains) so
+        // the UI reflects what was actually stored, not the pre-normalized input.
+        await loadData();
       } else {
         setError("Failed to save preferences");
       }

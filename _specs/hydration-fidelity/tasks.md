@@ -265,17 +265,29 @@ error+retry; global spinner → shape-matching skeleton where a lane loads alone
 - Also: fixed a latent TS2367 in `route-companyid.test.ts` (from 874cb894) that kept
   the whole branch at tsc exit 2 — branch is now genuinely tsc-green. (`276d8bc6`)
 
-## T2 settings (H2 → H1) — verified worklist
+## T2 settings (H2 → H1) — COMPLETE 2026-06-25
 
-Verified 2026-06-25 via the `verify-settings-hydration` workflow (17 hostile Explore
-agents vs CURRENT code). Full per-page defects + fixes: `_reports/hydration-audit/
-_settings-p1-worklist.md`. ~15 pages confirmed `usesSafeFetch:false` → genuine
-swallowed-error/save defects (the audit H2 ratings held). Fix order (high-impact first):
-S07 · S08 · S10 · S34 · S38 · S22 · S24 · S26 · S31 · S01 · S21 · S09 · S14 · S05(route).
-S18/S20 already use safeFetch (lower value). S33 = verify (likely write-only by design).
-Pattern: route loads/saves through `useSafeFetch`/`safeFetch` (toasts on failure) or add
-explicit `res.ok` + error state BEFORE the empty/default render; revert optimistic state
-on save failure. Per-page commit; tsc per batch.
+Verified via the `verify-settings-hydration` workflow (17 hostile Explore agents vs
+CURRENT code; `usesSafeFetch:false` confirmed → the audit H2 ratings held). Full
+per-page defects + fixes: `_reports/hydration-audit/_settings-p1-worklist.md`.
+
+- [x] **batch 1 `c33d67d9`** — S07 objects · S08 data-model · S10 plays (GET error-as-empty
+  + swallowed-save: loadError/Retry + res.ok guards + toast on mutation failure).
+- [x] **batch 2 `73293cbf`** — S34 privacy (+ missing 'team' visibility option) · S38
+  autonomy · S22 inbox-voice (GET swallow + fail-soft save → loadError/Retry + toast).
+- [x] **batch 3 `c1907293`** — S24 inbox-autonomy · S26 inbox-notifications · S31
+  agent-memory (same class; S31 blank-page-on-fail → error Card).
+- [x] **batch 4 `24190141`** — S01 profile (GET no res.ok check) · S21 writing-style
+  (infinite spinner on fail → loadError) · S09 workflows (optimistic toggle/delete now
+  revert on failure; NL builder error state vs canned fallback) · S05 stages route
+  (DEFAULT_STAGES missing aiFillMode/wipLimit).
+- [x] **batch 5** — S14 evals (dev-only, minimal loadError) · S20 mail-calendar (post-PUT
+  re-sync of server-canonicalized values).
+- S33 security = write-only-by-design (no load; handleSubmit checks res.ok) — no fix.
+  S18 = redirect to S20.
+- Deferred P2s (NOT done, flagged): loading skeletons (S01/S14), per-row pending (S09),
+  gdprRegion-from-env→tenant (S34, architectural), audit-log defaultDataVisibility (S34),
+  mailbox last-sync timestamps (S18, data-model gap).
 
 ## T3 periphery — DONE (no work)
 
