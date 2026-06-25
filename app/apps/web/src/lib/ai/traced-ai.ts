@@ -17,6 +17,11 @@ import { recordTrace, type TraceContext, AGENT_REGISTRY } from "../observability
 import { getActivePrompt } from "../evals/flywheel";
 import { enforceLlmBudget } from "../billing/llm-budget";
 import logger from "../observability/logger";
+import { isAiDisabled } from "./ai-provider";
+
+/** Thrown when the AI_DISABLED kill-switch short-circuits a traced model call. */
+const AI_DISABLED_MESSAGE =
+  "AI_DISABLED: model calls are disabled by the AI_DISABLED kill-switch";
 
 type AnyParams = Parameters<typeof generateText>[0];
 type AnyObjectParams = Parameters<typeof generateObject>[0];
@@ -75,6 +80,8 @@ export async function tracedGenerateText(
 ) {
   const { _trace, ...aiParams } = params;
   const start = Date.now();
+
+  if (isAiDisabled()) throw new Error(AI_DISABLED_MESSAGE);
 
   // Pre-dispatch budget gate — throws BudgetExceededError when the
   // tenant is over their monthly LLM cap. Intentionally un-caught
@@ -148,6 +155,8 @@ export async function tracedGenerateObject(
   const { _trace, ...aiParams } = params as { _trace: TraceMetadata; [k: string]: any };
   const start = Date.now();
 
+  if (isAiDisabled()) throw new Error(AI_DISABLED_MESSAGE);
+
   await enforceLlmBudget(_trace.tenantId);
 
   const activePrompt = await getActivePrompt(_trace.agentId).catch(() => null);
@@ -203,6 +212,8 @@ export async function tracedStreamText(
 ) {
   const { _trace, ...aiParams } = params;
   const start = Date.now();
+
+  if (isAiDisabled()) throw new Error(AI_DISABLED_MESSAGE);
 
   await enforceLlmBudget(_trace.tenantId);
 
