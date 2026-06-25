@@ -283,21 +283,64 @@ function UserMenu({
 }
 
 export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tenantName, tenantLogoUrl, recentChats, onSignOut }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
 
-  // Auto-collapse on small screens (mobile would otherwise squeeze content) AND on
-  // the inbox, where the inbox has its own folder column — collapsing the CRM rail
-  // to a thin icon strip gives the single-sidebar email-client frame (Upstream).
-  // Desktop users can still expand manually; it re-applies on the next navigation.
+  // Sidebar collapse state.
+  //
+  // `userPref` is the explicit choice the user made (header chevrons or the
+  // right-edge handle), persisted to localStorage so it survives reloads AND
+  // navigations. `null` = "never chose" → fall back to the per-route default.
+  // This fixes the old behaviour where an effect re-ran on every `pathname`
+  // change and forced the rail back open: clicking a nav item while collapsed
+  // would re-expand it. Now the manual choice sticks.
+  const [userPref, setUserPref] = useState<boolean | null>(null);
+  // Narrow viewport is a HARD override — a full-width rail squeezes content on
+  // small screens, so it collapses regardless of preference.
+  const [isNarrow, setIsNarrow] = useState(false);
+  const [edgeHover, setEdgeHover] = useState(false);
+
+  // Load the persisted preference once (post-hydration; the SSR default is
+  // "expanded"/route-default, so there is no hydration mismatch).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("elevay:sidebar-collapsed");
+      if (saved === "1") setUserPref(true);
+      else if (saved === "0") setUserPref(false);
+    } catch {
+      /* storage blocked (private mode) — fall back to defaults */
+    }
+  }, []);
+
+  // Track the narrow breakpoint independently of the user's preference.
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mq = window.matchMedia("(max-width: 768px)");
-    const apply = () => setCollapsed(mq.matches || !!pathname?.startsWith("/inbox"));
+    const apply = () => setIsNarrow(mq.matches);
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
-  }, [pathname]);
+  }, []);
+
+  // Routes that own a full-width secondary rail default to a collapsed CRM
+  // rail — two 240px sidebars side by side just squeeze content (worst on a
+  // half-screen window). The inbox has its folder column; /settings has its
+  // own settings sub-nav (settings-sidebar.tsx). This is only the DEFAULT —
+  // it applies until the user expresses a choice (userPref wins thereafter).
+  const routeDefaultCollapsed =
+    !!pathname?.startsWith("/inbox") || !!pathname?.startsWith("/settings");
+  const collapsed = isNarrow || (userPref !== null ? userPref : routeDefaultCollapsed);
+
+  // Persist on every explicit toggle. Existing call sites — setCollapsed(true)
+  // from the collapse chevron, setCollapsed(false) from the expand button —
+  // keep working unchanged.
+  const setCollapsed = useCallback((next: boolean) => {
+    setUserPref(next);
+    try {
+      window.localStorage.setItem("elevay:sidebar-collapsed", next ? "1" : "0");
+    } catch {
+      /* storage blocked — preference holds for this session only */
+    }
+  }, []);
   const [customObjectTypes, setCustomObjectTypes] = useState<CustomObjectType[]>([]);
   const { theme, toggle: toggleTheme } = useTheme();
   const firstName = userName.split(" ")[0];
@@ -316,7 +359,7 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
 
   return (
     <aside
-      className="flex flex-col transition-[width] duration-200 ease-in-out"
+      className="relative flex flex-col transition-[width] duration-200 ease-in-out"
       style={{
         width: collapsed ? "52px" : "var(--sidebar-width)",
         minWidth: collapsed ? "52px" : "var(--sidebar-width)",
@@ -585,6 +628,31 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
         onSignOut={onSignOut}
         isSettingsActive={!!isActive("/settings")}
       />
+
+      {/* Right-edge handle — click the divider to open/close the sidebar.
+          Full-height target on the right border; the 1px line lifts to a 2px
+          accent on hover so the affordance is discoverable. Toggles the same
+          persisted state as the header chevrons. Sits in the rail's right
+          padding gutter, so it never steals clicks from nav items. */}
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        onMouseEnter={() => setEdgeHover(true)}
+        onMouseLeave={() => setEdgeHover(false)}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className="absolute inset-y-0 right-0 z-20 flex w-1.5 cursor-pointer items-stretch justify-end"
+        style={{ background: "transparent", border: "none", padding: 0 }}
+      >
+        <span
+          aria-hidden
+          className="h-full transition-all duration-150"
+          style={{
+            width: edgeHover ? "2px" : "1px",
+            background: edgeHover ? "var(--color-accent)" : "transparent",
+          }}
+        />
+      </button>
     </aside>
   );
 }
