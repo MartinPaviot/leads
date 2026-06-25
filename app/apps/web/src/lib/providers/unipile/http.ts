@@ -228,6 +228,55 @@ export async function searchLinkedIn(
   return { items: j.items ?? [], cursor: j.cursor ?? null, total: j.paging?.total_count ?? null };
 }
 
+export type LinkedInParameterType =
+  | "LOCATION"
+  | "INDUSTRY"
+  | "COMPANY"
+  | "SCHOOL"
+  | "JOB_TITLE"
+  | "JOB_FUNCTION"
+  | "SERVICE"
+  | "SKILL"
+  | "PEOPLE"
+  | "CONNECTIONS"
+  | "EMPLOYMENT_TYPE";
+
+export type LinkedInParameterService = "CLASSIC" | "SALES_NAVIGATOR" | "RECRUITER";
+
+export interface LinkedInSearchParameter {
+  /** Numeric LinkedIn filter ID (returned as a string). */
+  id: string;
+  /** The human label LinkedIn returns for that ID. */
+  title: string;
+}
+
+/**
+ * GET /linkedin/search/parameters — resolve a human label ("France", "Software
+ * Development", "Founder") into the numeric LinkedIn filter ID that POST
+ * /linkedin/search requires. Verified live: returns { items: [{ id, title }] }
+ * ranked best-match-first. IDs are SERVICE-scoped — resolve with the same
+ * `service` you'll search in. (The pre-step the parameter-based search needs.)
+ */
+export async function resolveLinkedInParameter(
+  cfg: UnipileConfig,
+  accountId: string,
+  type: LinkedInParameterType,
+  keywords: string | undefined,
+  service: LinkedInParameterService = "CLASSIC",
+  limit = 10,
+): Promise<LinkedInSearchParameter[]> {
+  const qs = new URLSearchParams({ account_id: accountId, type, service, limit: String(limit) });
+  if (keywords) qs.set("keywords", keywords);
+  const j = await unipileFetch<{ items?: Array<{ id?: string | number; title?: string }> }>(
+    cfg,
+    "GET",
+    `/linkedin/search/parameters?${qs.toString()}`,
+  );
+  return (j.items ?? [])
+    .filter((it) => it.id != null)
+    .map((it) => ({ id: String(it.id), title: it.title ?? "" }));
+}
+
 /** A 1st-degree relation as returned by GET /users/relations (verified shape). */
 export interface UnipileRelation {
   /** Unipile member id (ACoAA…) — the viewer-scoped provider_id / send target. */

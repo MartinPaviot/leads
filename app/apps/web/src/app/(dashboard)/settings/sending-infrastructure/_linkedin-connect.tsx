@@ -41,10 +41,15 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
   const [data, setData] = useState<StatusPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  // Sales-Nav sourcing (v1: paste a search URL or type keywords).
+  // Sales-Nav sourcing: paste a search URL / keywords, OR target by ICP criteria
+  // (industries / locations / titles) that we resolve to LinkedIn filter IDs (#2).
   const [sourceQuery, setSourceQuery] = useState("");
+  const [icpIndustries, setIcpIndustries] = useState("");
+  const [icpLocations, setIcpLocations] = useState("");
+  const [icpTitles, setIcpTitles] = useState("");
   const [sourcing, setSourcing] = useState(false);
   const [sourceResult, setSourceResult] = useState<{ accounts: number; contacts: number } | null>(null);
+  const [resolution, setResolution] = useState<Array<{ type: string; label: string; id: string | null; matched: string | null }> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -96,26 +101,39 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
     [toast, origin],
   );
 
-  // v1 sourcing: paste a Sales-Nav search URL (precise targeting via LinkedIn's
-  // own UI) or type keywords; POST to /api/linkedin/source, which runs the
-  // search as this seat and upserts canonical accounts/contacts (provider=unipile).
+  // POST /api/linkedin/source. Precedence (matches the route): a pasted Sales-Nav
+  // URL wins; else ICP criteria (industries/locations/titles) resolved to LinkedIn
+  // filter IDs server-side; else free-text keywords. Upserts canonical rows.
   const runSource = useCallback(async () => {
     const q = sourceQuery.trim();
-    if (!q) return;
+    const toList = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
+    const industries = toList(icpIndustries);
+    const locations = toList(icpLocations);
+    const jobTitles = toList(icpTitles);
+    const hasIcp = industries.length > 0 || locations.length > 0 || jobTitles.length > 0;
+    if (!q && !hasIcp) return;
     setSourcing(true);
     setSourceResult(null);
+    setResolution(null);
     try {
       const isUrl = /^https?:\/\//i.test(q);
+      const payload = isUrl
+        ? { url: q }
+        : hasIcp
+          ? { industries, locations, jobTitles, ...(q ? { keywords: q } : {}) }
+          : { keywords: q };
       const res = await fetch("/api/linkedin/source", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isUrl ? { url: q } : { keywords: q }),
+        body: JSON.stringify(payload),
       });
       const body = (await res.json().catch(() => ({}))) as {
         accountsUpserted?: number;
         contactsUpserted?: number;
+        resolution?: Array<{ type: string; label: string; id: string | null; matched: string | null }>;
         error?: string;
       };
+      if (body.resolution) setResolution(body.resolution);
       if (!res.ok) {
         toast(body.error ?? "LinkedIn sourcing failed", "error");
         return;
@@ -129,7 +147,8 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
     } finally {
       setSourcing(false);
     }
-  }, [sourceQuery, toast]);
+  }, [sourceQuery, icpIndustries, icpLocations, icpTitles, toast]);
+  const canSource = !!(sourceQuery.trim() || icpIndustries.trim() || icpLocations.trim() || icpTitles.trim());
 
   const account = data?.account ?? null;
   const connected = account?.status === "connected";
@@ -204,10 +223,20 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
                     placeholder="Paste a Sales Navigator search URL, or type keywords"
                     disabled={sourcing}
                   />
-                  <Button size="sm" onClick={() => void runSource()} disabled={sourcing || !sourceQuery.trim()}>
+                  <Button size="sm" onClick={() => void runSource()} disabled={sourcing || !canSource}>
                     {sourcing ? "Sourcing…" : "Source"}
                   </Button>
                 </div>
+
+                <p className="mt-3 text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>
+                  Or target by ICP — we resolve these to LinkedIn filters (comma-separated)
+                </p>
+                <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <Input value={icpIndustries} onChange={(e) => setIcpIndustries(e.target.value)} placeholder="Industries (e.g. software)" disabled={sourcing} />
+                  <Input value={icpLocations} onChange={(e) => setIcpLocations(e.target.value)} placeholder="Locations (e.g. France, United States)" disabled={sourcing} />
+                  <Input value={icpTitles} onChange={(e) => setIcpTitles(e.target.value)} placeholder="Titles (e.g. Founder, CEO)" disabled={sourcing} />
+                </div>
+
                 {sourceResult && (
                   <p className="mt-2 text-[11px]" style={{ color: "var(--color-text-secondary)" }}>
                     Added {sourceResult.accounts} account{sourceResult.accounts === 1 ? "" : "s"} +{" "}
@@ -216,6 +245,20 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
                       View in Accounts
                     </a>
                   </p>
+                )}
+                {resolution && resolution.length > 0 && (
+                  <div className="mt-2 space-y-0.5">
+                    {resolution.map((r, i) => (
+                      <p
+                        key={i}
+                        className="text-[11px]"
+                        style={{ color: r.id ? "var(--color-text-tertiary)" : "var(--color-text-muted)" }}
+                      >
+                        {r.type.toLowerCase().replace("_", " ")}: &ldquo;{r.label}&rdquo;{" "}
+                        {r.id ? `→ ${r.matched}` : "→ no LinkedIn match"}
+                      </p>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
