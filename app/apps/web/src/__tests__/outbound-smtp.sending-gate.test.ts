@@ -112,6 +112,10 @@ vi.mock("@/lib/integrations/smtp-send", () => ({ sendViaSmtp: (...a: unknown[]) 
 const evaluateSend = vi.fn();
 vi.mock("@/lib/guardrails/sending-gate", () => ({ evaluateSend: (...a: unknown[]) => evaluateSend(...a) }));
 
+const isWithinSendWindowMock = vi.fn(() => true);
+vi.mock("@/lib/emails/send-window", () => ({ isWithinSendWindow: (...a: unknown[]) => isWithinSendWindowMock(...a) }));
+vi.mock("@/lib/config/tenant-settings", () => ({ getTenantSettings: vi.fn(async () => ({ timezone: "Europe/Paris" })) }));
+
 import { dispatchOutboundSmtp } from "@/inngest/outbound-smtp-send";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -131,6 +135,7 @@ beforeEach(() => {
   evaluateSend.mockReset();
   sendViaSmtp.mockClear();
   smtpMailbox.sentToday = 0;
+  isWithinSendWindowMock.mockReturnValue(true);
 });
 
 describe("C3 dispatchOutboundSmtp — opt-out gap closed + gate wired", () => {
@@ -209,6 +214,16 @@ describe("C3 dispatchOutboundSmtp — opt-out gap closed + gate wired", () => {
     const stepEarlyRead = { run: (n: string, fn: () => unknown) => (n === "find-queued" ? [store[0]] : fn()) };
     const res = await handler({ step: stepEarlyRead });
     expect(sendViaSmtp).not.toHaveBeenCalled(); // claim matched 0 ('sending' != 'queued') -> skipped
+    expect(res.skipped).toBe(1);
+  });
+
+  it("outside the 08-18 send window -> row stays queued (skipped), no send", async () => {
+    store = [row({ id: "o1" })];
+    evaluateSend.mockResolvedValue({ send: true, reason: "ok" });
+    isWithinSendWindowMock.mockReturnValue(false); // e.g. 3am in the tenant tz
+    const res = await handler({ step: fakeStep });
+    expect(sendViaSmtp).not.toHaveBeenCalled();
+    expect(store[0].status).toBe("queued"); // left for a later tick, not failed
     expect(res.skipped).toBe(1);
   });
 });
