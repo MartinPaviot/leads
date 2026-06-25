@@ -33,7 +33,12 @@ export default function WorkspaceSettingsPage() {
 
   useEffect(() => {
     fetch("/api/settings/workspace")
-      .then((r) => r.json())
+      // Was `.then(r => r.json())` with no status check: a 500's error body
+      // parsed into empty fields, so the form rendered blank with no error.
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load workspace settings");
+        return r.json();
+      })
       .then((data) => {
         setName(data.name || "");
         setDomains(data.companyDomains || []);
@@ -121,9 +126,13 @@ export default function WorkspaceSettingsPage() {
       body: JSON.stringify({ logoDataUrl }),
     });
     if (!res.ok) throw new Error(await readApiError(res, "Failed to save logo"));
-    // Re-read so the preview gets the fresh versioned URL…
-    const data = await fetch("/api/settings/workspace").then((r) => r.json());
-    setLogoUrl(data.logoUrl || null);
+    // Re-read so the preview gets the fresh versioned URL… (guard res.ok: a
+    // failed re-read used to parse an error body and blank the logo).
+    const reread = await fetch("/api/settings/workspace");
+    if (reread.ok) {
+      const data = await reread.json();
+      setLogoUrl(data.logoUrl || null);
+    }
     // …and re-render the server layout so the sidebar picks it up now.
     router.refresh();
     setLogoSaved(true);

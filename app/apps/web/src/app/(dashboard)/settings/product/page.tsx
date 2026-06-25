@@ -27,7 +27,12 @@ export default function ProductVoicePage() {
 
   useEffect(() => {
     fetch("/api/settings/product")
-      .then((r) => r.json())
+      // Was `.then(r => r.json())` with no status check: a 500's error body
+      // parsed into empty fields, so the form rendered blank with no error.
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load settings");
+        return r.json();
+      })
       .then((data) => {
         setProductDescription(data.productDescription || "");
         setSalesMotion(data.salesMotion || "");
@@ -35,7 +40,7 @@ export default function ProductVoicePage() {
         setAiTone(data.aiTone || "");
         setLoaded(true);
       })
-      .catch(() => setError("Failed to load settings"));
+      .catch(() => { setError("Failed to load settings"); setLoaded(true); });
   }, []);
 
   async function handleSave() {

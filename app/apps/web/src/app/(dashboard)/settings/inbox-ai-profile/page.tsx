@@ -7,9 +7,10 @@
  * Inbox AI endpoints gate on this — "Off" disables them fail-closed.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ShieldCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 
 type AiProcessingProfile = "standard" | "zero_retention" | "off";
 interface AiProfileOption {
@@ -19,30 +20,36 @@ interface AiProfileOption {
 }
 
 export default function InboxAiProfilePage() {
+  const { toast } = useToast();
   const [options, setOptions] = useState<AiProfileOption[]>([]);
   const [profile, setProfile] = useState<AiProcessingProfile>("standard");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/inbox/ai-profile")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`))))
-      .then((data: { options?: AiProfileOption[]; profile?: AiProcessingProfile }) => {
-        if (!cancelled) {
-          setOptions(data.options ?? []);
-          if (data.profile) setProfile(data.profile);
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const r = await fetch("/api/inbox/ai-profile");
+      if (r.ok) {
+        const data = (await r.json()) as { options?: AiProfileOption[]; profile?: AiProcessingProfile };
+        setOptions(data.options ?? []);
+        if (data.profile) setProfile(data.profile);
+      } else {
+        // Was swallowed: a failure left no profile options (radio list empty),
+        // looking like the feature was unavailable.
+        setLoadError(true);
+      }
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   async function save() {
     setSaving(true);
@@ -57,9 +64,13 @@ export default function InboxAiProfilePage() {
         const data = (await r.json()) as { profile?: AiProcessingProfile };
         if (data.profile) setProfile(data.profile);
         setSaved(true);
+      } else {
+        // Was fail-soft (silent): a failed save left the radio on the new value
+        // though it never persisted. This gates inbox AI, so it must be visible.
+        toast("Couldn't save your AI data-handling profile.", "error");
       }
     } catch {
-      /* fail-soft */
+      toast("Couldn't save your AI data-handling profile.", "error");
     } finally {
       setSaving(false);
     }
@@ -69,6 +80,20 @@ export default function InboxAiProfilePage() {
     return (
       <div className="flex h-40 items-center justify-center">
         <Loader2 size={18} className="animate-spin" style={{ color: "var(--color-text-tertiary)" }} />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="mx-auto max-w-2xl p-6">
+        <h1 className="flex items-center gap-2 text-[16px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          <ShieldCheck size={16} /> AI data handling
+        </h1>
+        <p className="mt-2 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+          Couldn&apos;t load your AI data-handling settings. This is not a reset — the request failed.
+        </p>
+        <Button size="sm" onClick={() => void load()} className="mt-3">Retry</Button>
       </div>
     );
   }

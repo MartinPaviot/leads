@@ -39,6 +39,7 @@ interface CustomSignal {
 export default function CustomSignalsPage() {
   const [signals, setSignals] = useState<CustomSignal[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -46,13 +47,21 @@ export default function CustomSignalsPage() {
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setLoadError(false);
     try {
       const res = await fetch("/api/custom-signals");
-      if (!res.ok) return;
+      if (!res.ok) {
+        // Was a bare return: a 500 left loaded=false (stuck) while a network
+        // error rendered the empty "no signals" state — both masked the failure.
+        setLoadError(true);
+        setLoaded(true);
+        return;
+      }
       const data = await res.json();
       setSignals(data.signals ?? []);
       setLoaded(true);
     } catch {
+      setLoadError(true);
       setLoaded(true);
     }
   }, []);
@@ -221,7 +230,14 @@ export default function CustomSignalsPage() {
           Your signals
         </h2>
 
-        {signals.length === 0 ? (
+        {loadError ? (
+          <p role="alert" className="mt-4 text-[13px]" style={{ color: "var(--color-error, #b91c1c)" }}>
+            Couldn&apos;t load your signals — this is not an empty list.{" "}
+            <button onClick={load} className="font-medium underline" style={{ color: "var(--color-accent)" }}>
+              Retry
+            </button>
+          </p>
+        ) : signals.length === 0 ? (
           <p
             className="mt-4 text-[13px]"
             style={{ color: "var(--color-text-tertiary)" }}
