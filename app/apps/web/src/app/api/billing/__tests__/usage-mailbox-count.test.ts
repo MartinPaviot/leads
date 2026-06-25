@@ -16,7 +16,13 @@ function makeChain(results: unknown[]) {
 }
 
 vi.mock("@/db", () => ({ db: { select: vi.fn() } }));
-vi.mock("@/lib/auth/auth-utils", () => ({ getAuthContext: vi.fn() }));
+vi.mock("@/lib/auth/auth-utils", () => ({
+  getAuthContext: vi.fn(),
+  // The route was admin-gated after this test was written (requireAdmin added to
+  // /api/billing/usage). Mirror the real impl: null for admins, 403 otherwise.
+  requireAdmin: (ctx: { role?: string } | null) =>
+    ctx?.role === "admin" ? null : Response.json({ error: "Admin access required" }, { status: 403 }),
+}));
 vi.mock("@/db/billing-schema", () => ({ subscriptions: { tenantId: "s.tenantId" }, usageEvents: { tenantId: "u.tenantId", eventType: "u.type", count: "u.count", createdAt: "u.createdAt" } }));
 vi.mock("@/db/schema", () => ({ connectedMailboxes: { tenantId: "cm.tenantId" } }));
 vi.mock("drizzle-orm", () => ({ eq: vi.fn(), and: vi.fn(), gte: vi.fn(), sql: Object.assign(() => ({}), { raw: () => ({}) }) }));
