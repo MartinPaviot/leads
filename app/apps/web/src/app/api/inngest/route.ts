@@ -45,6 +45,7 @@ import { playbookCapturePostCall } from "@/inngest/playbook-capture-post-call";
 import { playbookExtractFromActivity } from "@/inngest/playbook-extract-from-activity";
 import { sequenceDraftToOutbound } from "@/inngest/sequence-draft-to-outbound";
 import { signalScoreDaily } from "@/inngest/signal-score-daily";
+import { dailyAutopilot } from "@/inngest/daily-autopilot";
 import { visitorPhoneEnrichRequest } from "@/inngest/visitor-phone-enrich-request";
 import { phoneTaskNotification } from "@/inngest/phone-task-notification";
 import { icpFitRecomputeTenant, icpFitRecomputeDaily } from "@/inngest/icp-fit-recompute";
@@ -184,6 +185,10 @@ export const { GET, POST, PUT } = serve({
     // tenant, walks eligible companies and persists priority_score
     // (multiplier × fit × accessibility) used by the call queue.
     signalScoreDaily,
+    // Daily autopilot (spec 37) — weekday 07:00 UTC. Per tenant: warmup-safe
+    // budget over the managed pool → top signal-ranked targeted prospects →
+    // grounded copy → auto-enroll or draft. Behind DAILY_AUTOPILOT_ENABLED (off).
+    dailyAutopilot,
     // Nurture recycle (B6) — daily 07:00 UTC. Completed enrollments
     // with lastStepAt > 30d ago re-enroll into the tenant's Nurture
     // sequence. Skips contacts already in nurture (no recycle loop).
