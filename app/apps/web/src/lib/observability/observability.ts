@@ -140,7 +140,17 @@ export async function recordTrace(
     }
 
     // ── Flywheel: emit trace event for async online eval sampling ──
-    if (agent && agent.evalSampleRate > 0 && result.input && result.output && result.status === "ok") {
+    // Each sampled trace fans out to an LLM-as-judge call. EVAL_ONLINE_SAMPLING=0
+    // disables that fan-out entirely (kill-switch); default (unset) keeps the
+    // per-agent evalSampleRate behaviour.
+    if (
+      agent &&
+      process.env.EVAL_ONLINE_SAMPLING !== "0" &&
+      agent.evalSampleRate > 0 &&
+      result.input &&
+      result.output &&
+      result.status === "ok"
+    ) {
       if (Math.random() < agent.evalSampleRate) {
         try {
           const { inngest } = await import("@/inngest/client");

@@ -54,14 +54,18 @@ export const cronFailureToEvalCases = inngest.createFunction(
   }
 );
 
-// ─── 2. Every 6h: Full Flywheel Cycle ───────────────────────
+// ─── 2. Weekly: Full Flywheel Cycle ─────────────────────────
 
 export const cronFlywheelCycle = inngest.createFunction(
   {
     id: "cron-flywheel-cycle",
     name: "Flywheel: Pattern Analysis + Prompt Refinement",
     retries: 1,
-    triggers: [{ cron: "0 */6 * * *" }],
+    // Weekly (was every 6h). The cycle loops over every tenant x LLM agent on
+    // Sonnet (pattern-analysis + prompt-refinement + eval-case regeneration);
+    // the 6h cadence re-ran the whole mesh 28x/week for marginal prompt deltas.
+    // Weekly preserves the optimization signal at a fraction of the spend.
+    triggers: [{ cron: "TZ=UTC 0 2 * * 1" }],
   },
   async ({ step }: { step: any }) => {
     const allTenants = await step.run("get-tenants", async () => {
