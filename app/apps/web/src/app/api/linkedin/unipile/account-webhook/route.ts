@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { linkedinAccount } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { readUnipileConfig, verifyWebhookToken } from "@/lib/providers/unipile/http";
+import { readUnipileConfig, verifyWebhookToken, getUnipileAccount, seatInfoFromAccount } from "@/lib/providers/unipile/http";
 import { inngest } from "@/inngest/client";
 import logger from "@/lib/observability/logger";
 
@@ -45,6 +45,18 @@ export async function POST(req: Request) {
     const name = typeof body.name === "string" ? body.name : undefined; // our row id
 
     if (status && (status === "CREATION_SUCCESS" || status === "RECONNECTED") && accountId) {
+      // Best-effort: detect the seat's premium tier (Sales Navigator / Recruiter)
+      // + profile from Unipile, so the search/InMail api selector is correct and
+      // the card shows the seat owner's name instead of a nameless 'classic' seat.
+      // A failed probe keeps the existing defaults — never blocks the connect.
+      const seat = cfg
+        ? await getUnipileAccount(cfg, accountId)
+            .then(seatInfoFromAccount)
+            .catch((e) => {
+              logger.warn("linkedin account-webhook: seat-type probe failed", { e });
+              return null;
+            })
+        : null;
       // Match by our row id (name) when present, else by the Unipile account id.
       const where = name ? eq(linkedinAccount.id, name) : eq(linkedinAccount.unipileAccountId, accountId);
       await db
@@ -52,6 +64,9 @@ export async function POST(req: Request) {
         .set({
           unipileAccountId: accountId,
           status: "connected",
+          ...(seat
+            ? { seatType: seat.seatType, displayName: seat.displayName, profileUrl: seat.profileUrl }
+            : {}),
           connectedAt: new Date(),
           lastHealthAt: new Date(),
           healthDetail: {},
