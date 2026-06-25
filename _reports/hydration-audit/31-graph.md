@@ -22,3 +22,11 @@ Entrée : `app/apps/web/src/app/(dashboard)/graph/page.tsx`.
 1. Silent error handling: fetchGraph catch is a no-op (page.tsx:80), so a 500 on /api/context-graph or /stats falls through to the 'No graph data yet' empty state (page.tsx:216-223) — backend failure looks identical to an empty graph; no independent error degradation per lane.
 2. Feedback failures are invisible: sendFeedback swallows errors (page.tsx:180), so a failed thumbs up/down POST silently no-ops with no toast or rollback indication (page.tsx:419-433).
 3. Loading is a single global spinner (page.tsx:194-203) rather than per-lane skeletons; the entire page is gated, so no element degrades independently while data loads — below the Home-page bar of independently-degrading lanes.
+
+## Résolution (P1 31 — fixed)
+
+- **Defect #1 (silent error→empty):** added a `loadError` state. `fetchGraph` resets it on entry and sets it when the load-bearing graph fetch returns `!graphRes.ok` or throws. The `nodes.length === 0` branch now renders `<EmptyState variant="error" title="Couldn't load the graph" actionLabel="Retry" onAction={fetchGraph}>` when `loadError`, else the original "No graph data yet". A backend 500 no longer reads as an empty graph.
+- **Defect #2 (invisible feedback failures):** `sendFeedback` now sets a `feedbackError` state (the offending edge id) on `!res.ok`/catch and clears it on entry/success. The fact card for that edge renders a `role="alert"` "Couldn't save your feedback — try again." line, so a failed thumbs up/down is no longer a silent no-op.
+- **Defect #3 (global spinner, not per-lane):** deliberately NOT changed. The two lanes (graph + stats) are fetched together and the canvas is meaningless without nodes, so a shape-matching skeleton per lane buys little here; the global spinner + the new error/empty distinction is the sensible bar for this page. Flagged, not rushed.
+
+Verdict after fix: **H1** for the load + feedback paths (faithful empty/error distinction, visible write failures). No page test harness (heavy SVG client page) — change is contained to page.tsx; tsc clean.

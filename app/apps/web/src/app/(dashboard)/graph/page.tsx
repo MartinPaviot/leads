@@ -55,6 +55,8 @@ export default function GraphExplorerPage() {
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [stats, setStats] = useState<GraphStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [filterType, setFilterType] = useState<string | null>(null);
   const [showInvalid, setShowInvalid] = useState(false);
@@ -62,6 +64,7 @@ export default function GraphExplorerPage() {
 
   const fetchGraph = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [graphRes, statsRes] = await Promise.all([
         fetch(`/api/context-graph?limit=150&includeInvalid=${showInvalid}`),
@@ -73,11 +76,18 @@ export default function GraphExplorerPage() {
         const laidOut = applyForceLayout(data.nodes, data.edges);
         setNodes(laidOut);
         setEdges(data.edges);
+      } else {
+        // The graph fetch is the load-bearing one; a 500 here used to fall
+        // through to the "No graph data yet" empty state, making a backend
+        // failure indistinguishable from an empty graph.
+        setLoadError(true);
       }
       if (statsRes.ok) {
         setStats(await statsRes.json());
       }
-    } catch { /* silent */ }
+    } catch {
+      setLoadError(true);
+    }
     setLoading(false);
   }, [showInvalid]);
 
@@ -159,6 +169,7 @@ export default function GraphExplorerPage() {
   }
 
   async function sendFeedback(edgeId: string, feedback: "up" | "down") {
+    setFeedbackError(null);
     try {
       const res = await fetch("/api/context-graph/feedback", {
         method: "POST",
@@ -176,8 +187,14 @@ export default function GraphExplorerPage() {
             tInvalid: data.invalidated ? new Date().toISOString() : e.tInvalid,
           };
         }));
+      } else {
+        // Was a silent no-op: a failed vote left no trace, so the user thought
+        // it registered. Flag the offending edge so the panel can say so.
+        setFeedbackError(edgeId);
       }
-    } catch { /* silent */ }
+    } catch {
+      setFeedbackError(edgeId);
+    }
   }
 
   const filteredNodes = filterType ? nodes.filter(n => n.entityType === filterType) : nodes;
@@ -215,11 +232,21 @@ export default function GraphExplorerPage() {
         <div className="flex-1 overflow-hidden" style={{ background: "var(--color-bg-surface)" }}>
           {nodes.length === 0 ? (
             <div className="flex h-full items-center justify-center">
-              <EmptyState
-                icon={<Network size={24} />}
-                title="No graph data yet"
-                description="The context graph builds automatically from emails, meetings, and notes. Connect your Gmail or manually ingest content."
-              />
+              {loadError ? (
+                <EmptyState
+                  variant="error"
+                  title="Couldn't load the graph"
+                  description="Something went wrong building your context graph. This is not an empty graph."
+                  actionLabel="Retry"
+                  onAction={fetchGraph}
+                />
+              ) : (
+                <EmptyState
+                  icon={<Network size={24} />}
+                  title="No graph data yet"
+                  description="The context graph builds automatically from emails, meetings, and notes. Connect your Gmail or manually ingest content."
+                />
+              )}
             </div>
           ) : (
             <>
@@ -433,6 +460,11 @@ export default function GraphExplorerPage() {
                         </button>
                       </div>
                     </div>
+                    {feedbackError === edge.id && (
+                      <p className="mt-1 text-[9px]" role="alert" style={{ color: "var(--color-error, #b91c1c)" }}>
+                        Couldn&apos;t save your feedback — try again.
+                      </p>
+                    )}
                   </div>
                 ))}
                 {selectedEdges.length === 0 && (
