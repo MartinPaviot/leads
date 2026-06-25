@@ -103,3 +103,20 @@ The /pricing page is a fully client-side static marketing page: every displayed 
 - Current-plan state is unwired: page never calls the existing tenant-scoped /api/billing/subscription (route.ts:36-44 returns tenant.plan); 'Current Plan' is hardcoded to the Free Trial tier (page.tsx:25,138), so a Starter/Pro tenant sees the wrong current-plan marker and upgrade CTAs for tiers they already own.
 - No loading/empty/error states for any data — the page renders the same static cards regardless of subscription fetch outcome; checkout failure is swallowed to console.warn (page.tsx:84) with no user-facing error.
 - Prices and feature lists are hardcoded (page.tsx:19-62) instead of being sourced from Stripe products or lib/billing/plan-limits.ts, so displayed entitlements can silently drift from the limits actually enforced.
+
+## CORRECTION (2026-06-25) — H1 ratings revised after hostile re-verification
+
+A re-verification of the 7 "H1" pages against current code (workflow
+`verify-h1-product-pages`) found this table was **over-generous on 4 of them** — they
+carry the same error-as-empty / swallowed-save class the H2 pages did:
+
+| # | Page | Was | Actually | Status |
+|---|------|-----|----------|--------|
+| 04 | accounts | H1 | **H2** | FIXED (loadError + retry; refetch partial-overwrite guard) — commit 0d647ff1 |
+| 15 | proposals | H1 | **H2** | FIXED (loadList setNotice on failure) |
+| 28 | knowledge | H1 | **H2** | FIXED (loadError + retry) |
+| 34 | objects | H1 | **H2** | FIXED (500≠"not found" + mutation toasts) |
+
+Genuinely H1 (re-confirmed): 18 meeting-upload · 21 outbound-mode · 25 hot-to-call.
+Detail in `_specs/hydration-fidelity/tasks.md` ("H1 re-verification"). Lesson: an
+LLM-generated audit can be over-generous; verify H1 claims against code, don't trust them.
