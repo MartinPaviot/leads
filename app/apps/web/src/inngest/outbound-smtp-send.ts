@@ -8,8 +8,11 @@
  * drains the queue for IMAP/SMTP tenants and sends as the user from their own
  * mailbox. Gmail/OAuth tenants are left untouched (no smtp_custom mailbox).
  *
- * Idempotency: each row is sent inside its own `step.run("send-<id>")`, so an
- * Inngest retry replays the memoised result instead of re-sending.
+ * Idempotency: each row is atomically CLAIMED (queued -> sending, RETURNING) right
+ * before the wire. A retry that replays this step — or the campaign-worker cron,
+ * which also drains "queued" — re-runs the claim, gets 0 rows (no longer "queued"),
+ * and skips. So a prospect is mailed at most once. (step.run does NOT prevent a
+ * re-send on a throw-AFTER-send; only the claim does — the old comment was wrong.)
  */
 
 import { inngest } from "./client";
@@ -102,6 +105,19 @@ export const dispatchOutboundSmtp = inngest.createFunction(
             .where(eq(outboundEmails.id, o.id));
           return "failed";
         }
+
+        // Atomic claim: flip queued -> sending so EXACTLY ONE worker sends this row.
+        // The campaign-worker cron also drains "queued", and an Inngest retry replays
+        // this whole step on a throw — both re-run this conditional UPDATE and get 0
+        // rows back once the row has left "queued", so they skip without re-sending.
+        // This is the real send-once guarantee (step.run memoisation does NOT cover a
+        // crash AFTER the wire but before the status write).
+        const claimed = await db
+          .update(outboundEmails)
+          .set({ status: "sending", updatedAt: new Date() })
+          .where(and(eq(outboundEmails.id, o.id), eq(outboundEmails.status, "queued")))
+          .returning({ id: outboundEmails.id });
+        if (claimed.length === 0) return "skipped";
 
         try {
           const password = decryptSecret(mb.secretEncrypted);

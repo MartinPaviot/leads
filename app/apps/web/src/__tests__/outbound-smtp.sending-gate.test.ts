@@ -87,8 +87,12 @@ vi.mock("@/db", () => ({
       set: (s: Record<string, unknown>) => ({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         where: (pred: any) => {
-          for (const r of store) if (matchesRow(pred, r)) Object.assign(r, s);
-          return Promise.resolve(undefined);
+          const matched = store.filter((r) => matchesRow(pred, r));
+          for (const r of matched) Object.assign(r, s);
+          // Awaitable for plain `.where()` consumers AND `.returning()` for the
+          // atomic claim (returns the rows it actually flipped).
+          const ids = matched.map((r) => ({ id: r.id }));
+          return Object.assign(Promise.resolve(ids), { returning: () => Promise.resolve(ids) });
         },
       }),
     })),
@@ -177,5 +181,34 @@ describe("C3 dispatchOutboundSmtp — opt-out gap closed + gate wired", () => {
     expect(sendViaSmtp).toHaveBeenCalledTimes(1);
     expect(store[0].status).toBe("sent");
     expect(res.sent).toBe(1);
+  });
+
+  it("atomic claim: sends ONCE across a re-run / concurrent cron (no double-send)", async () => {
+    store = [row({ id: "o1" })];
+    evaluateSend.mockResolvedValue({ send: true, reason: "ok" });
+
+    const first = await handler({ step: fakeStep });
+    expect(sendViaSmtp).toHaveBeenCalledTimes(1);
+    expect(store[0].status).toBe("sent");
+    expect(first.sent).toBe(1);
+
+    // A retry / the campaign-worker cron re-runs over the same store: the row has
+    // left "queued", so the claim (and the find-queued select) match nothing and
+    // the prospect is NOT mailed a second time.
+    const second = await handler({ step: fakeStep });
+    expect(sendViaSmtp).toHaveBeenCalledTimes(1); // STILL one
+    expect(second.sent).toBe(0);
+  });
+
+  it("a row that is no longer queued at claim time is skipped, not sent", async () => {
+    // Simulate the dual-cron race: the row was fetched as queued, but another worker
+    // claimed it (now 'sending') before this worker's claim ran.
+    store = [row({ id: "o1", status: "sending" })];
+    evaluateSend.mockResolvedValue({ send: true, reason: "ok" });
+    // Force the find-queued select to still surface it (as if read a tick earlier).
+    const stepEarlyRead = { run: (n: string, fn: () => unknown) => (n === "find-queued" ? [store[0]] : fn()) };
+    const res = await handler({ step: stepEarlyRead });
+    expect(sendViaSmtp).not.toHaveBeenCalled(); // claim matched 0 ('sending' != 'queued') -> skipped
+    expect(res.skipped).toBe(1);
   });
 });
