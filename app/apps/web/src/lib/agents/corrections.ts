@@ -424,8 +424,7 @@ Provide brief reasoning, then end with: SCORE: X.XX`;
     const result = await generateText({
       model,
       prompt: judgePrompt,
-      // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-      maxTokens: 500,
+      maxOutputTokens: 700,
     });
 
     const scoreMatch = result.text.match(/SCORE:\s*(\d+\.?\d*)/i);

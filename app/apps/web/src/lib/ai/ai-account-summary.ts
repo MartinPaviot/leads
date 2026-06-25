@@ -100,8 +100,7 @@ ${contextParts.join("\n")}
 2. how_they_make_money: 1-2 sentences on their business model and revenue sources.
 
 Return JSON: { "account_summary": "...", "how_they_make_money": "..." }`,
-      // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-      maxTokens: 400,
+      maxOutputTokens: 768,
       _trace: { agentId: "ai-account-summary", tenantId: tenantId || "default" },
     });
 

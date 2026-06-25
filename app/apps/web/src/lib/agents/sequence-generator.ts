@@ -427,7 +427,7 @@ export async function personalizeStepEmail(
         body: z.string(),
       }),
       temperature: 0.5,
-      maxTokens: 500,
+      maxOutputTokens: 1500,
       prompt: `Personalize this email template using the full prospect dossier below. Transform it from a template into an email that feels personally written for this specific person.
 
 ${contextBlock}

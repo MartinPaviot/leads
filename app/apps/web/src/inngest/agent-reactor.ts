@@ -145,7 +145,7 @@ export const agentReactor = inngest.createFunction(
           prompt: buildDecisionUserPrompt(data.trigger, context),
           schema: decisionSchema,
           temperature: 0.2,
-          maxTokens: 1000,
+          maxOutputTokens: 1000,
           _trace: {
             agentId: "agent-reactor",
             tenantId: data.tenantId,

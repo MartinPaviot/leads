@@ -193,8 +193,7 @@ ${evalContext?.context ? `<context>${evalContext.context.slice(0, 500)}</context
 Think step by step about the quality of the output relative to the rubric.
 Then provide your score on a 0.0 to 1.0 scale.
 End your response with exactly: SCORE: X.XX`,
-          // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-          maxTokens: 300,
+          maxOutputTokens: 700,
         });
 
         const scoreMatch = result.text.match(/SCORE:\s*(\d+\.?\d*)/);
@@ -235,8 +234,7 @@ A faithful output only states things supported by the context. An unfaithful out
 For each claim in the output, check if it is supported by the context.
 Score 1.0 if fully grounded, 0.5 if partially grounded, 0.0 if mostly hallucinated.
 End your response with exactly: SCORE: X.XX`,
-          // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-          maxTokens: 300,
+          maxOutputTokens: 700,
         });
 
         const scoreMatch = result.text.match(/SCORE:\s*(\d+\.?\d*)/);
@@ -312,8 +310,7 @@ ${evalContext?.context ? `<context>${evalContext.context.slice(0, 500)}</context
 If you cannot evaluate due to insufficient information, respond with SCORE: 0.50
 Otherwise, score 0.00 to 1.00.
 End your response with exactly: SCORE: X.XX`,
-          // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-          maxTokens: 300,
+          maxOutputTokens: 700,
         });
 
         const scoreMatch = result.text.match(/SCORE:\s*(\d+\.?\d*)/);
@@ -1274,8 +1271,7 @@ Otherwise, output your score in <result>X.XX</result> tags (0.00 to 1.00).`;
       const result = await generateText({
         model,
         prompt,
-        // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-        maxTokens: 400,
+        maxOutputTokens: 700,
       });
 
       const text = result.text;

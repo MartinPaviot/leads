@@ -117,8 +117,7 @@ async function compactMessages(messages: UIMessage[], maxMessages: number = 30):
         prompt: `Summarize this conversation history into a concise paragraph (max 150 words). Preserve key facts: entity names, numbers, decisions made, and open questions. Do not add commentary.
 
 ${olderTexts}`,
-        // @ts-expect-error maxTokens exists in AI SDK but type definition may lag
-        maxTokens: 250,
+        maxOutputTokens: 400,
       });
       summaryText = result.text.trim();
     } else {
