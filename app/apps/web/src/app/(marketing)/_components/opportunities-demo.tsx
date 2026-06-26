@@ -73,7 +73,7 @@ export function OpportunitiesDemo() {
               <div className="flex items-center gap-3">
                 <Logo src={clogo("mercury.com")} name="Mercury" size={36} />
                 <div className="flex-1">
-                  <div className="text-[16px] font-bold" style={{ color: T.text }}>Mercury — Platform</div>
+                  <div className="text-[16px] font-bold" style={{ color: T.text }}>Mercury · Platform</div>
                   <div className="flex items-center gap-1.5 text-[11px]" style={{ color: T.ter }}>
                     <Avatar name="Dana Liu" size={16} /> Dana Liu · Head of Growth
                   </div>

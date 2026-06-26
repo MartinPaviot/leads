@@ -27,13 +27,13 @@ const ACCOUNT = { dom: "mercury.com", name: "Mercury", signal: "Raised Series B 
 // The drafted multi-touch sequence. The first email's body types in live.
 const STEPS: { icon: typeof Mail; channel: string; day: string; preview: string }[] = [
   { icon: Mail, channel: "Email", day: "Day 0", preview: "" },
-  { icon: MessageSquare, channel: "LinkedIn", day: "Day 2", preview: "Quick follow-up on the note I sent — worth 15 min?" },
+  { icon: MessageSquare, channel: "LinkedIn", day: "Day 2", preview: "Quick follow-up on the note I sent. Worth 15 min?" },
   { icon: Mail, channel: "Email", day: "Day 5", preview: "Sharing how a peer post-raise cut ramp time for new SDRs." },
 ];
 
 const EMAIL_SUBJECT = "Scaling outbound after the Series B";
 const EMAIL_BODY =
-  "Congrats on the raise. With three SDRs joining, the usual crunch is ramp time — list-building and research eat the first months. That's exactly the work Elevay takes off their plate. Worth a short look on Thursday?";
+  "Congrats on the raise. With three SDRs joining, the usual crunch is ramp time: list-building and research eat the first months. That's exactly the work Elevay takes off their plate. Worth a short look on Thursday?";
 
 // Cycle timeline (ms from start): each phase reveals one more step; the body
 // types during phase 1; the approve state lands at the end; then it loops.
