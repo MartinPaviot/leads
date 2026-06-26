@@ -1,12 +1,17 @@
 /**
- * Spec 37 (B2.1) — warmup-aware sendable capacity for a tenant's MANAGED sending
- * pool. Elevay operates the sending infrastructure (Instantly mailboxes) ON BEHALF
- * of the client — the client never connects its own account, so auth is provider-
- * managed, not the tenant's DNS problem.
+ * Spec 37 (B2.1) — warmup-aware sendable capacity for a tenant's COLD-SENDING pool.
+ * Cold mail leaves via ELEVAY-OWNED infrastructure only — a `smtp_custom` domain
+ * Elevay authenticates (DNS-verified) and sends from over its own SMTP. OAuth boxes
+ * (gmail/outlook) are provider-authenticated; a self-managed `smtp_custom` domain is
+ * trusted only once DNS-verified (dnsAwareAuthResolver, #424).
  *
- * This reads `connected_mailboxes`, maps each row to the pure `SendingMailbox`
- * shape, resolves auth (provider-managed by default), and DELEGATES the ramp/cap
- * math to `getSendableCapacity` (capacity.ts) — no warmup/cap math re-implemented.
+ * Instantly boxes are EXCLUDED (founder directive: cold sends never leave via the
+ * Instantly API): Instantly hosts its mailboxes and never surrenders SMTP creds
+ * (instantly-import.ts), so the send worker's round-robin refuses them — counting
+ * them as capacity caused "budget says N, worker sends nothing" (NO_ELEVAY_SEND_TRANSPORT).
+ *
+ * Reads `connected_mailboxes`, maps to the pure `SendingMailbox` shape, resolves
+ * auth, and DELEGATES the ramp/cap math to `getSendableCapacity` (capacity.ts).
  *
  * Blast radius: lib/autopilot/* only.
  */
@@ -23,12 +28,22 @@ import { verifyDomainAuth, type AuthStatus, type DnsAuthRecords } from "@/lib/se
 import { dnsAuthLookup } from "@/lib/sending/identity/dns-auth-lookup";
 
 /**
- * Providers whose authentication (SPF/DKIM/DMARC or OAuth) is managed for us, so a
- * mailbox on them is sendable without a per-domain DNS proof: Instantly (Elevay's
- * managed pool), Gmail/Google + Outlook/Microsoft (OAuth-authenticated). A
- * self-managed `smtp_custom` domain is NOT trusted until DNS-verified (follow-up).
+ * Providers whose authentication (OAuth) is managed for us, so a mailbox on them is
+ * sendable without a per-domain DNS proof: Gmail/Google + Outlook/Microsoft. A
+ * self-managed `smtp_custom` domain is NOT trusted until DNS-verified
+ * (dnsAwareAuthResolver). Instantly is intentionally absent — it's not a cold-send
+ * transport here (see NO_ELEVAY_SEND_TRANSPORT) — and is filtered out upstream.
  */
-export const MANAGED_AUTH_PROVIDERS = new Set(["instantly", "gmail", "google", "outlook", "microsoft"]);
+export const MANAGED_AUTH_PROVIDERS = new Set(["gmail", "google", "outlook", "microsoft"]);
+
+/**
+ * Providers with NO Elevay-controlled SEND transport → never counted as cold-send
+ * capacity. Instantly hosts its own mailboxes and never surrenders SMTP creds, and
+ * the founder's directive is that cold sends leave via Elevay infra, not the Instantly
+ * API. The send worker already refuses these (pickResendEligibleMailbox / mailbox-
+ * selector), so counting them only produced phantom capacity.
+ */
+export const NO_ELEVAY_SEND_TRANSPORT = new Set(["instantly"]);
 
 /** Mailbox statuses that can still send (warming ramps, active is full). */
 const SENDABLE_STATUSES = ["warming_up", "active"] as const;
@@ -116,14 +131,18 @@ export async function loadTenantCapacity(tenantId: string, deps: CapacitySourceD
     .from(connectedMailboxes)
     .where(and(eq(connectedMailboxes.tenantId, tenantId), inArray(connectedMailboxes.status, [...SENDABLE_STATUSES])));
 
-  const mailboxes: SendingMailbox[] = rows.map((r) => ({
-    id: r.id,
-    domain: r.domain,
-    provider: r.provider,
-    dailyCap: r.dailyLimit ?? 50,
-    warmupStartedAt: r.warmupStartedAt ?? null,
-    sentToday: r.sentToday ?? 0,
-  }));
+  const mailboxes: SendingMailbox[] = rows
+    // Drop boxes with no Elevay-controlled send transport (Instantly): the worker
+    // refuses them, so counting them is phantom capacity.
+    .filter((r) => !NO_ELEVAY_SEND_TRANSPORT.has((r.provider ?? "").toLowerCase()))
+    .map((r) => ({
+      id: r.id,
+      domain: r.domain,
+      provider: r.provider,
+      dailyCap: r.dailyLimit ?? 50,
+      warmupStartedAt: r.warmupStartedAt ?? null,
+      sentToday: r.sentToday ?? 0,
+    }));
 
   return getSendableCapacity(mailboxes, await resolveAuth(mailboxes));
 }
