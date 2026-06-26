@@ -368,26 +368,26 @@ describe("F3 /inbox — pane error vs missing (B5)", () => {
   it("a failed detail fetch shows the pane error + Retry, not 'no longer available'", async () => {
     detailResponse = () => jsonRes({ error: "boom" }, false, 500);
     await mountLoaded();
-    expect(await screen.findByText(/Couldn.t load this conversation/)).toBeTruthy();
-    expect(screen.getByText("Retry")).toBeTruthy();
-    expect(screen.queryByText("This conversation is no longer available.")).toBeNull();
+    expect(await screen.findByText("Impossible de charger cette conversation.")).toBeTruthy();
+    expect(screen.getByText("Réessayer")).toBeTruthy();
+    expect(screen.queryByText("Cette conversation n'est plus disponible.")).toBeNull();
   });
 
   it("a resolved-but-absent detail shows 'no longer available' (missing, not error)", async () => {
     detailResponse = () => jsonRes(null);
     await mountLoaded();
-    expect(await screen.findByText("This conversation is no longer available.")).toBeTruthy();
-    expect(screen.queryByText(/Couldn.t load this conversation/)).toBeNull();
+    expect(await screen.findByText("Cette conversation n'est plus disponible.")).toBeTruthy();
+    expect(screen.queryByText("Impossible de charger cette conversation.")).toBeNull();
   });
 
   it("pane Retry re-fetches and recovers the thread", async () => {
     detailResponse = () => jsonRes({ error: "boom" }, false, 500);
     await mountLoaded();
-    const retry = await screen.findByText("Retry");
+    const retry = await screen.findByText("Réessayer");
     detailResponse = () => jsonRes(FIXTURE_DETAIL);
     fireEvent.click(retry);
     await flush();
-    expect(screen.queryByText(/Couldn.t load this conversation/)).toBeNull();
+    expect(screen.queryByText("Impossible de charger cette conversation.")).toBeNull();
     expect(screen.getByText(/can we talk pricing/)).toBeTruthy(); // thread body rendered
   });
 });

@@ -334,10 +334,10 @@ export function ConversationPane({
         contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined,
         threadId: conversationKey ?? undefined,
       });
-      if (!brief) toast("Couldn't suggest a reply — opening a blank composer.", "warning");
+      if (!brief) toast(t("inbox.toastSuggestFailed"), "warning");
     } catch {
       setComposer({ to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined, threadId: conversationKey ?? undefined });
-      toast("Couldn't suggest a reply — opening a blank composer.", "warning");
+      toast(t("inbox.toastSuggestFailed"), "warning");
     } finally {
       setDrafting(false);
     }
@@ -373,11 +373,11 @@ export function ConversationPane({
         // Fail-closed (R1.6): never fabricate. Leave an open composer's body
         // untouched; if none is open, open a blank one so the user can still write.
         setComposer((c) => c ?? { to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined, threadId: conversationKey ?? undefined });
-        toast("Couldn't draft a reply — opening a blank composer.", "warning");
+        toast(t("inbox.toastDraftFailed"), "warning");
       }
     } catch {
       setComposer((c) => c ?? { to: replyTo, subject: `Re: ${conv.subject}`, body: "", contactId: detail.contact?.id, mailboxId: detail.conversation.mailboxId ?? undefined });
-      toast("Couldn't draft a reply — opening a blank composer.", "warning");
+      toast(t("inbox.toastDraftFailed"), "warning");
     } finally {
       setDrafting(false);
     }
@@ -408,10 +408,10 @@ export function ConversationPane({
         }));
       } else {
         // Fail-closed: never fabricate a nudge. Leave an open composer untouched.
-        toast("Couldn't draft a nudge — try again in a moment.", "warning");
+        toast(t("inbox.toastNudgeFailed"), "warning");
       }
     } catch {
-      toast("Couldn't draft a nudge — try again in a moment.", "warning");
+      toast(t("inbox.toastNudgeFailed"), "warning");
     } finally {
       setDrafting(false);
     }
@@ -458,7 +458,7 @@ export function ConversationPane({
       setUsedDraftId(null);
       setDetail((d) => (d ? { ...d, preparedDraft: null } : d));
     }
-    toast("Reply sent. Mark the conversation done when you're finished.", "success");
+    toast(t("inbox.toastReplySent"), "success");
   }
 
   // CLE-14 §lift: returns {ok,error?} so the chat action can report the outcome
@@ -476,14 +476,14 @@ export function ConversationPane({
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        toast(data.error ?? "Couldn't stop the sequence.", "error");
+        toast(data.error ?? t("inbox.toastStopFailed"), "error");
         return { ok: false, error: data.error ?? "Couldn't stop the sequence." };
       }
-      toast(`Stopped "${detail.enrollment.sequenceName}" for this contact.`, "success");
+      toast(t("inbox.toastStopped", { name: detail.enrollment.sequenceName }), "success");
       setDetail((d) => (d ? { ...d, enrollment: null } : d));
       return { ok: true };
     } catch {
-      toast("Network error while stopping the sequence.", "error");
+      toast(t("inbox.toastStopNetworkError"), "error");
       return { ok: false, error: "Network error while stopping the sequence." };
     } finally {
       setStopping(false);
@@ -508,7 +508,7 @@ export function ConversationPane({
     return (
       <div className="flex h-full items-center justify-center">
         <p className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-          Select a conversation to read it.
+          {t("inbox.emptySelect")}
         </p>
       </div>
     );
@@ -527,10 +527,10 @@ export function ConversationPane({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
         <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-          Couldn&apos;t load this conversation.
+          {t("inbox.errorLoad")}
         </p>
         <Button variant="outline" size="sm" onClick={() => setDetailRetry((n) => n + 1)}>
-          Retry
+          {t("inbox.retry")}
         </Button>
       </div>
     );
@@ -539,7 +539,7 @@ export function ConversationPane({
     return (
       <div className="flex h-full items-center justify-center">
         <p className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-          This conversation is no longer available.
+          {t("inbox.gone")}
         </p>
       </div>
     );
