@@ -95,7 +95,12 @@ export async function POST(req: Request) {
     const audienceId = selectAudience(style, recipient)?.id;
     const { prompt: stylePrompt } = buildWritingStylePrompt(style, audienceId);
     const voice = buildVoicePrompt(await getVoicePrefs(authCtx.userId));
-    const { prompt: memory } = buildMemoryPrompt(await getInboxMemory(authCtx.userId));
+    // Single sign-off: writing-style's "Sign off with …" is canonical, so when it
+    // provides one we omit memory.signOffName — otherwise this prompt would carry
+    // two conflicting signatures (Settings IA de-dup).
+    const { prompt: memory } = buildMemoryPrompt(await getInboxMemory(authCtx.userId), {
+      omitSignOff: Boolean(style.signOff?.trim()),
+    });
     // A3: if the thread's own mailbox has a voice override, layer it on (it wins
     // for that box; absent → the per-user voice). Scrubbed against auto-send.
     const threadMailboxId = attributeMailbox(conversation.messages, indexMailboxes(scope.mailboxes)).mailboxId;

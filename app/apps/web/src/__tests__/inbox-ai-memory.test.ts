@@ -27,6 +27,18 @@ describe("ai-memory (INBOX-O02)", () => {
     expect(ignored).toEqual([]);
   });
 
+  it("omits the memory sign-off when the caller already injects one (single sign-off)", () => {
+    // Settings IA de-dup: the reply route passes omitSignOff when writing-style's
+    // canonical "Sign off with …" block is set, so the same prompt never carries
+    // two conflicting signatures (signOff vs signOffName).
+    expect(buildMemoryPrompt(base).prompt).toContain("Sign off as: Martin");
+    const omitted = buildMemoryPrompt(base, { omitSignOff: true });
+    expect(omitted.prompt).not.toContain("Sign off as");
+    // the rest of the memory block (company line, standing instructions) still renders
+    expect(omitted.prompt).toContain("The user's company: Elevay — GTM for founders");
+    expect(omitted.prompt).toContain("- Keep replies under 120 words");
+  });
+
   it("returns an empty prompt when nothing is set", () => {
     expect(buildMemoryPrompt({ standingInstructions: [], aboutMe: {} })).toEqual({ prompt: "", ignored: [] });
   });
