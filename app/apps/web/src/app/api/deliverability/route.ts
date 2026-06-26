@@ -14,10 +14,17 @@ async function handleDeliverability(req: Request) {
     const url = new URL(req.url, "http://localhost");
     const sequenceId = url.searchParams.get("sequenceId");
 
-    // Build where clause
+    // Build where clause. We gate on contact_id IS NOT NULL to drop self-test /
+    // plumbing sends (the outbound-loop test email has no contact) that would
+    // otherwise inflate "sent" and skew every rate. NOTE: unlike the prospect
+    // KPIs (summary / rollups), we deliberately do NOT exclude excluded-as-lead
+    // contacts here — deliverability is a SENDING-REPUTATION metric, and a real
+    // send to a not-a-lead address that bounces/opens is still a genuine signal.
+    // Also: we keep counting by sentAt (not status='sent'), because a bounced
+    // row WAS dispatched and must stay in the bounce-rate denominator.
     const baseWhere = sequenceId
-      ? and(eq(outboundEmails.tenantId, authCtx.tenantId), eq(outboundEmails.enrollmentId, sequenceId))
-      : eq(outboundEmails.tenantId, authCtx.tenantId);
+      ? and(eq(outboundEmails.tenantId, authCtx.tenantId), eq(outboundEmails.enrollmentId, sequenceId), isNotNull(outboundEmails.contactId))
+      : and(eq(outboundEmails.tenantId, authCtx.tenantId), isNotNull(outboundEmails.contactId));
 
     // Aggregate metrics from outboundEmails in a single query
     const [metrics] = await db
@@ -130,11 +137,13 @@ async function handleDeliverability(req: Request) {
       ? and(
           eq(outboundEmails.tenantId, authCtx.tenantId),
           eq(outboundEmails.enrollmentId, sequenceId),
+          isNotNull(outboundEmails.contactId),
           sql`${outboundEmails.sentAt} >= ${prevWeekStart.toISOString()}`,
           sql`${outboundEmails.sentAt} < ${prevWeekEnd.toISOString()}`
         )
       : and(
           eq(outboundEmails.tenantId, authCtx.tenantId),
+          isNotNull(outboundEmails.contactId),
           sql`${outboundEmails.sentAt} >= ${prevWeekStart.toISOString()}`,
           sql`${outboundEmails.sentAt} < ${prevWeekEnd.toISOString()}`
         );

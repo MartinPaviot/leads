@@ -23,6 +23,7 @@ import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
 import { outboundEmails, contacts, companies, visits } from "@/db/schema";
 import { and, eq, gte, isNotNull, isNull, or } from "drizzle-orm";
+import { notExcludedAsLeadSql } from "@/lib/inbound/lead-status-sql";
 import {
   computeHotness,
   isInSpeedWindow,
@@ -110,6 +111,9 @@ export async function GET(req: Request) {
         eq(contacts.tenantId, authCtx.tenantId),
         isNotNull(contacts.phone),
         isNull(contacts.deletedAt),
+        // Don't surface a contact ruled not-a-lead as "hot to call" just because
+        // they opened/clicked — mirrors the dashboard-summary prospect gate.
+        notExcludedAsLeadSql(contacts.properties),
       ),
     )
     .where(
@@ -151,6 +155,7 @@ export async function GET(req: Request) {
         eq(contacts.tenantId, authCtx.tenantId),
         isNotNull(contacts.phone),
         isNull(contacts.deletedAt),
+        notExcludedAsLeadSql(contacts.properties),
       ),
     )
     .where(
