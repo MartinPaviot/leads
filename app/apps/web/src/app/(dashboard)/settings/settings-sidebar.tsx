@@ -34,7 +34,6 @@ import {
   Package,
   Send,
   PenLine,
-  AtSign,
   Gauge,
   Brain,
   ChevronDown,
@@ -110,7 +109,8 @@ const settingsNav: NavSection[] = [
     items: [
       { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
       { label: "Sending channels", href: "/settings/sending-infrastructure", icon: Send },
-      { label: "Mailbox identity", href: "/settings/mailbox-identity", icon: AtSign },
+      // Mailbox identity (display name / signature / voice per box) folded into
+      // Mail & Calendar — it now lives as a section there, beside the accounts.
       // Hidden until promoted (ready:false). Page stays reachable by URL.
       { label: "Recording", href: "/settings/recording", icon: Video, ready: false },
     ],
