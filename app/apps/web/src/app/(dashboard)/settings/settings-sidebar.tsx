@@ -23,6 +23,7 @@ import {
   FlaskConical,
   Lock,
   Shield,
+  ShieldCheck,
   Search,
   Menu,
   X,
@@ -31,14 +32,15 @@ import {
   Radio,
   Inbox,
   Package,
-  Library,
   Send,
   PenLine,
   AtSign,
+  Gauge,
+  BadgeCheck,
+  Brain,
 } from "lucide-react";
 import { BILLING_PAGE_ENABLED } from "@/lib/billing/page-visibility";
 import { EVALS_PAGE_ENABLED, MCP_PAGE_ENABLED } from "@/lib/settings/admin-tools-visibility";
-import { DOCS_PAGE_ENABLED } from "@/lib/docs/page-visibility";
 
 interface NavItem {
   label: string;
@@ -57,66 +59,84 @@ interface NavSection {
   items: NavItem[];
 }
 
+// ── Settings IA (2026-06-26 reorg) ─────────────────────────────────────────
+// Six topical sections in a setup-then-operate order: who you are → the AI's
+// brain → who it targets → how it reaches out → org admin → developer tooling.
+// Replaces the old flat 13-item "Workspace" dumping ground. Canonical pages are
+// surfaced (incl. previously-orphaned /autonomy, /agent-memory, /inbox-ai-profile);
+// dead redirect routes (/agent, /icp-profiles, /mailboxes) and soon-to-be-merged
+// inbox-* duplicates stay reachable by URL but are kept out of the nav. Phase-2
+// page merges (3 autonomy → 1, 3 voice → 1, 2 notifications → 1) collapse the
+// remaining redundancy; see _reports for the plan.
 const settingsNav: NavSection[] = [
   {
     label: "Account",
     items: [
-      { label: "Guardrails", href: "/settings/guardrails", icon: Activity },
-      { label: "Privacy & data", href: "/settings/privacy", icon: Shield },
+      { label: "Profile", href: "/settings", icon: User },
       { label: "Security", href: "/settings/security", icon: Lock },
-      { label: "Settings", href: "/settings", icon: User },
+      { label: "Notifications", href: "/settings/notifications", icon: Bell },
+    ],
+  },
+  {
+    label: "Your AI",
+    items: [
+      { label: "Autonomy", href: "/settings/autonomy", icon: Gauge },
+      // Phase 2: the approval-mode page folds into Autonomy. Until then it is
+      // a distinct control (review-each / batch-daily / auto-high-confidence).
+      { label: "Approval mode", href: "/settings/guardrails", icon: BadgeCheck },
+      { label: "Voice & Writing", href: "/settings/writing-style", icon: PenLine },
+      { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
+      { label: "Product", href: "/settings/product", icon: Package },
+      { label: "Agent memory", href: "/settings/agent-memory", icon: Brain },
+      { label: "AI data handling", href: "/settings/inbox-ai-profile", icon: ShieldCheck },
+      // Hidden until promoted (ready:false). Page stays reachable by URL.
+      { label: "Sales Plays", href: "/settings/plays", icon: Layers, ready: false },
+    ],
+  },
+  {
+    label: "Targeting & Pipeline",
+    items: [
+      { label: "ICP", href: "/settings/icp", icon: Target },
+      { label: "Opportunity stages", href: "/settings/stages", icon: GitBranch },
+      { label: "Capture approvals", href: "/settings/capture-approvals", icon: Inbox },
+      { label: "Custom fields", href: "/settings/data-model", icon: Database },
+      // Hidden until promoted (ready:false). Pages stay reachable by URL.
+      { label: "Custom signals", href: "/settings/signals", icon: Radio, ready: false },
+      { label: "Workflows", href: "/settings/workflows", icon: Workflow, ready: false },
+      { label: "Custom objects", href: "/settings/objects", icon: Box, ready: false },
+    ],
+  },
+  {
+    label: "Channels",
+    items: [
+      { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
+      { label: "Sending channels", href: "/settings/sending-infrastructure", icon: Send },
+      { label: "Mailbox identity", href: "/settings/mailbox-identity", icon: AtSign },
+      // Hidden until promoted (ready:false). Page stays reachable by URL.
+      { label: "Recording", href: "/settings/recording", icon: Video, ready: false },
     ],
   },
   {
     label: "Workspace",
+    adminOnly: true,
     items: [
       { label: "General", href: "/settings/workspace", icon: Building },
-      { label: "ICP", href: "/settings/icp", icon: Target },
-      { label: "Product & Voice", href: "/settings/product", icon: Package },
-      { label: "Writing Style", href: "/settings/writing-style", icon: PenLine },
-      { label: "Mailbox identity", href: "/settings/mailbox-identity", icon: AtSign },
-      { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
-      { label: "Sending infrastructure", href: "/settings/sending-infrastructure", icon: Send },
-      { label: "Capture approvals", href: "/settings/capture-approvals", icon: Inbox },
       { label: "Members", href: "/settings/members", icon: Users },
-      { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
-      { label: "Notifications", href: "/settings/notifications", icon: Bell },
-      { label: "Opportunity Stages", href: "/settings/stages", icon: GitBranch },
-      { label: "Data Model", href: "/settings/data-model", icon: Database },
-      // ── Hidden: functional pages that show empty states for most
-      // early-stage users. Pages stay accessible via direct URL.
-      // Flip `ready` to `true` when the feature is promoted. ──
-      { label: "Custom Objects", href: "/settings/objects", icon: Box, ready: false },
-      { label: "Plays", href: "/settings/plays", icon: Layers, ready: false },
-      { label: "Recording", href: "/settings/recording", icon: Video, ready: false },
-      { label: "Signals", href: "/settings/signals", icon: Radio, ready: false },
-      { label: "Workflows", href: "/settings/workflows", icon: Workflow, ready: false },
+      { label: "Privacy & data", href: "/settings/privacy", icon: Shield },
+      { label: "AI budget", href: "/settings/llm-budget", icon: DollarSign },
+      // Dev-only: the billing page 404s in production builds (page-visibility.ts).
+      { label: "Billing", href: "/settings/billing", icon: CreditCard, ready: BILLING_PAGE_ENABLED },
     ],
   },
   {
-    label: "Resources",
-    items: [
-      // Dev-only: methodology docs, 404s in production builds
-      // (lib/docs/page-visibility.ts).
-      { label: "Documentation", href: "/settings/docs", icon: Library, ready: DOCS_PAGE_ENABLED },
-    ],
-  },
-  {
-    label: "Admin",
+    label: "Developer",
     adminOnly: true,
     items: [
       // Dev-only: internal tooling, 404s in production builds
       // (admin-tools-visibility.ts).
       { label: "Evaluations", href: "/settings/evals", icon: FlaskConical, ready: EVALS_PAGE_ENABLED },
-      { label: "LLM Budget", href: "/settings/llm-budget", icon: DollarSign },
-      { label: "MCP Integration", href: "/settings/mcp", icon: Plug, ready: MCP_PAGE_ENABLED },
-    ],
-  },
-  {
-    label: "Billing",
-    items: [
-      // Dev-only: the billing page 404s in production builds (page-visibility.ts).
-      { label: "Billing", href: "/settings/billing", icon: CreditCard, ready: BILLING_PAGE_ENABLED },
+      { label: "LLM observability", href: "/settings/llm-evals", icon: Activity },
+      { label: "MCP integration", href: "/settings/mcp", icon: Plug, ready: MCP_PAGE_ENABLED },
     ],
   },
 ];

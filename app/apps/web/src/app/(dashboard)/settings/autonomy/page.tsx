@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
-import { PageHeader } from "@/components/ui/page-header";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { useToast } from "@/components/ui/toast";
 import { Shield, Zap, Brain, Rocket, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { LEVEL_BEHAVIOR } from "@/lib/guardrails/level-behavior";
@@ -143,15 +143,15 @@ export default function AutonomySettingsPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="space-y-6">
         <div className="h-8 w-48 animate-pulse rounded" style={{ background: "var(--color-bg-hover)" }} />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6 space-y-6">
-      <PageHeader title="Autonomy & Guardrails" subtitle="Control how much the campaign engine acts on its own" />
+    <div className="space-y-6">
+      <SettingsHeader title="Autonomy & Guardrails" subtitle="Control how much the campaign engine acts on its own" />
 
       {loadError && (
         <div
