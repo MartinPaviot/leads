@@ -9,6 +9,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { fuzzyRank } from "@/lib/inbox/fuzzy";
 import type { PaletteCommand } from "@/lib/inbox/palette-commands";
+import { useT } from "@/lib/i18n/locale";
 
 // Re-export so existing `./_command-palette` importers keep resolving the type;
 // the canonical definition + the pure builder live in lib/inbox/palette-commands.
@@ -23,6 +24,7 @@ export function CommandPalette({
   onClose: () => void;
   commands: PaletteCommand[];
 }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -34,8 +36,8 @@ export function CommandPalette({
     if (open) {
       setQuery("");
       setActive(0);
-      const t = setTimeout(() => inputRef.current?.focus(), 0);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => inputRef.current?.focus(), 0);
+      return () => clearTimeout(timer);
     }
   }, [open]);
 
@@ -89,14 +91,14 @@ export function CommandPalette({
               onClose();
             }
           }}
-          placeholder="Search conversations and actions…"
+          placeholder={t("inbox.palette.placeholder")}
           className="w-full border-b bg-transparent px-4 py-3 text-[13px] outline-none"
           style={{ borderColor: "var(--color-border-default)", color: "var(--color-text-primary)" }}
         />
         <div className="max-h-[50vh] overflow-y-auto py-1">
           {ranked.length === 0 ? (
             <div className="px-4 py-6 text-center text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-              No matches
+              {t("inbox.palette.noMatches")}
             </div>
           ) : (
             ranked.map((cmd, i) => (

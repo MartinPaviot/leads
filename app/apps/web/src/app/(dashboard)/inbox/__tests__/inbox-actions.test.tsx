@@ -396,20 +396,20 @@ describe("F3 /inbox — list error state (B3)", () => {
   it("a failed list load shows the error EmptyState + Retry, not a misleading empty lane", async () => {
     listResponse = () => jsonRes({ error: "boom" }, false, 500);
     await mountLoaded();
-    expect(await screen.findByText("Couldn't load this lane")).toBeTruthy();
-    expect(screen.getByText("Retry")).toBeTruthy();
+    expect(await screen.findByText("Impossible de charger ce dossier")).toBeTruthy();
+    expect(screen.getByText("Réessayer")).toBeTruthy();
     // The lane's resting empty copy must NOT be what the user sees on a failure.
-    expect(screen.queryByText("Nothing needs your attention")).toBeNull();
+    expect(screen.queryByText("Rien ne requiert votre attention")).toBeNull();
   });
 
   it("Retry re-requests and recovers on success", async () => {
     listResponse = () => jsonRes({ error: "boom" }, false, 500);
     await mountLoaded();
-    const retry = await screen.findByText("Retry");
+    const retry = await screen.findByText("Réessayer");
     listResponse = () => jsonRes(FIXTURE_LIST); // the next load succeeds
     fireEvent.click(retry);
     await flush();
-    expect(screen.queryByText("Couldn't load this lane")).toBeNull();
+    expect(screen.queryByText("Impossible de charger ce dossier")).toBeNull();
     expect(screen.getAllByText("Marie Dubois").length).toBeGreaterThan(0); // rows are back
   });
 });

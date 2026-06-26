@@ -11,6 +11,7 @@ import { REWRITE_PRESETS } from "@/lib/inbox/rewrite-presets";
 import { TRANSLATE_LANGUAGES } from "@/lib/inbox/translate-languages";
 import { pickDefaultFrom, mailboxDisplay, type SendableMailbox } from "@/lib/inbox/pick-from-mailbox";
 import { applySignature } from "@/lib/inbox/mailbox-signature";
+import { useT } from "@/lib/i18n/locale";
 import {
   draftStorageKey,
   saveDraftToStorage,
@@ -163,6 +164,7 @@ function EmailField({
 
 export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: EmailComposerPanelProps) {
   const { toast } = useToast();
+  const t = useT();
   const [mounted, setMounted] = useState(false);
 
   // A2: send-from selector. Seeded to the thread's box when still sendable, else
@@ -252,7 +254,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
     if (sent) return;
     const hasContent = Boolean(editBody.trim() || editSubject.trim() || toEmails.length);
     setDraftSaving(true);
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       if (hasContent) {
         saveDraftToStorage(storageKey, {
           to: toEmails,
@@ -301,7 +303,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
       }
       setDraftSaving(false);
     }, 800);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toEmails, ccEmails, bccEmails, editSubject, editBody, sent, storageKey, fromMailboxId]);
 
@@ -396,12 +398,12 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
         setRewriteUndo(editBody); // keep the original for one-tap undo
         setEditBody(data.text.trim());
         setRewriteInstruction("");
-        toast("Rewritten — undo if it's not right.", "success");
+        toast(t("inbox.compose.rewrittenToast"), "success");
       } else {
-        toast("Couldn't rewrite — kept your text.", "warning");
+        toast(t("inbox.compose.rewriteFailedToast"), "warning");
       }
     } catch {
-      toast("Couldn't rewrite — kept your text.", "warning");
+      toast(t("inbox.compose.rewriteFailedToast"), "warning");
     } finally {
       setRewriting(false);
     }
@@ -421,12 +423,12 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
       if (data.text && data.text.trim()) {
         setRewriteUndo(editBody);
         setEditBody(data.text.trim());
-        toast(`Translated to ${lang} — undo if it's not right.`, "success");
+        toast(t("inbox.compose.translatedToast", { lang }), "success");
       } else {
-        toast("Couldn't translate — kept your text.", "warning");
+        toast(t("inbox.compose.translateFailedToast"), "warning");
       }
     } catch {
-      toast("Couldn't translate — kept your text.", "warning");
+      toast(t("inbox.compose.translateFailedToast"), "warning");
     } finally {
       setTranslating(false);
     }
@@ -449,12 +451,12 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
         setEditBody(data.text.trim());
         setDraftOpen(false);
         setDraftBullets("");
-        toast("Drafted from your bullets — undo if it's not right.", "success");
+        toast(t("inbox.compose.draftedToast"), "success");
       } else {
-        toast("Couldn't draft — add a little more detail.", "warning");
+        toast(t("inbox.compose.draftFailedDetailToast"), "warning");
       }
     } catch {
-      toast("Couldn't draft — try again.", "warning");
+      toast(t("inbox.compose.draftFailedRetryToast"), "warning");
     } finally {
       setDrafting(false);
     }
@@ -464,15 +466,15 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
 
   async function handleSend() {
     if (toEmails.length === 0) {
-      toast("Add at least one recipient.", "warning");
+      toast(t("inbox.compose.needRecipientToast"), "warning");
       return;
     }
     if (!editSubject.trim()) {
-      toast("Subject cannot be empty.", "warning");
+      toast(t("inbox.compose.subjectEmptyToast"), "warning");
       return;
     }
     if (!editBody.trim()) {
-      toast("Email body cannot be empty.", "warning");
+      toast(t("inbox.compose.bodyEmptyToast"), "warning");
       return;
     }
 
@@ -498,7 +500,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(
-          (errorData as { error?: string }).error || `Send failed (${res.status})`
+          (errorData as { error?: string }).error || t("inbox.compose.sendFailedStatus", { status: res.status })
         );
       }
 
@@ -514,13 +516,13 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
         void fetch(`/api/inbox/drafts/${id}/consume`, { method: "POST" }).catch(() => {});
       }
       setSent(true);
-      toast("Email sent successfully.", "success");
+      toast(t("inbox.compose.sentToast"), "success");
       onSent?.(messageId);
 
       // Auto-close after brief confirmation
       setTimeout(onClose, 1200);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to send email. Please try again.";
+      const msg = err instanceof Error ? err.message : t("inbox.compose.sendFailedGeneric");
       setSendError(msg);
     } finally {
       setSending(false);
@@ -564,7 +566,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
               className="truncate text-[14px] font-semibold"
               style={{ color: "var(--color-text-primary)" }}
             >
-              {editSubject || "New Email"}
+              {editSubject || t("inbox.compose.newEmail")}
             </h3>
           </div>
           <button
@@ -601,7 +603,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
               style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
             >
               <span className="w-12 shrink-0 text-[12px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>
-                From
+                {t("inbox.compose.from")}
               </span>
               {mailboxes.length === 1 ? (
                 <span className="text-[13px]" style={{ color: "var(--color-text-primary)" }}>
@@ -649,15 +651,15 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
         })()}
 
         <EmailField
-          label="To"
+          label={t("inbox.compose.to")}
           emails={toEmails}
           onChange={(v) => { markEdited(); setToEmails(v); }}
-          placeholder="recipient@example.com"
+          placeholder={t("inbox.compose.recipientPlaceholder")}
         />
 
         {/* Cc / Bcc — fields when open, compact toggles otherwise */}
         {showCc && <EmailField label="Cc" emails={ccEmails} onChange={(v) => { markEdited(); setCcEmails(v); }} />}
-        {showBcc && <EmailField label="Bcc" emails={bccEmails} onChange={(v) => { markEdited(); setBccEmails(v); }} />}
+        {showBcc && <EmailField label={t("inbox.compose.bcc")} emails={bccEmails} onChange={(v) => { markEdited(); setBccEmails(v); }} />}
         <div
           className="flex items-center gap-3 px-4 py-1.5"
           style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
@@ -668,7 +670,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
             style={{ color: "var(--color-text-muted)", cursor: "pointer" }}
           >
             {showCc ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-            {showCc ? "Hide Cc" : "Cc"}
+            {showCc ? t("inbox.compose.hideCc") : "Cc"}
           </button>
           <button
             onClick={() => setShowBcc((v) => !v)}
@@ -676,7 +678,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
             style={{ color: "var(--color-text-muted)", cursor: "pointer" }}
           >
             {showBcc ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-            {showBcc ? "Hide Bcc" : "Bcc"}
+            {showBcc ? t("inbox.compose.hideBcc") : t("inbox.compose.bcc")}
           </button>
         </div>
 
@@ -689,14 +691,14 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
             className="w-12 shrink-0 text-[12px] font-medium"
             style={{ color: "var(--color-text-tertiary)" }}
           >
-            Subject
+            {t("inbox.compose.subject")}
           </span>
           <input
             value={editSubject}
             onChange={(e) => { markEdited(); setEditSubject(e.target.value); }}
             className="flex-1 bg-transparent text-[13px] outline-none"
             style={{ color: "var(--color-text-primary)" }}
-            placeholder="Subject line"
+            placeholder={t("inbox.compose.subjectPlaceholder")}
           />
         </div>
 
@@ -713,7 +715,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
                 className="gap-1.5"
               >
                 {rewriting ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                Rewrite
+                {t("inbox.compose.rewrite")}
               </Button>
               {rewriteOpen && (
                 <div
@@ -741,7 +743,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
                           void handleRewrite(rewriteInstruction);
                         }
                       }}
-                      placeholder="Tell the AI how…"
+                      placeholder={t("inbox.compose.rewriteInstructionPlaceholder")}
                       className="min-w-0 flex-1 rounded border px-2 py-1 text-[12px] outline-none"
                       style={{
                         borderColor: "var(--color-border-default)",
@@ -750,7 +752,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
                       }}
                     />
                     <Button size="sm" onClick={() => void handleRewrite(rewriteInstruction)} disabled={!rewriteInstruction.trim()}>
-                      Go
+                      {t("inbox.compose.go")}
                     </Button>
                   </div>
                 </div>
@@ -767,7 +769,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
                 className="gap-1.5"
               >
                 {translating ? <RefreshCw size={12} className="animate-spin" /> : <Languages size={12} />}
-                Translate
+                {t("inbox.compose.translate")}
               </Button>
               {translateOpen && (
                 <div
@@ -798,7 +800,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
                 className="gap-1.5"
               >
                 {drafting ? <RefreshCw size={12} className="animate-spin" /> : <ListPlus size={12} />}
-                Draft from bullets
+                {t("inbox.compose.draftFromBullets")}
               </Button>
               {draftOpen && (
                 <div
@@ -809,7 +811,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
                     value={draftBullets}
                     onChange={(e) => setDraftBullets(e.target.value)}
                     rows={4}
-                    placeholder={"- what you want to say\n- another point"}
+                    placeholder={t("inbox.compose.bulletsPlaceholder")}
                     className="w-full resize-none rounded border px-2 py-1 text-[12px] outline-none"
                     style={{
                       borderColor: "var(--color-border-default)",
@@ -819,7 +821,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
                   />
                   <div className="mt-1.5 flex justify-end">
                     <Button size="sm" onClick={() => void handleDraft()} disabled={!draftBullets.trim() || drafting} loading={drafting}>
-                      Generate
+                      {t("inbox.compose.generate")}
                     </Button>
                   </div>
                 </div>
@@ -836,7 +838,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
                 }}
                 className="gap-1"
               >
-                <Undo2 size={12} /> Undo
+                <Undo2 size={12} /> {t("inbox.compose.undo")}
               </Button>
             )}
           </div>
@@ -859,7 +861,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
                 }
               }}
               disabled={rewriting || !editBody.trim()}
-              placeholder="Hit Cmd/Ctrl+J to edit with AI"
+              placeholder={t("inbox.compose.aiInstructionPlaceholder")}
               className="min-w-0 flex-1 bg-transparent text-[12px] outline-none disabled:opacity-60"
               style={{ color: "var(--color-text-primary)" }}
             />
@@ -879,7 +881,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
               minHeight: "200px",
               whiteSpace: "pre-wrap",
             }}
-            placeholder="Write your reply — or hit ⌘/Ctrl+J to draft with AI"
+            placeholder={t("inbox.compose.bodyPlaceholder")}
           />
         </div>
 
@@ -905,7 +907,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
               }}
             >
               <RefreshCw size={10} />
-              Retry
+              {t("common.retry")}
             </button>
           </div>
         )}
@@ -919,8 +921,8 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
             {/* Recipient count */}
             <span className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>
               {toEmails.length > 0
-                ? `To: ${toEmails.join(", ")}`
-                : "No recipients"}
+                ? t("inbox.compose.toRecipients", { list: toEmails.join(", ") })
+                : t("inbox.compose.noRecipients")}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -929,12 +931,12 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
               type="button"
               onClick={handleSaveDraft}
               disabled={sending || sent}
-              title="Drafts auto-save — click to save now"
+              title={t("inbox.compose.draftAutoSaveTitle")}
               className="flex items-center gap-1 text-[11px] disabled:opacity-50"
               style={{ color: "var(--color-text-muted)" }}
             >
               <Save size={12} />
-              {draftSaving ? "Saving…" : draftSavedAt ? "Draft saved" : "Draft"}
+              {draftSaving ? t("inbox.compose.draftSaving") : draftSavedAt ? t("inbox.compose.draftSaved") : t("inbox.compose.draft")}
             </button>
             {/* Send */}
             {sent ? (
@@ -943,7 +945,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
                 style={{ color: "oklch(0.6 0.15 145)" }}
               >
                 <Send size={13} />
-                Sent
+                {t("inbox.compose.sent")}
               </span>
             ) : (
               <Button
@@ -954,7 +956,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [] }: E
                 loading={sending}
                 icon={!sending ? <Send size={13} /> : undefined}
               >
-                Send
+                {t("inbox.compose.send")}
               </Button>
             )}
           </div>

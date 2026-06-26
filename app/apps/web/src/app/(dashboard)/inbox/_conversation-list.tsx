@@ -12,33 +12,27 @@ import { Button } from "@/components/ui/button";
 import { type ConversationListItem, type InboxLane } from "./_types";
 import { prefetchDetail } from "@/lib/inbox/detail-cache";
 import { InboxRow, type InboxDensity } from "./_inbox-row";
+import { useT } from "@/lib/i18n/locale";
 
-const EMPTY_COPY: Record<InboxLane, { title: string; description: string }> = {
-  attention: {
-    title: "Nothing needs your attention",
-    description: "Incoming replies land here, hottest first, once your contacts write back.",
-  },
-  snoozed: { title: "Nothing snoozed", description: "Snoozed conversations come back automatically." },
-  done: { title: "Nothing marked done yet", description: "Conversations you finish land here. A new reply reopens them." },
-  handled: {
-    title: "Nothing handled by the agent yet",
-    description: "Out-of-office, unsubscribes and bounces are processed automatically and reported here.",
-  },
+const EMPTY_COPY: Record<InboxLane, { titleKey: string; descKey: string }> = {
+  attention: { titleKey: "inbox.empty.attention.title", descKey: "inbox.empty.attention.desc" },
+  snoozed: { titleKey: "inbox.empty.snoozed.title", descKey: "inbox.empty.snoozed.desc" },
+  done: { titleKey: "inbox.empty.done.title", descKey: "inbox.empty.done.desc" },
+  handled: { titleKey: "inbox.empty.handled.title", descKey: "inbox.empty.handled.desc" },
 };
 
 // Per-split empty copy (Upstream parity): the AI-output tabs have their own
-// resting empty state, distinct from the lane's. Verbatim from Upstream's live
-// empty states (UP-audit-02/03).
-const SPLIT_EMPTY_COPY: Record<string, { icon: React.ReactNode; title: string; description: string }> = {
+// resting empty state, distinct from the lane's.
+const SPLIT_EMPTY_COPY: Record<string, { icon: React.ReactNode; titleKey: string; descKey: string }> = {
   needs_reply: {
     icon: <Reply size={28} />,
-    title: "No AI-generated reply drafts right now.",
-    description: "When the agent drafts a reply for you to review, it shows up here.",
+    titleKey: "inbox.empty.needsReply.title",
+    descKey: "inbox.empty.needsReply.desc",
   },
   follow_ups: {
     icon: <Clock size={28} />,
-    title: "No follow-up suggestions right now.",
-    description: "When a waiting thread is due a nudge, the agent's suggestion shows up here.",
+    titleKey: "inbox.empty.followUps.title",
+    descKey: "inbox.empty.followUps.desc",
   },
 };
 
@@ -90,6 +84,7 @@ export function ConversationList({
   /** Outlook-style display density (comfortable 2-line / compact 1-line). */
   density?: InboxDensity;
 }) {
+  const t = useT();
   const selectedSet = new Set(selectedKeys);
   const hasSelection = selectedKeys.length > 0;
   // Hover-intent prefetch (INBOX-K04): warm a thread's detail after the cursor
@@ -116,19 +111,19 @@ export function ConversationList({
     const empty = hasQuery
       ? {
           icon: <SearchX size={28} />,
-          title: "No conversations match the current search",
-          description: "Try a different search, or clear it to see this lane.",
+          title: t("inbox.search.noMatch.title"),
+          description: t("inbox.search.noMatch.desc"),
         }
       : splitEmpty
-        ? splitEmpty
-        : { icon: LANE_ICON[lane], title: EMPTY_COPY[lane].title, description: EMPTY_COPY[lane].description };
+        ? { icon: splitEmpty.icon, title: t(splitEmpty.titleKey), description: t(splitEmpty.descKey) }
+        : { icon: LANE_ICON[lane], title: t(EMPTY_COPY[lane].titleKey), description: t(EMPTY_COPY[lane].descKey) };
     return (
       <div className="flex h-full items-center justify-center p-6">
         <EmptyState
           icon={empty.icon}
           title={empty.title}
           description={empty.description}
-          actionLabel={hasQuery && onClearSearch ? "Clear search" : undefined}
+          actionLabel={hasQuery && onClearSearch ? t("inbox.search.clear") : undefined}
           onAction={hasQuery ? onClearSearch : undefined}
         />
       </div>
@@ -160,7 +155,7 @@ export function ConversationList({
       {hasMore && (
         <div className="flex justify-center p-3">
           <Button variant="outline" size="sm" onClick={onLoadMore} disabled={loadingMore} loading={loadingMore}>
-            {loadingMore ? "Loading…" : "Load more"}
+            {loadingMore ? t("inbox.list.loading") : t("inbox.list.loadMore")}
           </Button>
         </div>
       )}

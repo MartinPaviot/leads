@@ -40,6 +40,7 @@ import type { ConversationListItem, InboxLane, LaneCounts, MailboxSummary, Split
 import type { BundleSource } from "@/lib/inbox/bundle";
 import { registerShortcut } from "@/lib/hotkey-registry";
 import { INBOX_SHORTCUTS } from "@/lib/inbox/inbox-shortcuts";
+import { useT } from "@/lib/i18n/locale";
 import { prefetchDetail } from "@/lib/inbox/detail-cache";
 import { resolveMailboxShortcut } from "@/lib/inbox/mailbox-switch";
 import {
@@ -63,21 +64,6 @@ const errResult = (error: string, summary?: string): PageActionResult => ({ ok: 
 function definePageAction<P>(a: PageAction<P>): PageAction {
   return a as unknown as PageAction;
 }
-
-const TAB_LABELS: Record<Tab, string> = {
-  attention: "Needs attention",
-  snoozed: "Snoozed",
-  done: "Done",
-  handled: "Handled",
-  outbound: "Outbound",
-  bundles: "Bundles",
-  starred: "Starred",
-  drafts: "Drafts",
-  scheduled: "Scheduled",
-  all: "All Mail",
-  trash: "Trash",
-  spam: "Spam",
-};
 
 // Rep-adjustable list width (px) for the 3-column master-detail, persisted so the
 // layout sticks across sessions. Mirrors Call Mode's resizable cockpit columns.
@@ -155,7 +141,29 @@ function ResizeHandle({ onDelta, value, min, max }: { onDelta: (dx: number) => v
 
 export default function InboxPage() {
   const { toast } = useToast();
+  const t = useT();
   const router = useRouter();
+  // Folder/header labels, localized. Reused for the header title and the command
+  // palette's "Go to <lane>" entries (unifies sidebar + header naming). `t` is
+  // stable per-locale (useCallback), so this object is stable too — it keeps the
+  // palette memo from rebuilding on every render.
+  const tabLabels: Record<Tab, string> = useMemo(
+    () => ({
+      attention: t("inbox.folder.attention"),
+      snoozed: t("inbox.folder.snoozed"),
+      done: t("inbox.folder.done"),
+      handled: t("inbox.folder.handled"),
+      outbound: t("inbox.folder.outbound"),
+      bundles: t("inbox.folder.bundles"),
+      starred: t("inbox.folder.starred"),
+      drafts: t("inbox.folder.drafts"),
+      scheduled: t("inbox.folder.scheduled"),
+      all: t("inbox.folder.all"),
+      trash: t("inbox.folder.trash"),
+      spam: t("inbox.folder.spam"),
+    }),
+    [t],
+  );
   const [tab, setTab] = useState<Tab>("attention");
   // Custom smart lanes (INBOX-T01): when one is selected, customLaneId drives the
   // fetch (?lane=<id>) instead of the built-in tab.
@@ -386,7 +394,7 @@ export default function InboxPage() {
         if ((err as Error)?.name === "AbortError") return; // superseded — silent, no error/toast
         if (silent) return; // a background freshness refresh fails quietly — keep the current list
         if (!append) setListError(true); // a foreground load failed -> error state, not empty
-        toast("Couldn't load the inbox.", "error");
+        toast(t("inbox.toast.loadFailed"), "error");
       } finally {
         // Only the live load owns the loading flags; a stale finally must not clear
         // them out from under the newer load.
@@ -401,8 +409,8 @@ export default function InboxPage() {
 
   // Debounce the search box so each keystroke doesn't refetch (INBOX-Q04).
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
   }, [search]);
 
   // Track whether the search field is wide enough (≥ lg) for the full hint.
@@ -477,9 +485,9 @@ export default function InboxPage() {
   // Minimal lane creator (INBOX-T01): name + a sender-domain clause. Selecting the
   // new lane triggers the load effect, which refreshes customLanes from the route.
   const handleNewLane = useCallback(async () => {
-    const name = window.prompt("New lane name?")?.trim();
+    const name = window.prompt(t("inbox.prompt.newLaneName"))?.trim();
     if (!name) return;
-    const domain = window.prompt('Show mail from which sender domain? (e.g. "pilae.ch")')?.trim();
+    const domain = window.prompt(t("inbox.prompt.newLaneDomain"))?.trim();
     if (!domain) return;
     try {
       const res = await fetch("/api/inbox/lanes", {
@@ -491,16 +499,16 @@ export default function InboxPage() {
       const { lane } = (await res.json()) as { lane: { id: string } };
       setCustomLaneId(lane.id);
     } catch {
-      toast("Couldn't create the lane.", "error");
+      toast(t("inbox.toast.laneCreateFailed"), "error");
     }
   }, [toast]);
 
   // B3: a custom per-sender split (name + a sender domain/address). Selecting it
   // after creation refreshes the splits payload via loadLane.
   const handleNewSplit = useCallback(async () => {
-    const name = window.prompt("New split name?")?.trim();
+    const name = window.prompt(t("inbox.prompt.newSplitName"))?.trim();
     if (!name) return;
-    const sender = window.prompt('Group mail from which sender? (domain like "stripe.com" or an address)')?.trim();
+    const sender = window.prompt(t("inbox.prompt.newSplitSender"))?.trim();
     if (!sender) return;
     try {
       const res = await fetch("/api/inbox/splits", {
@@ -512,7 +520,7 @@ export default function InboxPage() {
       const { split } = (await res.json()) as { split: { id: string } };
       setActiveSplit(split.id);
     } catch {
-      toast("Couldn't create the split.", "error");
+      toast(t("inbox.toast.splitCreateFailed"), "error");
     }
   }, [toast]);
 
@@ -540,9 +548,9 @@ export default function InboxPage() {
             }),
           ),
         );
-        toast(`Cleared ${keys.length} message${keys.length === 1 ? "" : "s"} from ${sender}.`, "success");
+        toast(t("inbox.toast.bundleCleared", { n: keys.length, sender }), "success");
       } catch {
-        toast("Couldn't clear the bundle — reloading.", "error");
+        toast(t("inbox.toast.bundleClearFailed"), "error");
         void loadLane("bundles", 1, false);
       } finally {
         setClearingBundle(null);
@@ -707,7 +715,7 @@ export default function InboxPage() {
         const res = await post;
         if (!res.ok) throw new Error(`${res.status}`);
       } catch {
-        toast("Couldn't update the conversation — reloading.", "error");
+        toast(t("inbox.toast.triageFailed"), "error");
         if (tab !== "outbound") void loadLane(tab, 1, false);
       } finally {
         pendingTriage.current = null;
@@ -749,7 +757,7 @@ export default function InboxPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, trashed }),
     }).catch(() => {});
-    toast(trashed ? "Moved to Trash." : "Restored to the inbox.", "success");
+    toast(trashed ? t("inbox.toast.trashed") : t("inbox.toast.restored"), "success");
   }, [toast]);
 
   // Mark as spam (→ Spam) or "Not spam" (restore). Same soft-flag pattern as Trash.
@@ -762,7 +770,7 @@ export default function InboxPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, spam }),
     }).catch(() => {});
-    toast(spam ? "Marked as spam." : "Moved out of spam.", "success");
+    toast(spam ? t("inbox.toast.spam") : t("inbox.toast.notSpam"), "success");
   }, [toast]);
 
   // Bulk triage the whole selection — reuses the per-key verb (a dedicated
@@ -797,10 +805,10 @@ export default function InboxPage() {
       );
       const { applied, failed } = summarizeBulk(results);
       if (failed.length > 0) {
-        toast(`${applied} updated, ${failed.length} failed — reloading.`, "error");
+        toast(t("inbox.toast.bulkPartial", { applied, failed: failed.length }), "error");
         if (tab !== "outbound") void loadLane(customLaneId ?? tab, 1, false);
       } else {
-        toast(`${applied} conversation${applied === 1 ? "" : "s"} marked ${action === "done" ? "done" : "snoozed"}.`, "success");
+        toast(t(action === "done" ? "inbox.toast.bulkDone" : "inbox.toast.bulkSnoozed", { n: applied }), "success");
       }
     },
     [selection, tab, customLaneId, toast, loadLane],
@@ -844,11 +852,11 @@ export default function InboxPage() {
         params: z.object({ conversationKey: z.string().min(1), until: z.string().min(1) }),
         mutating: true, reversible: true, cost: "free", confirm: "risky",
         run: async ({ conversationKey, until }): Promise<PageActionResult> => {
-          const t = new Date(until);
-          if (Number.isNaN(t.getTime()) || t.getTime() <= Date.now()) {
+          const untilDate = new Date(until);
+          if (Number.isNaN(untilDate.getTime()) || untilDate.getTime() <= Date.now()) {
             return errResult("Pick a future time to snooze until.");
           }
-          await handleTriageRef.current(conversationKey, "snooze", t.toISOString());
+          await handleTriageRef.current(conversationKey, "snooze", untilDate.toISOString());
           return okResult(`Snoozed until ${until}.`);
         },
       }),
@@ -1145,12 +1153,12 @@ export default function InboxPage() {
           mailboxes,
           splits: customLaneId === null && tab === "attention" ? splitCounts : [],
           mailboxConnected,
-          tabLabels: TAB_LABELS,
+          tabLabels,
         },
         {
-          goToLane: (t) => {
+          goToLane: (lane) => {
             setCustomLaneId(null);
-            setTab(t);
+            setTab(lane);
           },
           goToBundles: () => {
             setCustomLaneId(null);
@@ -1170,7 +1178,7 @@ export default function InboxPage() {
               if (!api) return;
               const r = await api.stopSequence();
               toast(
-                r.ok ? "Stopped the sequence for this contact." : r.error ?? "No active sequence on this conversation.",
+                r.ok ? t("inbox.toast.sequenceStopped") : r.error ?? t("inbox.toast.noActiveSequence"),
                 r.ok ? "success" : "error",
               );
             })();
@@ -1180,7 +1188,7 @@ export default function InboxPage() {
           connectMailbox: () => router.push("/settings/mail-calendar"),
         },
       ),
-    [conversations, customLanes, customLaneId, bundleTotal, selectedKey, tab, handleTriage, mailboxes, splitCounts, mailboxConnected, toast, router],
+    [conversations, customLanes, customLaneId, bundleTotal, selectedKey, tab, handleTriage, mailboxes, splitCounts, mailboxConnected, toast, router, t, tabLabels],
   );
 
   return (
@@ -1191,19 +1199,19 @@ export default function InboxPage() {
         // the header): Inbox / Starred / Sent / Drafts / Scheduled / All Mail / …
         title={
           customLaneId
-            ? customLanes.find((l) => l.id === customLaneId)?.name ?? "Inbox"
+            ? customLanes.find((l) => l.id === customLaneId)?.name ?? t("inbox.folder.attention")
             : tab === "attention"
-              ? "Inbox"
+              ? t("inbox.folder.attention")
               : tab === "outbound"
-                ? "Sent"
-                : TAB_LABELS[tab]
+                ? t("inbox.folder.outbound")
+                : tabLabels[tab]
         }
         // The conversation-count subtitle only makes sense for the Inbox/Primary view.
         subtitle={
           tab === "attention" && !customLaneId
             ? primaryCount > 0
-              ? `${primaryCount} conversation${primaryCount === 1 ? "" : "s"}`
-              : "All caught up"
+              ? t(primaryCount === 1 ? "inbox.header.conversationCountOne" : "inbox.header.conversationCountOther", { n: primaryCount })
+              : t("inbox.header.allCaughtUp")
             : undefined
         }
       >
@@ -1211,8 +1219,8 @@ export default function InboxPage() {
             right of the title/conversation-count — frees the content column. */}
         {mailboxConnected && (
           <>
-            <Button size="sm" onClick={() => setComposeOpen(true)} className="shrink-0 gap-1.5" title="Compose a new email">
-              <PenSquare size={14} /> Compose
+            <Button size="sm" onClick={() => setComposeOpen(true)} className="shrink-0 gap-1.5" title={t("inbox.compose.title")}>
+              <PenSquare size={14} /> {t("inbox.compose.label")}
             </Button>
             {/* Width shrinks with the viewport so a half-screen window doesn't
                 over-fill the 44px header and wrap the title (regression guard). */}
@@ -1223,13 +1231,13 @@ export default function InboxPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 // Stable accessible name: the placeholder swaps with width, so the
                 // name can't depend on it (a11y — screen readers need a constant label).
-                aria-label="Search mail"
-                placeholder={wideSearch ? "Search mail — from: subject: is:unread" : "Search mail"}
+                aria-label={t("inbox.search.ariaLabel")}
+                placeholder={wideSearch ? t("inbox.search.placeholder") : t("inbox.search.placeholderShort")}
                 className="w-full rounded-md border py-1.5 pl-8 pr-8 text-[13px] outline-none"
                 style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)", color: "var(--color-text-primary)" }}
               />
               {search && (
-                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--color-text-muted)" }} title="Clear search">
+                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--color-text-muted)" }} title={t("inbox.search.clear")}>
                   <X size={13} />
                 </button>
               )}
@@ -1241,8 +1249,8 @@ export default function InboxPage() {
               aria-pressed={density === "compact"}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors"
               style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)", color: "var(--color-text-secondary)" }}
-              title={density === "comfortable" ? "Compact list — denser rows" : "Comfortable list — 2-line rows"}
-              aria-label={density === "comfortable" ? "Switch to compact list density" : "Switch to comfortable list density"}
+              title={density === "comfortable" ? t("inbox.density.titleCompact") : t("inbox.density.titleComfortable")}
+              aria-label={density === "comfortable" ? t("inbox.density.ariaCompact") : t("inbox.density.ariaComfortable")}
             >
               {density === "comfortable" ? <AlignJustify size={15} /> : <Rows2 size={15} />}
             </button>
@@ -1312,9 +1320,9 @@ export default function InboxPage() {
         <div className="flex flex-1 items-center justify-center">
           <EmptyState
             icon={<Mail size={20} />}
-            title="Connect your mailbox"
-            description="Your inbox is personal — connect your own mailbox to read and reply to your conversations here. Other members can't see it, and you can't see theirs."
-            actionLabel="Connect mailbox"
+            title={t("inbox.connect.title")}
+            description={t("inbox.connect.description")}
+            actionLabel={t("inbox.connect.action")}
             onAction={() => router.push("/settings/mail-calendar")}
             actionVariant="gradient"
           />
@@ -1351,7 +1359,7 @@ export default function InboxPage() {
                 style={{ borderColor: "var(--color-border-default)" }}
               >
                 <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  <span className="font-medium" style={{ color: "var(--color-text-secondary)" }}>{catchUpCount}</span> new since you were last here
+                  <span className="font-medium" style={{ color: "var(--color-text-secondary)" }}>{catchUpCount}</span> {t("inbox.catchUp.label")}
                 </span>
                 <button
                   onClick={() => {
@@ -1361,7 +1369,7 @@ export default function InboxPage() {
                   className="ml-auto text-[11px] font-medium hover:underline"
                   style={{ color: "var(--color-text-tertiary)" }}
                 >
-                  Mark all seen
+                  {t("inbox.catchUp.markSeen")}
                 </button>
               </div>
             )}
@@ -1373,12 +1381,12 @@ export default function InboxPage() {
                 style={{ background: "var(--color-bg-elevated)", borderColor: "var(--color-border-default)" }}
               >
                 <span className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                  {selection.keys.length} selected
+                  {t("inbox.bulk.selected", { n: selection.keys.length })}
                 </span>
                 {(tab === "attention" || tab === "snoozed") && (
                   <>
                     <Button size="sm" variant="outline" onClick={() => void handleBulkTriage("done")}>
-                      Done
+                      {t("common.done")}
                     </Button>
                     <Button
                       size="sm"
@@ -1390,7 +1398,7 @@ export default function InboxPage() {
                         void handleBulkTriage("snooze", d.toISOString());
                       }}
                     >
-                      Snooze
+                      {t("inbox.bulk.snooze")}
                     </Button>
                   </>
                 )}
@@ -1399,14 +1407,14 @@ export default function InboxPage() {
                   className="text-[11px] font-medium hover:underline"
                   style={{ color: "var(--color-text-tertiary)" }}
                 >
-                  Select all
+                  {t("inbox.bulk.selectAll")}
                 </button>
                 <button
                   onClick={() => setSelection(EMPTY_SELECTION)}
                   className="ml-auto text-[11px] font-medium hover:underline"
                   style={{ color: "var(--color-text-tertiary)" }}
                 >
-                  Clear
+                  {t("inbox.bulk.clear")}
                 </button>
               </div>
             )}
@@ -1426,9 +1434,9 @@ export default function InboxPage() {
                   <div className="flex h-full items-center justify-center p-6">
                     <EmptyState
                       icon={<AlertCircle size={28} />}
-                      title="Couldn't load this lane"
-                      description="Something went wrong reaching the inbox. Your conversations are safe — try again."
-                      actionLabel="Retry"
+                      title={t("inbox.error.laneTitle")}
+                      description={t("inbox.error.laneDescription")}
+                      actionLabel={t("common.retry")}
                       onAction={() => void loadLane(customLaneId ?? tab, 1, false)}
                     />
                   </div>
@@ -1504,7 +1512,7 @@ export default function InboxPage() {
           onClose={() => setComposeOpen(false)}
           onSent={() => {
             setComposeOpen(false);
-            toast("Email sent.", "success");
+            toast(t("inbox.toast.emailSent"), "success");
           }}
         />
       )}

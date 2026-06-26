@@ -13,22 +13,23 @@ import { Inbox, AlarmClock, CheckCircle2, Bot, Send, Layers, Reply, Clock, Megap
 import type { InboxLane, MailboxSummary } from "./_types";
 import type { SplitCount } from "@/lib/inbox/splits";
 import { colorForMailbox } from "@/lib/inbox/mailbox-color";
+import { useT } from "@/lib/i18n/locale";
 
 type LaneId = InboxLane | "outbound" | "bundles" | "starred" | "drafts" | "scheduled" | "all" | "trash" | "spam";
 
-const LANE_META: Record<LaneId, { label: string; icon: React.ReactNode }> = {
-  attention: { label: "Inbox", icon: <Inbox size={15} /> },
-  snoozed: { label: "Snoozed", icon: <AlarmClock size={15} /> },
-  done: { label: "Done", icon: <CheckCircle2 size={15} /> },
-  handled: { label: "Handled", icon: <Bot size={15} /> },
-  outbound: { label: "Sent", icon: <Send size={15} /> },
-  bundles: { label: "Bundles", icon: <Layers size={15} /> },
-  starred: { label: "Starred", icon: <Star size={15} /> },
-  drafts: { label: "Drafts", icon: <FileText size={15} /> },
-  scheduled: { label: "Scheduled", icon: <SendHorizontal size={15} /> },
-  all: { label: "All Mail", icon: <Mails size={15} /> },
-  trash: { label: "Trash", icon: <Trash2 size={15} /> },
-  spam: { label: "Spam", icon: <ShieldAlert size={15} /> },
+const LANE_META: Record<LaneId, { labelKey: string; icon: React.ReactNode }> = {
+  attention: { labelKey: "inbox.folder.attention", icon: <Inbox size={15} /> },
+  snoozed: { labelKey: "inbox.folder.snoozed", icon: <AlarmClock size={15} /> },
+  done: { labelKey: "inbox.folder.done", icon: <CheckCircle2 size={15} /> },
+  handled: { labelKey: "inbox.folder.handled", icon: <Bot size={15} /> },
+  outbound: { labelKey: "inbox.folder.outbound", icon: <Send size={15} /> },
+  bundles: { labelKey: "inbox.folder.bundles", icon: <Layers size={15} /> },
+  starred: { labelKey: "inbox.folder.starred", icon: <Star size={15} /> },
+  drafts: { labelKey: "inbox.folder.drafts", icon: <FileText size={15} /> },
+  scheduled: { labelKey: "inbox.folder.scheduled", icon: <SendHorizontal size={15} /> },
+  all: { labelKey: "inbox.folder.all", icon: <Mails size={15} /> },
+  trash: { labelKey: "inbox.folder.trash", icon: <Trash2 size={15} /> },
+  spam: { labelKey: "inbox.folder.spam", icon: <ShieldAlert size={15} /> },
 };
 
 const SPLIT_ICON: Record<string, React.ReactNode> = {
@@ -140,13 +141,14 @@ export function InboxFolders({
   onNewLane: () => void;
   onNewSplit: () => void;
 }) {
+  const t = useT();
   const onBuiltIn = customLaneId === null;
   const splitCount = (id: string) => splitCounts.find((s) => s.id === id)?.count ?? 0;
   const lane = (id: LaneId, count?: number) => (
     <FolderRow
       key={id}
       icon={LANE_META[id].icon}
-      label={LANE_META[id].label}
+      label={t(LANE_META[id].labelKey)}
       count={count}
       active={onBuiltIn && tab === id && (id !== "attention" || activeSplit === null)}
       muted={id === "done" || id === "handled"}
@@ -167,14 +169,14 @@ export function InboxFolders({
         {lane("attention", counts.attention)}
         <FolderRow
           icon={SPLIT_ICON.needs_reply}
-          label="Needs Reply"
+          label={t("inbox.split.needsReply")}
           count={splitCount("needs_reply")}
           active={onBuiltIn && tab === "attention" && activeSplit === "needs_reply"}
           onClick={() => onSelectSplit("needs_reply")}
         />
         <FolderRow
           icon={SPLIT_ICON.follow_ups}
-          label="Follow Ups"
+          label={t("inbox.split.followUps")}
           count={splitCount("follow_ups")}
           active={onBuiltIn && tab === "attention" && activeSplit === "follow_ups"}
           onClick={() => onSelectSplit("follow_ups")}
@@ -194,10 +196,10 @@ export function InboxFolders({
             connected box, or All inboxes. A sidebar sub-segment, shown with 2+. */}
         {mailboxes.length >= 2 && (
           <>
-            <GroupLabel>Mailboxes</GroupLabel>
+            <GroupLabel>{t("inbox.folder.mailboxesGroup")}</GroupLabel>
             <FolderRow
               icon={<Mail size={15} />}
-              label="All inboxes"
+              label={t("inbox.folder.allInboxes")}
               active={selectedMailbox === null}
               onClick={() => onSelectMailbox(null)}
             />
@@ -222,7 +224,7 @@ export function InboxFolders({
         {/* Custom lanes */}
         {customLanes.length > 0 && (
           <>
-            <GroupLabel>Lanes</GroupLabel>
+            <GroupLabel>{t("inbox.folder.lanesGroup")}</GroupLabel>
             {customLanes.map((l) => (
               <FolderRow
                 key={l.id}
@@ -239,9 +241,9 @@ export function InboxFolders({
           onClick={onNewLane}
           className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--color-bg-hover)]"
           style={{ color: "var(--color-text-tertiary)" }}
-          title="Create a lane from a sender domain"
+          title={t("inbox.newLane.title")}
         >
-          <Plus size={14} /> New lane
+          <Plus size={14} /> {t("inbox.newLane.label")}
         </button>
       </div>
     </div>

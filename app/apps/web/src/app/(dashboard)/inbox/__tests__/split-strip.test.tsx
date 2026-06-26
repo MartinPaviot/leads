@@ -17,13 +17,13 @@ describe("SplitStrip", () => {
     expect(screen.getByText("Primary")).toBeTruthy();
     expect(screen.getByText("Promotions")).toBeTruthy();
     expect(screen.getByText("41")).toBeTruthy();
-    expect(screen.getByText("Noise")).toBeTruthy();
+    expect(screen.getByText("Bruit")).toBeTruthy();
     expect(screen.getByText("7")).toBeTruthy();
   });
 
   it("omits the Noise tab when noiseCount is 0", () => {
     render(<SplitStrip splits={splits} noiseCount={0} active={null} onSelect={vi.fn()} />);
-    expect(screen.queryByText("Noise")).toBeNull();
+    expect(screen.queryByText("Bruit")).toBeNull();
   });
 
   it("clicking a tab selects it; clicking the active tab clears it (back to all)", () => {

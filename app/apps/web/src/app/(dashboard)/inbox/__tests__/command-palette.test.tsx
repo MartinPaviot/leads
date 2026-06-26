@@ -32,12 +32,12 @@ describe("CommandPalette — B6.1 baseline behaviour", () => {
 
   it("fuzzy-filters the list against the query and shows 'No matches' on a miss", () => {
     render(<CommandPalette open onClose={vi.fn()} commands={cmds()} />);
-    const input = screen.getByPlaceholderText(/Search conversations and actions/i);
+    const input = screen.getByPlaceholderText(/Rechercher des conversations et des actions/i);
     fireEvent.change(input, { target: { value: "snooze" } });
     expect(screen.getByText("Snooze current conversation for 1 day")).toBeTruthy();
     expect(screen.queryByText("Go to Attention")).toBeNull();
     fireEvent.change(input, { target: { value: "zzzznomatch" } });
-    expect(screen.getByText("No matches")).toBeTruthy();
+    expect(screen.getByText("Aucun résultat")).toBeTruthy();
   });
 
   it("ArrowDown then Enter runs the SECOND command and closes", () => {
@@ -48,7 +48,7 @@ describe("CommandPalette — B6.1 baseline behaviour", () => {
       { id: "b", label: "Bravo", run: () => ran.push("b") },
     ];
     render(<CommandPalette open onClose={onClose} commands={commands} />);
-    const input = screen.getByPlaceholderText(/Search conversations and actions/i);
+    const input = screen.getByPlaceholderText(/Rechercher des conversations et des actions/i);
     fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(ran).toEqual(["b"]);
@@ -59,7 +59,7 @@ describe("CommandPalette — B6.1 baseline behaviour", () => {
     const onClose = vi.fn();
     const ran: string[] = [];
     render(<CommandPalette open onClose={onClose} commands={[{ id: "a", label: "Alpha", run: () => ran.push("a") }]} />);
-    fireEvent.keyDown(screen.getByPlaceholderText(/Search conversations and actions/i), { key: "Escape" });
+    fireEvent.keyDown(screen.getByPlaceholderText(/Rechercher des conversations et des actions/i), { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
     expect(ran).toEqual([]);
   });
@@ -93,7 +93,7 @@ describe("CommandPalette — B6.2 shortcut kbd glyph", () => {
     // Query matches the label 'Go to Attention' but equals no shortcut; the
     // shortcut-bearing rows must NOT rank above it via their glyph.
     render(<CommandPalette open onClose={vi.fn()} commands={cmds()} />);
-    const input = screen.getByPlaceholderText(/Search conversations and actions/i);
+    const input = screen.getByPlaceholderText(/Rechercher des conversations et des actions/i);
     fireEvent.change(input, { target: { value: "attention" } });
     expect(screen.getByText("Go to Attention")).toBeTruthy();
     expect(screen.queryByText("Mark current conversation done")).toBeNull();

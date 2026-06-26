@@ -11,6 +11,7 @@
 
 import { Inbox, Reply, Clock, Megaphone, Users, VolumeX, Hash } from "lucide-react";
 import type { SplitCount } from "@/lib/inbox/splits";
+import { useT } from "@/lib/i18n/locale";
 
 /** Per-split icon + a badge color token (Upstream uses colored category icons). */
 const SPLIT_STYLE: Record<string, { icon: React.ReactNode; color: string }> = {
@@ -73,6 +74,7 @@ export function SplitStrip({
   /** Select a split; passing the active id again clears it (back to all). */
   onSelect: (id: string | null) => void;
 }) {
+  const t = useT();
   return (
     <div
       className="flex items-center gap-1 overflow-x-auto border-b px-2"
@@ -89,7 +91,7 @@ export function SplitStrip({
         />
       ))}
       {noiseCount > 0 && (
-        <Tab id="noise" name="Noise" count={noiseCount} active={active === "noise"} onClick={() => onSelect(active === "noise" ? null : "noise")} />
+        <Tab id="noise" name={t("inbox.split.noise")} count={noiseCount} active={active === "noise"} onClick={() => onSelect(active === "noise" ? null : "noise")} />
       )}
     </div>
   );
