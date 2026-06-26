@@ -63,6 +63,8 @@ interface Deal {
   companyName: string | null;
   ownerFirstName: string | null;
   ownerLastName: string | null;
+  /** Owner's profile photo when we have one — else the avatar falls back to initials. */
+  ownerAvatarUrl?: string | null;
   createdAt: string | null;
   // Y8 / Y12 — surfaced from /api/opportunities so the table view can
   // render the probability + age-in-stage columns without a second fetch.
@@ -126,6 +128,21 @@ function getOwnerInitials(d: Deal): string {
 }
 function getOwnerName(d: Deal): string {
   return `${d.ownerFirstName || ""} ${d.ownerLastName || ""}`.trim() || "Unassigned";
+}
+/** Owner chip avatar: the profile photo when one is set, otherwise initials. */
+function OwnerAvatar({ deal, size = 20 }: { deal: Deal; size?: number }) {
+  if (deal.ownerAvatarUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={deal.ownerAvatarUrl} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />;
+  }
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center rounded-full font-bold text-white"
+      style={{ width: size, height: size, fontSize: Math.max(7, Math.round(size * 0.4)), background: "var(--color-accent)" }}
+    >
+      {getOwnerInitials(deal)}
+    </div>
+  );
 }
 function formatCloseDate(s: string | null): string | null {
   if (!s) return null;
@@ -1619,7 +1636,7 @@ export default function OpportunitiesPage() {
                     {displayProps.has("value") && <td className="px-3 py-2.5 text-right text-[12px] font-medium" style={{ color: deal.value ? "var(--color-success)" : "var(--color-text-tertiary)" }}>{deal.value ? `$${deal.value.toLocaleString()}` : "—"}</td>}
                     {displayProps.has("owner") && (
                       <td className="px-3 py-2.5"><div className="flex items-center gap-1.5">
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold" style={{ background: "var(--color-accent)", color: "white" }}>{getOwnerInitials(deal)}</div>
+                        <OwnerAvatar deal={deal} />
                         <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{getOwnerName(deal)}</span>
                       </div></td>
                     )}
@@ -1806,10 +1823,7 @@ export default function OpportunitiesPage() {
                           {/* Owner */}
                           {displayProps.has("owner") && (
                             <div className="flex items-center gap-2">
-                              <div className="flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold flex-shrink-0"
-                                style={{ background: "var(--color-accent)", color: "white" }}>
-                                {getOwnerInitials(deal)}
-                              </div>
+                              <OwnerAvatar deal={deal} />
                               <span className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{getOwnerName(deal)}</span>
                             </div>
                           )}
