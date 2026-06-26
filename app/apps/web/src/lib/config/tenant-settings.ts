@@ -168,6 +168,14 @@ export interface TenantSettings {
    */
   dailyAutopilotBudget?: number;
 
+  /**
+   * Autopilot kill-switch (the cockpit Pause). When true the daily-autopilot cron
+   * skips this tenant entirely (skip="paused") — an explicit, reversible Pause
+   * independent of the global DAILY_AUTOPILOT_ENABLED flag and of the budget.
+   * Default false.
+   */
+  autopilotPaused?: boolean;
+
   // ── Custom schema ──
   customFields?: CustomFieldDef[];
   pipelineStages?: PipelineStageDef[];
@@ -510,6 +518,7 @@ export const DEFAULTS: Required<Pick<
   | "agentMemoryPanelDiscovered"
   | "auditRetentionPolicy"
   | "dailyAutopilotBudget"
+  | "autopilotPaused"
 >> = {
   aiTone: "Direct",
   salesMotion: "Founder-led sales",
@@ -528,6 +537,8 @@ export const DEFAULTS: Required<Pick<
   // Spec 37 — the Monaco "100/day" dial; clamped down to warmup-safe pool
   // capacity at run time, and inert unless DAILY_AUTOPILOT_ENABLED is on.
   dailyAutopilotBudget: 100,
+  // Autopilot kill-switch — never paused by default.
+  autopilotPaused: false,
 };
 
 // ── Per-request cache ──

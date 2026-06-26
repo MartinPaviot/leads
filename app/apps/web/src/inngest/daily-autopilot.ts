@@ -90,7 +90,7 @@ function realDeps(now: Date): RunAutopilotDeps {
       // `dailyAutopilotBudget` is the per-tenant ceiling (DEFAULTS = 100; 0 pauses
       // this tenant). Coerced: non-finite/negative → the global default.
       const configBudget = coerceConfigBudget(s.dailyAutopilotBudget, DEFAULT_BUDGET);
-      return { configBudget, maxEmailsPerDay: null, approvalMode: readApprovalMode(s) };
+      return { configBudget, maxEmailsPerDay: null, approvalMode: readApprovalMode(s), autopilotPaused: s.autopilotPaused ?? false };
     },
     spentToday: (tenantId) => countEnrolledToday(tenantId, startOfDay),
     getActiveSequenceId: async (tenantId) => {

@@ -41,6 +41,21 @@ describe("runAutopilotForTenant — skip dispositions", () => {
     expect((await runAutopilotForTenant("t1", d)).skipped).toBe("budget_zero");
   });
 
+  it("paused tenant → 'paused', gated before any capacity/spend work", async () => {
+    const loadCapacity = vi.fn(async () => ({ byMailbox: [], totalAvailable: 100, byProvider: {} }));
+    const spentToday = vi.fn(async () => 0);
+    const { deps: d, prepare } = deps({
+      getConfig: async () => ({ configBudget: 100, maxEmailsPerDay: null, approvalMode: "auto-high-confidence", autopilotPaused: true }),
+      loadCapacity,
+      spentToday,
+    });
+    const s = await runAutopilotForTenant("t1", d);
+    expect(s.skipped).toBe("paused");
+    expect(loadCapacity).not.toHaveBeenCalled(); // the kill-switch short-circuits first
+    expect(spentToday).not.toHaveBeenCalled();
+    expect(prepare).not.toHaveBeenCalled();
+  });
+
   it("no active sequence → no_active_sequence", async () => {
     const { deps: d } = deps({ getActiveSequenceId: async () => null });
     expect((await runAutopilotForTenant("t1", d)).skipped).toBe("no_active_sequence");

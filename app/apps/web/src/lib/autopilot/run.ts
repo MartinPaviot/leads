@@ -20,7 +20,7 @@ import type { CandidatePool } from "./candidates";
 import type { ApprovalModeV2 } from "@/lib/guardrails/approval-mode";
 import type { EnrollOutcome } from "./enroll";
 
-export type AutopilotSkip = "no_capacity" | "budget_zero" | "no_active_sequence" | "no_candidates";
+export type AutopilotSkip = "paused" | "no_capacity" | "budget_zero" | "no_active_sequence" | "no_candidates";
 
 export interface TenantAutopilotSummary {
   tenantId: string;
@@ -39,6 +39,8 @@ export interface TenantAutopilotConfig {
   configBudget: number;
   maxEmailsPerDay: number | null;
   approvalMode: ApprovalModeV2;
+  /** Operator kill-switch — when true the run skips immediately (skip="paused"). */
+  autopilotPaused?: boolean;
   autopilotAutoEnroll?: boolean;
 }
 
@@ -79,11 +81,15 @@ export interface RunAutopilotDeps {
 export async function runAutopilotForTenant(tenantId: string, deps: RunAutopilotDeps): Promise<TenantAutopilotSummary> {
   const base = { tenantId, budget: 0, selected: 0, prepared: 0, enrolled: 0, drafted: 0, errors: 0 };
 
+  // 0. Operator kill-switch (the autopilot cockpit Pause) — a paused tenant skips
+  // before any work, independent of DAILY_AUTOPILOT_ENABLED and of the budget.
+  const cfg = await deps.getConfig(tenantId);
+  if (cfg.autopilotPaused) return { ...base, skipped: "paused" };
+
   // 1. Warmup-aware capacity → budget (clamped to capacity + the legacy floor − spent).
   const capacity = await deps.loadCapacity(tenantId);
   if (capacity.totalAvailable <= 0) return { ...base, skipped: "no_capacity" };
 
-  const cfg = await deps.getConfig(tenantId);
   const spent = await deps.spentToday(tenantId);
   const budget = resolveAutopilotBudget({ configBudget: cfg.configBudget, maxEmailsPerDay: cfg.maxEmailsPerDay, capacity, spentToday: spent });
   if (budget.email <= 0) return { ...base, skipped: "budget_zero" };
