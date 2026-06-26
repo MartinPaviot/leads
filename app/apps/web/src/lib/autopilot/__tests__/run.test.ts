@@ -69,6 +69,22 @@ describe("runAutopilotForTenant — enroll loop", () => {
     expect(enroll).toHaveBeenCalledWith(expect.objectContaining({ action: "draft" }));
   });
 
+  it("routes each prospect to its resolved sequence (per-prospect); falls back to the active one", async () => {
+    const { deps: d, enroll } = deps({
+      resolveSequenceId: async (_t, companyId) => (companyId === "co-a" ? "post-funding" : null),
+    });
+    await runAutopilotForTenant("t1", d);
+    expect(enroll).toHaveBeenCalledWith(expect.objectContaining({ contactId: "a", sequenceId: "post-funding" }));
+    expect(enroll).toHaveBeenCalledWith(expect.objectContaining({ contactId: "b", sequenceId: "seq1" })); // unresolved → fallback
+  });
+
+  it("a resolveSequenceId failure falls back to the active sequence, never aborts", async () => {
+    const { deps: d, enroll } = deps({ resolveSequenceId: async () => { throw new Error("router down"); } });
+    const s = await runAutopilotForTenant("t1", d);
+    expect(s).toMatchObject({ enrolled: 3 });
+    expect(enroll).toHaveBeenCalledWith(expect.objectContaining({ sequenceId: "seq1" }));
+  });
+
   it("budget caps the selected set (partial when fewer than the pool)", async () => {
     const { deps: d, prepare } = deps({
       getConfig: async () => ({ configBudget: 2, maxEmailsPerDay: null, approvalMode: "auto-high-confidence" }),
