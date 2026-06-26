@@ -38,6 +38,7 @@ export const activityTypeEnum = pgEnum("activity_type", [
   "sequence_step_sent",
   "sequence_completed",
   "sequence_replied",
+  "linkedin_message_received",
   "website_visited",
   "form_submitted",
   "enrichment_updated",
@@ -47,6 +48,7 @@ export const activityTypeEnum = pgEnum("activity_type", [
 
 export const channelEnum = pgEnum("channel", [
   "email",
+  "linkedin",
   "meeting",
   "call",
   "web",

@@ -17,7 +17,7 @@ import { db } from "@/db";
 import { activities, captureApprovals } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 
-export type CaptureKind = "email" | "meeting" | "call";
+export type CaptureKind = "email" | "linkedin" | "meeting" | "call";
 export type CaptureApprovalMode = "auto" | "review" | "hybrid";
 
 /** The CRM qualification facts that hybrid mode can gate independently. */
