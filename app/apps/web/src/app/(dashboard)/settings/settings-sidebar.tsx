@@ -38,6 +38,7 @@ import {
   Gauge,
   Brain,
   ChevronDown,
+  LayoutGrid,
 } from "lucide-react";
 import { BILLING_PAGE_ENABLED } from "@/lib/billing/page-visibility";
 import { EVALS_PAGE_ENABLED, MCP_PAGE_ENABLED } from "@/lib/settings/admin-tools-visibility";
@@ -72,7 +73,8 @@ const settingsNav: NavSection[] = [
   {
     label: "Account",
     items: [
-      { label: "Profile", href: "/settings", icon: User },
+      { label: "Overview", href: "/settings", icon: LayoutGrid },
+      { label: "Profile", href: "/settings/profile", icon: User },
       { label: "Security", href: "/settings/security", icon: Lock },
       { label: "Notifications", href: "/settings/notifications", icon: Bell },
     ],
