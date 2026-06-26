@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   computeMultiplier,
   listKnownSignalTypes,
+  priorMultiplier,
+  SIGNAL_PRIORS,
 } from "@/lib/scoring/signal-outcomes";
 
 describe("signal-outcomes math", () => {
@@ -46,6 +48,35 @@ describe("signal-outcomes math", () => {
     it("returns exactly 1.0 when observed rate equals baseline (useful signal, no lift)", () => {
       const m = computeMultiplier({ wonWithSignal: 15, lostWithSignal: 15, baselineWinRate: 0.5 });
       expect(m).toBeCloseTo(1, 5);
+    });
+  });
+
+  describe("priorMultiplier — informed default before outcome data exists", () => {
+    it("lifts engagement signals above neutral so a fresh reply ranks before any deal closes", () => {
+      expect(priorMultiplier("positive_reply")).toBeGreaterThan(1);
+      expect(priorMultiplier("meeting_booked")).toBeGreaterThan(1);
+      expect(priorMultiplier("linkedin_reply")).toBeGreaterThan(1);
+    });
+
+    it("lifts warm-network proximity (the free cold-TAM differentiator)", () => {
+      expect(priorMultiplier("warm_connection")).toBeGreaterThan(1);
+      expect(priorMultiplier("warm_connection")).toBe(SIGNAL_PRIORS.warm_connection);
+    });
+
+    it("orders a reply above a mere open (stronger engagement = stronger prior)", () => {
+      expect(priorMultiplier("positive_reply")).toBeGreaterThan(priorMultiplier("email_opened"));
+    });
+
+    it("returns neutral 1.0 for an unknown signal type", () => {
+      expect(priorMultiplier("totally_unknown_signal")).toBe(1);
+    });
+
+    it("never exceeds the multiplier band even if a prior is set high", () => {
+      for (const type of Object.keys(SIGNAL_PRIORS)) {
+        const m = priorMultiplier(type);
+        expect(m).toBeGreaterThanOrEqual(0.5);
+        expect(m).toBeLessThanOrEqual(2.5);
+      }
     });
   });
 

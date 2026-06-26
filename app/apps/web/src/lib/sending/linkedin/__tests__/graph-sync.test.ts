@@ -27,6 +27,10 @@ const buildKnowsFromLinkedInRelations = vi.fn();
 vi.mock("@/lib/context/relationship-graph", () => ({
   buildKnowsFromLinkedInRelations: (...a: unknown[]) => buildKnowsFromLinkedInRelations(...a),
 }));
+const recordCompanySignal = vi.fn();
+vi.mock("@/lib/signals/record-signal", () => ({
+  recordCompanySignal: (...a: unknown[]) => recordCompanySignal(...a),
+}));
 // Use the REAL linkedinPath (pure) so normalization is exercised end-to-end.
 
 const { rematchStoredRelations } = await import("@/lib/sending/linkedin/graph-sync");
@@ -42,35 +46,39 @@ describe("rematchStoredRelations (snapshot-based, no Unipile)", () => {
     results = [
       [{ id: "seat1", userId: "u1", displayName: "Martin Paviot" }], // seats
       [
-        { id: "c1", linkedinUrl: "https://www.LinkedIn.com/in/Jane-Doe/", firstName: "Jane", lastName: "Doe" },
-        { id: "c2", linkedinUrl: "https://linkedin.com/in/bob", firstName: "Bob", lastName: null },
+        { id: "c1", companyId: "co1", linkedinUrl: "https://www.LinkedIn.com/in/Jane-Doe/", firstName: "Jane", lastName: "Doe" },
+        { id: "c2", companyId: "co2", linkedinUrl: "https://linkedin.com/in/bob", firstName: "Bob", lastName: null },
       ], // crm
       [{ profileUrl: "linkedin.com/in/jane-doe", displayName: "Jane D." }], // seat1 relations (only Jane)
     ];
     const r = await rematchStoredRelations("t1");
-    expect(r).toEqual({ seats: 1, matched: 1, edgesCreated: 1, edgesUpdated: 0 });
+    expect(r).toEqual({ seats: 1, matched: 1, edgesCreated: 1, edgesUpdated: 0, warmSignalsEmitted: 1 });
     expect(buildKnowsFromLinkedInRelations).toHaveBeenCalledTimes(1);
     const arg = buildKnowsFromLinkedInRelations.mock.calls[0][0];
     expect(arg.viaUserId).toBe("u1");
     expect(arg.viaUserName).toBe("Martin Paviot");
     expect(arg.relations).toEqual([{ contactId: "c1", contactName: "Jane Doe", profileUrl: "linkedin.com/in/jane-doe" }]);
+    // Jane's company gets a warm_connection signal; Bob (unmatched) does not.
+    expect(recordCompanySignal).toHaveBeenCalledTimes(1);
+    expect(recordCompanySignal).toHaveBeenCalledWith("t1", "co1", expect.objectContaining({ type: "warm_connection" }));
   });
 
   it("no connected seats -> no work", async () => {
     results = [[]]; // seats empty
     const r = await rematchStoredRelations("t1");
-    expect(r).toEqual({ seats: 0, matched: 0, edgesCreated: 0, edgesUpdated: 0 });
+    expect(r).toEqual({ seats: 0, matched: 0, edgesCreated: 0, edgesUpdated: 0, warmSignalsEmitted: 0 });
     expect(buildKnowsFromLinkedInRelations).not.toHaveBeenCalled();
   });
 
   it("seat with relations but zero CRM matches builds no edges", async () => {
     results = [
       [{ id: "seat1", userId: "u1", displayName: "Martin" }],
-      [{ id: "c1", linkedinUrl: "https://linkedin.com/in/nomatch", firstName: "No", lastName: "Match" }],
+      [{ id: "c1", companyId: "co1", linkedinUrl: "https://linkedin.com/in/nomatch", firstName: "No", lastName: "Match" }],
       [{ profileUrl: "linkedin.com/in/someone-else", displayName: "Else" }],
     ];
     const r = await rematchStoredRelations("t1");
-    expect(r).toEqual({ seats: 1, matched: 0, edgesCreated: 0, edgesUpdated: 0 });
+    expect(r).toEqual({ seats: 1, matched: 0, edgesCreated: 0, edgesUpdated: 0, warmSignalsEmitted: 0 });
     expect(buildKnowsFromLinkedInRelations).not.toHaveBeenCalled();
+    expect(recordCompanySignal).not.toHaveBeenCalled();
   });
 });

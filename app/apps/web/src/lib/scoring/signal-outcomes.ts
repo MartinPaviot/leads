@@ -47,6 +47,47 @@ export function listKnownSignalTypes(): string[] {
 }
 
 /**
+ * Informed PRIOR multipliers — the default lift for a signal type BEFORE the
+ * tenant has ≥ MIN_SAMPLE_SIZE attributed outcomes. Without these, a fresh
+ * buying signal sits at neutral 1.0 (no lift) until ~10 deals close — useless
+ * for a young tenant or a freshly-sourced cold TAM, and contradicts the premise
+ * that the score is primarily a resultant of SIGNALS. The prior is a starting
+ * belief that real outcome data OVERRIDES once it exists (Bayesian prior →
+ * posterior). Clamped to [MIN_MULTIPLIER, MAX_MULTIPLIER]; types absent here
+ * default to 1.0 (truly neutral).
+ */
+export const SIGNAL_PRIORS: Record<string, number> = {
+  // Engagement — the strongest signals: the prospect responded.
+  positive_reply: 2.5,
+  meeting_booked: 2.5,
+  linkedin_reply: 2.3,
+  email_clicked: 1.4,
+  email_opened: 1.15,
+  // Warm-network proximity — a 1st-degree path is a real, actionable edge.
+  warm_connection: 1.8,
+  linkedin_accept: 1.6,
+  // Intent / firmographic buying signals (known lift; refined by outcomes).
+  demo_request: 2.2,
+  funding_recent: 1.6,
+  funding: 1.5,
+  funding_crunchbase: 1.5,
+  investor_overlap: 1.4,
+  hiring: 1.4,
+  hiring_intent: 1.4,
+  website_visit: 1.3,
+  page_visit: 1.3,
+  headcount_growth: 1.3,
+  leadership_change: 1.3,
+  tech_stack_change: 1.3,
+  tech_adoption: 1.3,
+};
+
+/** The prior for a type, clamped to the multiplier band. 1.0 when none. */
+export function priorMultiplier(signalType: string): number {
+  return Math.max(MIN_MULTIPLIER, Math.min(MAX_MULTIPLIER, SIGNAL_PRIORS[signalType] ?? 1));
+}
+
+/**
  * Inspect a company's properties JSONB for fired signals and insert
  * one row per detected signal type into `signal_outcomes`. Safe to
  * call multiple times — downstream aggregation tolerates duplicates
@@ -180,17 +221,19 @@ export async function getSignalMultipliers(tenantId: string): Promise<SignalMult
 
   const multipliers: Record<string, number> = {};
   for (const [signalType, { won, lost }] of byType.entries()) {
-    multipliers[signalType] = computeMultiplier({
-      wonWithSignal: won,
-      lostWithSignal: lost,
-      baselineWinRate,
-    });
+    // Enough attributed outcomes → trust the computed lift; otherwise fall
+    // back to the informed prior (not flat 1.0) so the signal still lifts.
+    multipliers[signalType] =
+      won + lost >= MIN_SAMPLE_SIZE
+        ? computeMultiplier({ wonWithSignal: won, lostWithSignal: lost, baselineWinRate })
+        : priorMultiplier(signalType);
   }
 
-  // Signals we know about but never attributed → 1.0× (neutral). This
-  // avoids scoring gaps when a tenant turns on a new signal.
-  for (const signalType of listKnownSignalTypes()) {
-    if (!(signalType in multipliers)) multipliers[signalType] = 1;
+  // Signals we know about but never attributed → their informed PRIOR (not
+  // flat 1.0), so a fresh signal lifts before any deal has closed. Cover both
+  // the detector types and every type with a defined prior.
+  for (const signalType of [...listKnownSignalTypes(), ...Object.keys(SIGNAL_PRIORS)]) {
+    if (!(signalType in multipliers)) multipliers[signalType] = priorMultiplier(signalType);
   }
 
   return { multipliers, baselineWinRate, totalOutcomes };

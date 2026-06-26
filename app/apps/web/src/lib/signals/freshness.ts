@@ -55,8 +55,19 @@ export const SIGNAL_TTL_DAYS: Record<string, number | null> = {
   recommendation_ask: 7,
   // Trial expiry is sharply time-bound.
   trial_expiring: 14,
+  // Engagement signals (the FREE, in-product source). A reply is the strongest
+  // and holds a couple weeks; opens/clicks cool within a week like web intent.
+  positive_reply: 14,
+  linkedin_reply: 21,
+  meeting_booked: 30,
+  email_clicked: 7,
+  email_opened: 7,
+  linkedin_accept: 90,
   // Structural facts (not events): never stale.
   investor_overlap: null,
+  // Warm-network proximity — a 1st-degree connection is a standing relationship
+  // fact, not a decaying event (like investor_overlap). Re-emitted each sync.
+  warm_connection: null,
 };
 
 /** Fallback for an unrecognized event signal type. */
