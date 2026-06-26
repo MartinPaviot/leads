@@ -561,10 +561,10 @@ export function ConversationPane({
   // toolbar): the primary Generate-draft/Reply + Snooze/Done stay inline; Book
   // meeting, the gentle nudge, and Stop sequence move here. Assignee/labels/presence
   // are thread METADATA, not toolbar actions — they render in the header meta line.
+  // "Book meeting" is a visible toolbar action (calendar icon) now, not buried
+  // in ⋮ — see the action row below. Only the CONTEXTUAL "Book {proposed time}"
+  // stays here, surfaced when the contact actually proposed a slot.
   const moreItems: MoreMenuItem[] = [];
-  if (detail.contact) {
-    moreItems.push({ label: "Book meeting", icon: <CalendarPlus size={14} />, onClick: () => setSchedOpen(true) });
-  }
   if (detail.contact && proposedTime && !schedOpen) {
     moreItems.push({
       label: `Book ${proposedTime.phrase}`,
@@ -708,8 +708,23 @@ export function ConversationPane({
               {drafting ? "Drafting…" : "Reply"}
             </Button>
           )}
-          {/* Secondary actions behind the overflow (Book meeting / nudge / stop
-              sequence). Assignee/labels/presence are in the header meta line above. */}
+          {/* Schedule a meeting straight from the open mail — a calm, visible
+              calendar action (books on the connected calendar incl. Infomaniak). */}
+          {detail.contact && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSchedOpen(true)}
+              className="px-2"
+              title="Planifier un RDV"
+              aria-label="Planifier un RDV"
+            >
+              <CalendarPlus className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {/* Secondary actions behind the overflow (nudge / stop sequence /
+              contextual proposed-time booking). Assignee/labels/presence are in
+              the header meta line above. */}
           {moreItems.length > 0 && <MoreMenu label="More" items={moreItems} />}
           <div className="ml-auto flex items-center gap-2">
             {triageable && (

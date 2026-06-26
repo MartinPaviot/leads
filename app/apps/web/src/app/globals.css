@@ -29,8 +29,8 @@
   --kanban-column-width: 260px;
 
   /* === INBOX DENSITY (F1) — the one place inbox chrome reads density from === */
-  --inbox-row-height: 44px; /* single-line Upstream-dense bar (teardown/12) */
-  --inbox-row-height-compact: 40px; /* even-denser optional mode */
+  --inbox-row-height: 56px; /* Comfortable: Outlook 2-line row (sender+time / subject·preview) */
+  --inbox-row-height-compact: 34px; /* Compact: one dense single-line bar (toggle) */
   --inbox-sidebar-width: 240px;
   --inbox-list-width: 360px;
   --inbox-cta-radius: 10px;
