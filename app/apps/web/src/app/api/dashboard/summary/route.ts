@@ -1,8 +1,9 @@
 import { auth } from "@/auth";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { activities, deals, tasks, sequenceEnrollments, companies, contacts, outboundEmails } from "@/db/schema";
+import { activities, deals, tasks, sequenceEnrollments, sequences, companies, contacts, outboundEmails } from "@/db/schema";
 import { sql, eq, and, gte, lte, ne, desc, isNull, isNotNull } from "drizzle-orm";
+import { weeklyEnrollmentWhere, openDealValueSql, openDealCountSql } from "../_summary-metrics";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { notExcludedAsLeadSql } from "@/lib/inbound/lead-status-sql";
 
@@ -85,16 +86,15 @@ export async function GET() {
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(sequenceEnrollments)
-        .where(gte(sequenceEnrollments.enrolledAt, weekStart)),
+        // sequenceEnrollments has no tenantId column — scope via the sequences
+        // join, else this counts EVERY tenant's enrollments (cross-tenant leak).
+        .innerJoin(sequences, eq(sequences.id, sequenceEnrollments.sequenceId))
+        .where(weeklyEnrollmentWhere(authCtx.tenantId, weekStart)),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(sequenceEnrollments)
-        .where(
-          and(
-            gte(sequenceEnrollments.enrolledAt, prevWeekStart),
-            lte(sequenceEnrollments.enrolledAt, weekStart)
-          )
-        ),
+        .innerJoin(sequences, eq(sequences.id, sequenceEnrollments.sequenceId))
+        .where(weeklyEnrollmentWhere(authCtx.tenantId, prevWeekStart, weekStart)),
     ]);
 
     // Weekly deals won — current + previous.
@@ -211,8 +211,10 @@ export async function GET() {
       // Pipeline value + deal counts
       db
         .select({
-          totalValue: sql<number>`COALESCE(SUM(${deals.value}), 0)::int`,
-          activeDeals: sql<number>`count(*)::int`,
+          // Pipeline value + active count = OPEN deals only (exclude terminal
+          // won/lost); see _summary-metrics.ts. Bare SUM/count folded in closed deals.
+          totalValue: openDealValueSql,
+          activeDeals: openDealCountSql,
           wonValue: sql<number>`COALESCE(SUM(CASE WHEN ${deals.stage} = 'won' THEN ${deals.value} ELSE 0 END), 0)::int`,
           wonCount: sql<number>`SUM(CASE WHEN ${deals.stage} = 'won' THEN 1 ELSE 0 END)::int`,
           lostCount: sql<number>`SUM(CASE WHEN ${deals.stage} = 'lost' THEN 1 ELSE 0 END)::int`,
