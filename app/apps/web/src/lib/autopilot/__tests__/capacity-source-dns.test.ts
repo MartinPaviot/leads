@@ -5,13 +5,13 @@ import type { DnsAuthRecords } from "@/lib/sending/identity/auth";
 const PASS: DnsAuthRecords = { spfPass: true, dmarcPass: true, dkimPass: true, dkimBits: 2048 };
 
 describe("dnsAwareAuthResolver", () => {
-  it("provider-managed domains are sendable WITHOUT any DNS lookup", async () => {
+  it("OAuth-managed domains are sendable WITHOUT any DNS lookup", async () => {
     const lookup = vi.fn(async (_d: string): Promise<DnsAuthRecords> => PASS);
     const map = await dnsAwareAuthResolver(
-      [{ domain: "pool.elevay.dev", provider: "instantly" }, { domain: "g.com", provider: "gmail" }],
+      [{ domain: "o.com", provider: "outlook" }, { domain: "g.com", provider: "gmail" }],
       lookup,
     );
-    expect(map.get("pool.elevay.dev")?.sendable).toBe(true);
+    expect(map.get("o.com")?.sendable).toBe(true);
     expect(map.get("g.com")?.sendable).toBe(true);
     expect(lookup).not.toHaveBeenCalled();
   });
