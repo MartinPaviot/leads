@@ -316,6 +316,13 @@ export default function InboxPage() {
   // F2: generation guard + abort controller for foreground loads (stale discard).
   const loadGuardRef = useRef(createLoadGuard());
   const abortRef = useRef<AbortController | null>(null);
+  // Local-first lane cache (stale-while-revalidate): the last payload per view
+  // (lane + mailbox + split). Revisiting a loaded lane paints from cache INSTANTLY
+  // — no skeleton, no wait — then a silent fetch revalidates. Any mutation clears
+  // it (an item that moved lanes makes every cached lane potentially stale).
+  // Search views are never cached (transient; the keyspace stays bounded to
+  // lanes × mailboxes × splits).
+  const laneCacheRef = useRef(new Map<string, { rows: ConversationListItem[]; total: number; truncated: boolean }>());
 
   const loadLane = useCallback(
     async (lane: string, silent = false) => {
@@ -328,21 +335,36 @@ export default function InboxPage() {
       abortRef.current?.abort();
       abortRef.current = new AbortController();
       const live = () => loadGuardRef.current.isCurrent(token);
+
+      // View identity for the lane cache. Inbox/Primary maps attention → primary;
+      // the "Primary" split (and "other") aren't sub-segmented (Upstream model).
+      const isPrimaryView = lane === "attention" && (!activeSplit || activeSplit === "other");
+      const effLane = isPrimaryView ? "primary" : lane;
+      const splitId = activeSplit && lane === "attention" && !isPrimaryView ? activeSplit : "";
+      // Search views are transient → never cached (keeps the keyspace bounded to
+      // lanes × mailboxes × splits).
+      const canCache = !debouncedSearch;
+      const cacheKey = `${effLane}|${selectedMailbox ?? ""}|${splitId}`;
+
       if (!silent) {
-        setLoading(true);
-        setListError(false); // clear the foreground error as a fresh load begins
+        const cached = canCache ? laneCacheRef.current.get(cacheKey) : undefined;
+        if (cached) {
+          // Revisiting a loaded lane: paint from cache INSTANTLY (no skeleton), then
+          // fall through to a silent revalidation below.
+          setConversations(cached.rows);
+          setTotal(cached.total);
+          setTruncated(cached.truncated);
+          setListError(false);
+        } else {
+          setLoading(true);
+          setListError(false); // clear the foreground error as a fresh load begins
+        }
       }
       try {
         if (pendingTriage.current) await pendingTriage.current.catch(() => {});
         const mailboxQuery = selectedMailbox ? `&mailbox=${encodeURIComponent(selectedMailbox)}` : "";
         const searchQuery = debouncedSearch ? `&q=${encodeURIComponent(debouncedSearch)}` : "";
-        // Inbox/Primary → the email-client primary view (lane=primary): the default
-        // Inbox (no split) and the "Primary" split both show all primary-category mail
-        // in the inbox, not just the triage attention subset (Upstream model).
-        const isPrimaryView = lane === "attention" && (!activeSplit || activeSplit === "other");
-        const effLane = isPrimaryView ? "primary" : lane;
-        // B3: only sub-segment the attention lane (not a custom lane / the primary view).
-        const splitQuery = activeSplit && lane === "attention" && !isPrimaryView ? `&split=${activeSplit}` : "";
+        const splitQuery = splitId ? `&split=${splitId}` : "";
         // No &sort: the client sorts locally (instant, any size). The server returns
         // its per-view default order; we re-sort on arrival, so first paint is correct.
         const res = await fetch(`/api/inbox/conversations?lane=${effLane}${mailboxQuery}${searchQuery}${splitQuery}`, {
@@ -397,6 +419,14 @@ export default function InboxPage() {
         setTotal(data.pagination.total);
         setTruncated(data.pagination.truncated === true);
         setConversations(data.conversations);
+        // Warm the cache for instant revisits (search views excluded).
+        if (canCache) {
+          laneCacheRef.current.set(cacheKey, {
+            rows: data.conversations,
+            total: data.pagination.total,
+            truncated: data.pagination.truncated === true,
+          });
+        }
       } catch (err) {
         if ((err as Error)?.name === "AbortError") return; // superseded — silent, no error/toast
         if (silent) return; // a background freshness refresh fails quietly — keep the current list
@@ -563,6 +593,7 @@ export default function InboxPage() {
   // unsubscribe are residual). Optimistic — drop the source, then write.
   const handleClearBundle = useCallback(
     async (sender: string, keys: string[]) => {
+      laneCacheRef.current.clear(); // bundle items marked done → cached lanes are stale
       setClearingBundle(sender);
       setBundles((prev) => prev.filter((b) => b.sender !== sender));
       setCounts((c) => ({
@@ -728,6 +759,7 @@ export default function InboxPage() {
     async (key: string, action: "done" | "snooze" | "reopen", snoozeUntil?: string) => {
       // Optimistic: remove from the held lane and advance the selection over the
       // VISIBLE order (what the user sees), not the raw held array.
+      laneCacheRef.current.clear(); // an item changed lanes → every cached lane is stale
       const visIdx = displayed.findIndex((c) => c.key === key);
       const nextVisible = displayed.filter((c) => c.key !== key);
       setConversations((prev) => prev.filter((c) => c.key !== key));
@@ -773,6 +805,7 @@ export default function InboxPage() {
   // Star toggle (Upstream is:starred) — optimistic, owner-scoped persist. Stable so
   // it doesn't break InboxRow's React.memo.
   const handleToggleStar = useCallback((key: string, starred: boolean) => {
+    laneCacheRef.current.clear(); // starred-lane membership changed
     setConversations((prev) => prev.map((c) => (c.key === key ? { ...c, starred } : c)));
     setStarredCount((n) => Math.max(0, n + (starred ? 1 : -1)));
     void fetch("/api/inbox/star", {
@@ -785,6 +818,7 @@ export default function InboxPage() {
   // Delete (→ Trash) or Restore a conversation. Soft-delete: optimistically pull it
   // from the current list + close the pane, then persist via /api/inbox/trash.
   const handleTrash = useCallback((key: string, trashed: boolean) => {
+    laneCacheRef.current.clear(); // moved to/from Trash
     setConversations((prev) => prev.filter((c) => c.key !== key));
     setSelectedKey((sel) => (sel === key ? null : sel));
     setTrashCount((n) => Math.max(0, n + (trashed ? 1 : -1)));
@@ -798,6 +832,7 @@ export default function InboxPage() {
 
   // Mark as spam (→ Spam) or "Not spam" (restore). Same soft-flag pattern as Trash.
   const handleSpam = useCallback((key: string, spam: boolean) => {
+    laneCacheRef.current.clear(); // moved to/from Spam
     setConversations((prev) => prev.filter((c) => c.key !== key));
     setSelectedKey((sel) => (sel === key ? null : sel));
     setSpamCount((n) => Math.max(0, n + (spam ? 1 : -1)));
@@ -815,6 +850,7 @@ export default function InboxPage() {
     async (action: "done" | "snooze", snoozeUntil?: string) => {
       const keys = selection.keys;
       if (keys.length === 0) return;
+      laneCacheRef.current.clear(); // items changed lanes → cached lanes are stale
       const keySet = new Set(keys);
       setConversations((prev) => prev.filter((c) => !keySet.has(c.key)));
       setSelection(EMPTY_SELECTION);
