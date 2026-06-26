@@ -23,6 +23,7 @@ import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 import { ConversationList } from "./_conversation-list";
 import { SortMenu } from "./_sort-menu";
 import { isInboxSort, sortRows, type InboxSort } from "@/lib/inbox/inbox-sort";
+import { resolveInboxView } from "@/lib/inbox/inbox-view";
 import type { InboxDensity } from "./_inbox-row";
 import { ConversationPane, type ConversationPaneApi } from "./_conversation-pane";
 import { CaptureReviewDrawer } from "./_capture-review";
@@ -336,15 +337,14 @@ export default function InboxPage() {
       abortRef.current = new AbortController();
       const live = () => loadGuardRef.current.isCurrent(token);
 
-      // View identity for the lane cache. Inbox/Primary maps attention → primary;
-      // the "Primary" split (and "other") aren't sub-segmented (Upstream model).
-      const isPrimaryView = lane === "attention" && (!activeSplit || activeSplit === "other");
-      const effLane = isPrimaryView ? "primary" : lane;
-      const splitId = activeSplit && lane === "attention" && !isPrimaryView ? activeSplit : "";
-      // Search views are transient → never cached (keeps the keyspace bounded to
-      // lanes × mailboxes × splits).
-      const canCache = !debouncedSearch;
-      const cacheKey = `${effLane}|${selectedMailbox ?? ""}|${splitId}`;
+      // View identity + lane-cache key (pure, unit-tested). Inbox/Primary maps
+      // attention → primary; a real split sub-segments; search views aren't cached.
+      const { effLane, splitId, cacheKey, canCache } = resolveInboxView({
+        lane,
+        activeSplit,
+        selectedMailbox,
+        search: debouncedSearch,
+      });
 
       if (!silent) {
         const cached = canCache ? laneCacheRef.current.get(cacheKey) : undefined;
