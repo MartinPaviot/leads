@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CampaignWizard } from "@/components/campaign-wizard";
-import { Zap, Plus, Send, Users, Mail, Play, ThumbsDown, Loader2, FlaskConical } from "lucide-react";
+import { Zap, Plus, Send, Users, Mail, Play, ThumbsDown, Loader2, FlaskConical, LayoutTemplate } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
 import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
@@ -190,6 +190,9 @@ export default function CampaignsPage() {
         title="Campaigns"
         subtitle={`${sequences.length}`}
       >
+        <Button variant="outline" onClick={() => router.push("/sequences/templates")}>
+          <LayoutTemplate size={14} /> Modèles
+        </Button>
         <Button variant="gradient" onClick={() => setShowWizard(true)}>
           <Plus size={14} /> New campaign
         </Button>

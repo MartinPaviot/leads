@@ -10,13 +10,69 @@
 
 import { KNOWN_SIGNAL_TYPES, type KnownSignalType } from "@/lib/sequences/triggers";
 import { PROVEN_TEMPLATES } from "./catalog";
-import type { ProvenSequenceTemplate } from "./types";
+import { templateChannels } from "./types";
+import type { ProvenSequenceTemplate, TemplateStepType, PersonaClass } from "./types";
 
 export { PROVEN_TEMPLATES } from "./catalog";
 export * from "./types";
 
 /** Interpolation vars the live send path substitutes (`inngest/functions.ts:630-635`). */
 export const SUPPORTED_TEMPLATE_VARS = ["firstName", "lastName", "fullName", "title"] as const;
+
+/** One step, trimmed for the gallery preview (no full body — keep the payload light). */
+export interface TemplateStepSummary {
+  stepNumber: number;
+  stepType: TemplateStepType;
+  delayDays: number;
+  subjectTemplate: string;
+  valueAdded: string;
+}
+
+/** A template as the in-product gallery consumes it (metadata + cadence shape, no full bodies). */
+export interface TemplateSummary {
+  id: string;
+  name: string;
+  description: string;
+  triggerSignalTypes: KnownSignalType[];
+  personaFit: PersonaClass[];
+  recipientBenefitAngle: string;
+  lang: "fr" | "en";
+  channels: TemplateStepType[];
+  stepCount: number;
+  /** Total cadence span in days (sum of step delays). */
+  cadenceDays: number;
+  steps: TemplateStepSummary[];
+}
+
+/** Map a full template to the gallery summary (pure → testable; route adds `instantiated`). */
+export function toTemplateSummary(t: ProvenSequenceTemplate): TemplateSummary {
+  return {
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    triggerSignalTypes: t.triggerSignalTypes,
+    personaFit: t.personaFit,
+    recipientBenefitAngle: t.recipientBenefitAngle,
+    lang: t.lang,
+    channels: templateChannels(t),
+    stepCount: t.steps.length,
+    cadenceDays: t.steps.reduce((sum, s) => sum + s.delayDays, 0),
+    steps: t.steps.map((s) => ({
+      stepNumber: s.stepNumber,
+      stepType: s.stepType,
+      delayDays: s.delayDays,
+      subjectTemplate: s.subjectTemplate,
+      valueAdded: s.valueAdded,
+    })),
+  };
+}
+
+/** Read the seeding provenance id off a sequence's campaignConfig (null if not template-seeded). */
+export function templateIdOf(campaignConfig: Record<string, unknown> | null | undefined): string | null {
+  if (!campaignConfig || typeof campaignConfig !== "object") return null;
+  const id = (campaignConfig as Record<string, unknown>).templateId;
+  return typeof id === "string" ? id : null;
+}
 
 /** Look up a template by its stable id. */
 export function getTemplate(id: string): ProvenSequenceTemplate | null {
