@@ -99,7 +99,7 @@ export default function ProductVoicePage() {
           autoResize
         />
         <Select
-          label="AI tone"
+          label="Outbound tone (call scripts, sequences, proposals)"
           value={aiTone}
           onChange={(e) => setAiTone(e.target.value)}
           options={[
