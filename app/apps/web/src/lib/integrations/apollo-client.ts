@@ -7,8 +7,22 @@ import { withCircuitBreaker, APOLLO_CIRCUIT } from "../infra/circuit-breaker";
 
 const APOLLO_BASE = "https://api.apollo.io";
 
+/**
+ * Normalize a raw env-sourced API key. Defends against the most common paste
+ * corruption that silently 401s every Apollo call: a TRAILING NEWLINE (e.g.
+ * `printf '%s\n'`, an editor's final newline, or `echo "key" | vercel env add`
+ * which appends one) and accidental surrounding quotes. The raw key would
+ * otherwise reach the `X-Api-Key` header verbatim and Apollo rejects it with
+ * "Invalid access credentials" — indistinguishable from a wrong/expired key.
+ * Returns "" for nullish/blank input so callers can treat it as unset.
+ */
+export function normalizeApiKey(raw: string | undefined | null): string {
+  if (!raw) return "";
+  return raw.trim().replace(/^["']|["']$/g, "").trim();
+}
+
 function getApiKey(): string {
-  const key = process.env.APOLLO_API_KEY;
+  const key = normalizeApiKey(process.env.APOLLO_API_KEY);
   if (!key) throw new Error("APOLLO_API_KEY not set");
   return key;
 }
@@ -314,5 +328,5 @@ export function revenueToRange(revenue: number | null): string {
 }
 
 export function isApolloAvailable(): boolean {
-  return !!process.env.APOLLO_API_KEY;
+  return !!normalizeApiKey(process.env.APOLLO_API_KEY);
 }
