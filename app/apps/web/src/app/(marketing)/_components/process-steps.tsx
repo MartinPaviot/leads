@@ -25,35 +25,35 @@ import { OpportunitiesDemo } from "./opportunities-demo";
 
 // `h` = the natural content height shown in the shot (before scaling); the rest
 // of the page is clipped with a fade, so each shot ends cleanly on a few rows.
-const steps: { label: string; headline: string; body: string; Real?: ComponentType; Demo?: ComponentType; h?: number; wide?: boolean }[] = [
+const steps: { label: string; headline: string; body: string; Real?: ComponentType; Demo?: ComponentType; Wide?: ComponentType; h?: number; wide?: boolean }[] = [
   {
     label: "Find demand",
-    headline: "Your target list builds itself",
-    body: "Describe your ICP once. Elevay searches a live B2B database, builds your target account list, and scores every account against it, no CSV imports and no manual research.",
+    headline: "Your TAM builds and scores itself",
+    body: "Describe your ICP once. We scan a live B2B database around the clock and assemble your market — every account graded the moment it lands, the buying triggers behind it in plain view (hiring, fresh funding, shared investors, YC). Fits you'd never spot by hand rise to the top, and the list never goes stale.",
     Demo: AccountsDemo,
   },
   {
     label: "Engage",
-    headline: "Outreach drafted from real context",
-    body: "Multi-touch sequences drafted from each account's signals and notes, never from a template with a first name in it. Nothing leaves your domain until you approve it.",
+    headline: "Outreach written for one, not a list",
+    body: "The moment an account heats up, we write a multi-touch sequence from its triggers and your notes — tailored to its real situation, not a first-name merge tag.",
     Demo: CampaignsDemo,
   },
   {
     label: "Engage",
-    headline: "A cold-call cockpit that preps you",
-    body: "Today's queue is prioritized by signals and local time. Before you dial: who they are, why now, and what to open with. While you talk: a live transcript. When you hang up: the outcome, the deal, and the follow-up tasks log themselves.",
-    wide: true,
+    headline: "Cold calls, fully prepped and logged",
+    body: "Your queue is ranked by intent and local time. Before you dial, the brief is already written: who they are, why now, what to open with. While you talk, a live transcript runs. When you hang up, the outcome, the deal and the next tasks land in your CRM without a click.",
+    Demo: CallModeDemo,
   },
   {
     label: "Capture",
-    headline: "Every meeting captured for you",
-    body: "A bot joins your Meet, Zoom, and Teams calls, transcribes them, and pulls out the action items and buying signals, ready for you to review.",
+    headline: "Every meeting, recorded and structured",
+    body: "Our notetaker sits in on every call, captures the whole conversation, and drops the action items and intent cues into your CRM before you've even left.",
     Demo: MeetingsDemo,
   },
   {
     label: "Capture",
     headline: "Your CRM fills itself",
-    body: "Values update, fields populate, and the next stage is suggested for you, straight from your calls and emails, so the pipeline reflects reality without manual logging.",
+    body: "Deal values, fields and stages refresh straight from your calls and emails — your pipeline mirrors reality, with nothing to type.",
     Demo: OpportunitiesDemo,
   },
 ];
@@ -167,14 +167,17 @@ export function ProcessSteps() {
     <div className="space-y-20 md:space-y-28">
       {steps.map((s, i) => {
         if (s.wide) {
+          // Full-width feature steps (the live TAM build + the cold-call
+          // cockpit) — a data-dense surface can't read at half width.
+          const Wide = s.Wide ?? CallModeDemo;
           return (
             <div key={s.headline}>
               <StepHeading i={i} label={s.label} headline={s.headline} body={s.body} />
-              {/* Full container width so the cockpit aligns to the same left AND
+              {/* Full container width so the surface aligns to the same left AND
                   right margins as every other step (was max-w-[1100px] left-
                   aligned -> a dead gap on the right that broke the rhythm). */}
               <RevealOnView className="mt-8">
-                {() => <CallModeDemo />}
+                {() => <Wide />}
               </RevealOnView>
             </div>
           );

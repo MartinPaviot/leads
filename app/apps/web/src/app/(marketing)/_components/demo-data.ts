@@ -85,7 +85,10 @@ const D = (i: DealIn) => {
   return {
     id, name, stage, value, companyId: id, companyDomain: domain, contactId: null, ownerId: owner ? id : null,
     summary, expectedCloseDate: stage === "proposal" || stage === "negotiation" ? new Date(now + 30 * 86_400_000).toISOString() : null,
-    properties: {}, companyName: name, ownerFirstName, ownerLastName, createdAt: agoDay(20), updatedAt: agoDay(3),
+    properties: {}, companyName: name, ownerFirstName, ownerLastName,
+    // The founder's own deals carry his profile photo; everyone else stays on initials.
+    ownerAvatarUrl: owner === "Martin Paviot" ? "/martin_paviot.jpg" : null,
+    createdAt: agoDay(20), updatedAt: agoDay(3),
   };
 };
 const DEALS = ([

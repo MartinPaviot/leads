@@ -186,9 +186,12 @@ export function AppFrame({
   className?: string;
 }) {
   return (
+    // Pure showcase — the framed surfaces render real, clickable components, but a
+    // click has no session/router behind it on the landing, so the window is inert
+    // (pointer-events-none). The hero's hover-pause still fires on the outer wrapper.
     <div
       aria-hidden="true"
-      className={`relative overflow-hidden rounded-2xl bg-white ${className}`}
+      className={`pointer-events-none relative overflow-hidden rounded-2xl bg-white ${className}`}
       // Layered depth: a tight contact shadow, a mid ambient, and a long
       // soft cast, plus a 1px inner hairline border and a top glass
       // highlight. Reads as a real window floating above the page.
@@ -224,6 +227,7 @@ export function IntegrationsStrip() {
     { src: "https://icon.horse/icon/zoom.us", l: "Zoom" },
     { src: "https://icon.horse/icon/teams.microsoft.com", l: "Teams" },
     { src: "https://cdn.simpleicons.org/googlecalendar", l: "Calendar" },
+    { src: "https://icon.horse/icon/linkedin.com", l: "LinkedIn" },
   ];
   const { ref, live, reduced } = useStripReveal();
   return (

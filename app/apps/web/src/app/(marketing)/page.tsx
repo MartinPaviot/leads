@@ -8,12 +8,8 @@ import {
   ArrowRight,
   Menu,
   X,
-  UserCheck,
-  Lock,
-  Key,
-  RotateCcw,
 } from "lucide-react";
-import { IntegrationsStrip, BuiltOnStrip, Logo, clogo } from "./_components/product-mockups";
+import { IntegrationsStrip } from "./_components/product-mockups";
 import { ProcessSteps } from "./_components/process-steps";
 import { HeroDemo } from "./_components/hero-demo";
 import { DOCS_PAGE_ENABLED } from "@/lib/docs/page-visibility";
@@ -133,11 +129,11 @@ function AnimatedStat({ to, suffix = "", className = "", style }: { to: number; 
 const faqs = [
   {
     q: "How is this different from a CRM like HubSpot or Salesforce?",
-    a: "Those are databases you keep up to date by hand. Elevay builds the target list, captures every email and call for you, tells you who to work next, and drafts the outreach. You approve and close; it does the data work.",
+    a: "Those are databases you keep up to date by hand. We assemble and grade your market, log every email and call automatically, surface who's ready, and write the outreach — all in the background, so you spend your time with customers.",
   },
   {
     q: "Isn't this just another AI SDR that spams people?",
-    a: "No. Elevay doesn't fire off autonomous cold-email blasts. It drafts from real context and waits for your approval before anything goes out, so you stay in control of your domain and your reputation.",
+    a: "No. We don't blast generic cold email. Every message is written from each account's real context and goes out on the guardrails you set — so your domain and your reputation stay yours.",
   },
   {
     q: "Where does the target list come from?",
@@ -372,9 +368,9 @@ export default function LandingPage() {
       <Section className="relative overflow-hidden pb-20 pt-16 sm:pt-20">
         <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.025) 1px, transparent 1px)", backgroundSize: "32px 32px", maskImage: "linear-gradient(to bottom, black, transparent 75%)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent 75%)" }} />
         <div className="relative mx-auto max-w-[1240px] px-6 text-center">
-          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">The pre-built revenue engine for founder-led sales</p></Animate>
+          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">The autonomous revenue engine for founder-led sales</p></Animate>
           <Animate><h1 className="mx-auto mt-6 max-w-[900px] text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-gray-900 sm:text-[48px] lg:text-[64px]">Elevay runs your pipeline.<br className="hidden sm:block" /> You run the conversations.</h1></Animate>
-          <Animate><p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-gray-600">It builds your target list, tells you who to reach and when, drafts your outreach across email and calls, and captures every meeting in your CRM. You review and close.</p></Animate>
+          <Animate><p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-gray-600">We build and score your TAM, catch every buying signal in real time, and write outreach personalized to each account — work AI now does better and faster than any team by hand.</p></Animate>
           <Animate>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="cursor-pointer rounded-lg px-6 py-3 text-sm font-semibold text-white transition-[opacity,transform] duration-150 hover:-translate-y-0.5 hover:opacity-90 active:translate-y-0" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Book a demo</a>
@@ -395,39 +391,15 @@ export default function LandingPage() {
         <div className="mx-auto max-w-[1240px] px-6">
           <Animate><p className="text-center text-xs font-medium uppercase tracking-wider text-gray-500">Works with the tools you already use</p></Animate>
           <Animate><div className="mt-7"><IntegrationsStrip /></div></Animate>
-          {/* Trust / control band — honest anxiety-reducers (MECLABS A).
-              Every claim is true today: see the FAQ (encryption, OAuth,
-              revoke) and the human-in-the-loop principle. Each chip settles
-              in on its own small stagger (opacity + y, GPU-safe). */}
-          <m.div
-            className="mt-9 flex flex-wrap items-center justify-center gap-x-6 gap-y-2.5"
-            variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-          >
-            {[
-              { icon: Lock, t: "Encrypted in transit and at rest" },
-              { icon: Key, t: "OAuth login, never your password" },
-              { icon: RotateCcw, t: "Revoke access anytime" },
-              { icon: UserCheck, t: "Nothing sends without you" },
-            ].map((c) => { const Icon = c.icon; return (
-              <m.span
-                key={c.t}
-                variants={{ hidden: { opacity: 0, y: 6 }, visible: { opacity: 1, y: 0 } }}
-                transition={{ duration: 0.35, ease: [0.22, 0.61, 0.36, 1] }}
-                className="inline-flex items-center gap-1.5 text-[12px] text-gray-500"
-              >
-                <Icon size={13} className="text-gray-400" /> {c.t}
-              </m.span>
-            ); })}
-          </m.div>
         </div>
       </Section>
 
       {/* HOW IT WORKS */}
       <Section id="how-it-works" className="bg-[#F4F6FB] pt-32 pb-32">
         <div className="mx-auto max-w-[1240px] px-6">
-          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">How it works</p></Animate>
-          <Animate><h2 className="mt-4 text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">From a cold list to a closed deal</h2></Animate>
-          <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">Watch one account, Notion, travel from a cold list to a closed deal. Each step moves the same deal one stage forward, because Elevay remembers every interaction.</p></Animate>
+          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">How the engine works</p></Animate>
+          <Animate><h2 className="mt-4 text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">One engine, from cold list to closed deal</h2></Animate>
+          <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">Follow one account, Notion. We run every step — sourcing, ranking, reading intent, drafting, logging — and remember every interaction, so the deal keeps moving on its own.</p></Animate>
           {/* Market evidence — speed-to-lead. Cited third-party data
               (Dr. James Oldroyd, MIT / InsideSales), the reason the
               "prioritize" step exists: timing is most of the win. */}
@@ -457,14 +429,14 @@ export default function LandingPage() {
       <Section className="pt-32">
         <div className="mx-auto max-w-[1240px] px-6">
           <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-10 md:p-14">
-            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">Human in the loop</p></Animate>
-            <Animate><h2 className="mt-3 max-w-2xl text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">It does the work. You make the calls.</h2></Animate>
-            <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Every email, meeting, and deal change waits for your go-ahead. Elevay does the research, the list-building, the first drafts, and the note-taking, the work that doesn&apos;t need a person. The conversations and the relationships stay yours.</p></Animate>
+            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">Built around you</p></Animate>
+            <Animate><h2 className="mt-3 max-w-2xl text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">We run the engine. You spend your time with customers.</h2></Animate>
+            <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Sourcing, ranking, intent detection, drafting, capture, follow-ups — all of it runs nonstop, on your terms. That frees you for the one thing software can&apos;t touch: the conversations and the relationships only a founder can build.</p></Animate>
             <div className="mt-10 grid gap-8 md:grid-cols-3">
               {[
-                { h: "Elevay handles", b: "Prospecting, enrichment, scoring, drafting, transcription, and follow-up reminders, run continuously in the background." },
-                { h: "You handle", b: "The pitch, the read on the room, and the close, the part of selling that needs a person." },
-                { h: "Autonomy you control", b: "Approve more and it does more. Pull it back to drafts-only anytime. It earns scope, it never assumes it." },
+                { h: "We handle", b: "Prospecting, enrichment, grading, signal detection, copywriting, transcription, follow-ups — always-on, in the background." },
+                { h: "You focus on", b: "The conversations, the read on the room, and the relationships — the part of selling only a person can do." },
+                { h: "On your guardrails", b: "Set the rules once and we run within them. Open the throttle or pull back to drafts-only anytime — autonomy is earned, never assumed." },
               ].map((col) => (
                 <Animate key={col.h}>
                   <div className="border-l-2 pl-4" style={{ borderColor: "rgba(44,107,237,0.22)" }}>
@@ -485,10 +457,9 @@ export default function LandingPage() {
       <Section className="pt-32 pb-32">
         <div className="mx-auto max-w-[1240px] px-6">
           <div className="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white p-8 md:p-12">
-            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">From the founder</p></Animate>
             <Animate>
-              <blockquote className="mt-5 text-[19px] leading-relaxed text-gray-800 md:text-[21px] md:leading-[1.65]">
-                In founder-led sales, you are the pipeline. The conversations are yours to win, but everything around them, the lists, the data, the first drafts, the call notes, quietly eats your week. Salesforce puts it at <span className="font-semibold text-gray-900">70% of a rep&apos;s time</span> on admin and data entry, not selling. I&apos;m building Elevay to be the back office a founder doesn&apos;t have yet: it does that work and hands you the conversations. It&apos;s early, and I onboard every founder myself, so when you start, you&apos;re talking to me.
+              <blockquote className="text-[22px] font-medium leading-[1.45] tracking-tight text-gray-900 md:text-[26px]">
+In founder-led sales, you are the pipeline — and the work around the conversations quietly eats your week. We built Elevay to run all of it, so the only thing left to you is the conversation.
               </blockquote>
             </Animate>
             <Animate>
@@ -500,56 +471,7 @@ export default function LandingPage() {
                 </div>
               </div>
             </Animate>
-            <Animate>
-              <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-gray-100 pt-6 text-[13px] text-gray-500">
-                <span className="inline-flex items-center gap-1.5">
-                  {/* A live-status breath (opacity only, honors reduced motion) */}
-                  <span className="h-1.5 w-1.5 rounded-full motion-safe:animate-pulse" style={{ background: "#10B981" }} />
-                  In early access, onboarding founders one at a time
-                </span>
-                <span className="inline-flex items-center gap-1.5"><UserCheck size={14} className="text-gray-400" /> You talk to the founder, not a sales team</span>
-              </div>
-            </Animate>
           </div>
-        </div>
-      </Section>
-
-      {/* LANDSCAPE: positioning vs the alternatives (after the product
-          story, before the conversion CTAs) */}
-      <Section className="bg-[#F4F6FB] pt-32 pb-32">
-        <div className="mx-auto max-w-[1240px] px-6">
-          <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">Landscape</p></Animate>
-          <Animate><h2 className="mt-4 text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">The alternatives weren&apos;t built for founder-led sales</h2></Animate>
-          <Animate><p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-600">Each category solves one slice and leaves you holding the rest. Elevay is built to not be any of them.</p></Animate>
-          <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {[
-              { logos: ["salesforce.com", "hubspot.com", "attio.com"], kind: "Legacy CRMs", headline: "You maintain them.", body: "Per-seat pricing, manual data entry, dashboards that go stale the moment you stop typing. They store what you sell; they don't help you sell it." },
-              { logos: ["11x.ai", "artisan.co", "aisdr.com"], kind: "AI SDRs", headline: "They act without you.", body: "Autonomous senders that blast generic messages under your name. The output is forgettable; the cost lands on your domain and your reputation." },
-              { logos: ["apollo.io", "instantly.ai", "clay.com"], kind: "Tool stacks", headline: "Five tools, no memory.", body: "Prospecting here, sequences there, enrichment elsewhere. Each tool forgets what the others did, and you become the integration between them." },
-            ].map((card) => (
-              <Animate key={card.kind} className="h-full">
-                {/* Hover lift is a transform (translateY) — composited, cheap,
-                    and it stays inside normal flow. */}
-                <m.div
-                  whileHover={{ y: -5 }}
-                  transition={{ type: "spring", stiffness: 320, damping: 24 }}
-                  className="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-8 transition-shadow duration-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.07)]"
-                >
-                  <div className="mb-4 flex items-center gap-1.5">
-                    {card.logos.map((d) => <Logo key={d} src={clogo(d)} size={28} rounded="rounded-lg" />)}
-                  </div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">{card.kind}</p>
-                  <h3 className="mt-2 text-base font-semibold text-gray-900">{card.headline}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-gray-600">{card.body}</p>
-                </m.div>
-              </Animate>
-            ))}
-          </div>
-          <Animate>
-            <p className="mt-12 max-w-2xl text-base leading-relaxed text-gray-700">
-              <span className="font-semibold text-gray-900">Elevay is the fourth option:</span> one system that builds the list, works the signals, drafts the outreach, and remembers every conversation, and never acts without you.
-            </p>
-          </Animate>
         </div>
       </Section>
 
@@ -580,37 +502,6 @@ export default function LandingPage() {
               </Animate>
             ))}
           </m.div>
-        </div>
-      </Section>
-
-      {/* BUILT ON — honest borrowed credibility. Every vendor named is
-          really wired in (see package.json / RECALL_API_KEY). The value
-          is a reliability signal: specialists, not homegrown shortcuts. */}
-      <Section className="pt-32">
-        <div className="mx-auto max-w-[1240px] px-6">
-          <div className="rounded-2xl border border-gray-200 bg-gray-50/60 px-8 py-11 text-center md:px-12">
-            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">Under the hood</p></Animate>
-            <Animate><h2 className="mx-auto mt-3 max-w-xl text-2xl font-bold tracking-tight text-gray-900">The infrastructure Elevay is built on</h2></Animate>
-            <Animate><p className="mx-auto mt-3 max-w-lg text-[15px] leading-relaxed text-gray-600">We don&apos;t reinvent the hard parts. Reasoning, drafting, voice, transcription, and meeting capture run on specialized providers built for exactly that.</p></Animate>
-            <Animate><div className="mt-9"><BuiltOnStrip /></div></Animate>
-          </div>
-        </div>
-      </Section>
-
-      {/* FINAL CTA */}
-      <Section className="mt-32">
-        <div className="py-24" style={{ background: "linear-gradient(180deg, #FAFAFA 0%, #FFFFFF 100%)" }}>
-          <div className="mx-auto max-w-[1240px] px-6 text-center">
-            <Animate><h2 className="text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">Run your whole pipeline<br />from one place.</h2></Animate>
-            <Animate><p className="mt-4 text-lg text-gray-600">See it on your own pipeline, live, in 15 minutes.</p></Animate>
-            <Animate>
-              <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="inline-block cursor-pointer rounded-lg px-8 py-4 text-sm font-semibold text-white transition-[opacity,transform] duration-150 hover:-translate-y-0.5 hover:opacity-90 active:translate-y-0" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Book a demo</a>
-                <Link href="#how-it-works" className="cursor-pointer text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900">see how it works &rarr;</Link>
-              </div>
-            </Animate>
-            <Animate><p className="mt-4 text-xs text-gray-500">We onboard every founder personally · Your data stays yours</p></Animate>
-          </div>
         </div>
       </Section>
 

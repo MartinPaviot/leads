@@ -5,11 +5,11 @@ import { LazyMotionProvider } from "./_components/lazy-motion-provider";
 export const metadata: Metadata = {
   title: "Elevay: Your Revenue Engine for Founder-Led Sales",
   description:
-    "The pre-built revenue engine for founder-led sales. Elevay builds your target list, tells you who to engage and when, drafts your outreach across email and calls, and captures every meeting in your CRM. You review, decide, and close.",
+    "The autonomous revenue engine for founder-led sales. We build and score your TAM, catch every buying signal in real time, and write outreach personalized to each account — better and faster than any team by hand.",
   openGraph: {
     title: "Elevay: Your Revenue Engine for Founder-Led Sales",
     description:
-      "Elevay runs your pipeline. You run the conversations. It builds your target list, surfaces who to engage and when, drafts your outreach, and captures every meeting. You review and close.",
+      "Elevay runs your pipeline. You run the conversations. We build and score your TAM, catch every buying signal, and write outreach personalized to each account.",
     url: "/",
     siteName: "Elevay",
     locale: "en_US",

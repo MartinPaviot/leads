@@ -62,7 +62,7 @@ const BETA_NAV = new Set(["Call Mode", "Campaigns", "Proposals", "Meetings"]);
 
 function BetaPill() {
   return (
-    <span className="ml-auto rounded px-[3px] py-px text-[6.5px] font-semibold uppercase tracking-wider" style={{ color: T.ter, border: `1px solid ${T.border}` }}>
+    <span className="ml-auto rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wider" style={{ color: T.ter, border: `1px solid ${T.border}` }}>
       Beta
     </span>
   );
@@ -70,27 +70,26 @@ function BetaPill() {
 
 function Sidebar({ active }: { active: string }) {
   return (
-    <aside className="hidden w-[160px] shrink-0 flex-col border-r sm:flex" style={{ borderColor: T.soft, background: T.card }}>
-      {/* Workspace identity — the REAL Elevay brand slot, 1:1 with the app
-          sidebar header (components/sidebar.tsx): the Elevay mark + the
-          shimmer wordmark; search + collapse sit right, like the app. */}
-      <div className="flex h-[42px] shrink-0 items-center gap-1.5 border-b px-2.5" style={{ borderColor: T.soft }}>
+    <aside className="hidden w-[240px] shrink-0 flex-col border-r sm:flex" style={{ borderColor: T.soft, background: T.card }}>
+      {/* Workspace identity — sized to the REAL app scale (components/sidebar.tsx)
+          so the nav reads at the same zoom as the real page shown beside it. */}
+      <div className="flex h-[42px] shrink-0 items-center gap-2 border-b px-3" style={{ borderColor: T.soft }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-Elevay.svg?v=2" alt="" className="h-[18px] w-[18px] shrink-0" />
-        <span className="gradient-text truncate text-[12.5px] font-bold tracking-tight">Elevay</span>
-        <span className="ml-auto flex shrink-0 items-center gap-1.5" style={{ color: T.ter }}>
-          <Search size={10} />
-          <ChevronsLeft size={10} />
+        <img src="/logo-Elevay.svg?v=2" alt="" className="h-[24px] w-[24px] shrink-0" />
+        <span className="gradient-text truncate text-[16px] font-bold tracking-tight">Elevay</span>
+        <span className="ml-auto flex shrink-0 items-center gap-2" style={{ color: T.ter }}>
+          <Search size={14} />
+          <ChevronsLeft size={14} />
         </span>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden px-2 py-1.5">
+      <div className="min-h-0 flex-1 overflow-hidden px-2 py-2">
         {navSections.map((s, si) => (
-          <div key={s.label || si} className={si > 0 ? "mt-1.5" : ""}>
-            {s.label && <div className="mb-0.5 px-2 text-[8.5px] font-semibold uppercase tracking-wider" style={{ color: "#B4B8C4" }}>{s.label}</div>}
-            <div className="space-y-px">
+          <div key={s.label || si} className={si > 0 ? "mt-2" : ""}>
+            {s.label && <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "#B4B8C4" }}>{s.label}</div>}
+            <div className="space-y-0.5">
               {s.items.map((n) => { const Icon = n.icon; const on = n.label === active; return (
-                <div key={n.label} data-nav={n.label} className="flex h-[20px] items-center gap-2 rounded-md px-2 text-[10.5px] font-medium transition-colors" style={{ color: on ? T.text : T.sec, background: on ? T.accentSoft : "transparent", boxShadow: on ? `inset 2px 0 0 0 ${T.accent}` : undefined }}>
-                  <Icon size={12} className="shrink-0" style={{ color: on ? T.accent : T.ter }} />
+                <div key={n.label} data-nav={n.label} className="flex h-[32px] items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium transition-colors" style={{ color: on ? T.text : T.sec, background: on ? T.accentSoft : "transparent", boxShadow: on ? `inset 2px 0 0 0 ${T.accent}` : undefined }}>
+                  <Icon size={16} className="shrink-0" style={{ color: on ? T.accent : T.ter }} />
                   <span className="truncate">{n.label}</span>
                   {BETA_NAV.has(n.label) && <BetaPill />}
                 </div>
@@ -99,21 +98,21 @@ function Sidebar({ active }: { active: string }) {
           </div>
         ))}
         {/* Chats — New chat + a recent thread, like the real sidebar */}
-        <div className="mt-1.5">
-          <div className="mb-0.5 px-2 text-[8.5px] font-semibold uppercase tracking-wider" style={{ color: "#B4B8C4" }}>Chats</div>
-          <div className="flex h-[20px] items-center gap-2 rounded-md px-2 text-[10.5px] font-medium" style={{ color: T.sec }}>
-            <Plus size={12} style={{ color: T.ter }} />New chat
+        <div className="mt-2">
+          <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "#B4B8C4" }}>Chats</div>
+          <div className="flex h-[32px] items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium" style={{ color: T.sec }}>
+            <Plus size={16} style={{ color: T.ter }} />New chat
           </div>
-          <div className="flex h-[20px] items-center gap-2 rounded-md px-2 text-[10px]" style={{ color: T.ter }}>
-            <MessageSquare size={11} className="shrink-0" style={{ opacity: 0.6 }} />
+          <div className="flex h-[28px] items-center gap-2.5 rounded-md px-2.5 text-[12px]" style={{ color: T.ter }}>
+            <MessageSquare size={15} className="shrink-0" style={{ opacity: 0.6 }} />
             <span className="truncate">Best accounts to call</span>
           </div>
         </div>
       </div>
       {/* Footer height is locked to the chat bar's (BAR_H) so their top
           borders form one continuous line across the shell. */}
-      <div className="flex h-[44px] shrink-0 items-center gap-2 border-t px-3" style={{ borderColor: T.soft }}>
-        <Avatar src="/martin_paviot.jpg" name="Martin Paviot" size={20} /><span className="text-[11px] font-medium" style={{ color: T.text }}>Martin</span>
+      <div className="flex h-[44px] shrink-0 items-center gap-2.5 border-t px-3" style={{ borderColor: T.soft }}>
+        <Avatar src="/martin_paviot.jpg" name="Martin Paviot" size={28} /><span className="text-[13px] font-medium" style={{ color: T.text }}>Martin</span>
       </div>
     </aside>
   );
@@ -135,11 +134,11 @@ function ChatBar({ phase, reduced }: { phase: number; reduced: boolean }) {
     <div className="flex h-[44px] shrink-0 items-center border-t px-4" style={{ borderColor: T.soft, background: T.card }}>
       <div className="relative mx-auto w-full max-w-md">
         {/* The Elevay mark — the agent's face in chat, like the real app */}
-        <img src="/logo-Elevay.svg?v=2" alt="" className="absolute left-3 top-1/2 h-[13px] w-[13px] -translate-y-1/2" />
-        <div className="w-full truncate rounded-xl border py-2 pl-9 pr-9 text-[11px]" style={{ borderColor: asking ? "rgba(44,107,237,0.4)" : T.border, color: asking ? T.text : T.ter, background: T.card, boxShadow: "0 1px 2px rgba(26,26,46,0.05)" }}>
+        <img src="/logo-Elevay.svg?v=2" alt="" className="absolute left-3.5 top-1/2 h-[16px] w-[16px] -translate-y-1/2" />
+        <div className="w-full truncate rounded-xl border py-2 pl-10 pr-11 text-[13px]" style={{ borderColor: asking ? "rgba(44,107,237,0.4)" : T.border, color: asking ? T.text : T.ter, background: T.card, boxShadow: "0 1px 2px rgba(26,26,46,0.05)" }}>
           {asking ? <Typewriter key={phase} text="What did Sarah say about budget last Thursday?" start={!reduced} speed={22} caret /> : "Show my best prospects, pipeline health, draft email…"}
         </div>
-        <div data-action={asking ? "send" : undefined} className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-white" style={{ background: T.accent }}><Send size={11} /></div>
+        <div data-action={asking ? "send" : undefined} className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-white" style={{ background: T.accent }}><Send size={14} /></div>
       </div>
     </div>
   );
@@ -214,7 +213,10 @@ export function HeroDemo() {
                     bleed past the frame clip on weak GPUs: blur composites
                     wrong, scale pushes the viewport edge outside the clip.) */}
               </div>
-              <ChatBar phase={phase} reduced={reduced} />
+              {/* The persistent chat bar lives ONLY on Up Next in the real app
+                  (components/persistent-chat-bar.tsx returns null elsewhere), so
+                  show it only on that phase — Accounts / Opportunities have none. */}
+              {phases[phase].nav === "Up next" && <ChatBar phase={phase} reduced={reduced} />}
             </div>
           </div>
         </AppFrame>
