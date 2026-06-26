@@ -10,10 +10,10 @@
  * Keyboard: j/k select, e done, r reply — ignored while typing.
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Inbox, Mail, AlertCircle, Search, X, PenSquare, ChevronLeft } from "lucide-react";
+import { Inbox, Mail, AlertCircle, Search, X, PenSquare, ChevronLeft, Rows2, AlignJustify, MoveHorizontal } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { useToast } from "@/components/ui/toast";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
 import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 import { ConversationList } from "./_conversation-list";
+import type { InboxDensity } from "./_inbox-row";
 import { ConversationPane, type ConversationPaneApi } from "./_conversation-pane";
 import { CaptureReviewDrawer } from "./_capture-review";
 import { OutboundTable, type OutboundTableApi } from "./_outbound-table";
@@ -77,6 +78,69 @@ const TAB_LABELS: Record<Tab, string> = {
   trash: "Trash",
   spam: "Spam",
 };
+
+// Rep-adjustable list width (px) for the 3-column master-detail, persisted so the
+// layout sticks across sessions. Mirrors Call Mode's resizable cockpit columns.
+const LIST_W_KEY = "elevay.inbox.listWidth";
+const LIST_W_MIN = 220;
+const LIST_W_MAX = 560;
+const LIST_W_DEFAULT = 300;
+const clampPx = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * Draggable divider between the conversation list and the open mail (3-column
+ * mode only) — drag left/right to resize the delta between the inbox and the
+ * reading pane. Zero layout width: the visible line is the list column's
+ * border-r; the handle overlays an invisible grab zone + a hover highlight.
+ * Pointer listeners bind once and read the latest onDelta via a ref. Mirrors
+ * Call Mode's ResizeHandle, on Elevay tokens (no raw palette colors).
+ */
+function ResizeHandle({ onDelta }: { onDelta: (dx: number) => void }) {
+  const onDeltaRef = useRef(onDelta);
+  onDeltaRef.current = onDelta;
+  const startX = useRef<number | null>(null);
+  useEffect(() => {
+    function move(e: PointerEvent) {
+      if (startX.current === null) return;
+      const dx = e.clientX - startX.current;
+      startX.current = e.clientX;
+      onDeltaRef.current(dx);
+    }
+    function up() {
+      if (startX.current === null) return;
+      startX.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+  }, []);
+  return (
+    <div
+      onPointerDown={(e) => {
+        startX.current = e.clientX;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        e.preventDefault();
+      }}
+      className="group relative z-10 hidden w-0 shrink-0 select-none @min-[960px]:block"
+      title="Glisser pour redimensionner"
+      role="separator"
+      aria-orientation="vertical"
+    >
+      <div className="absolute inset-y-0 -left-1 w-2 cursor-col-resize" />
+      <div className="pointer-events-none absolute inset-y-0 -left-px w-px bg-transparent transition-colors group-hover:bg-[var(--color-accent)]" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 flex h-7 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded border opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+        style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}>
+        <MoveHorizontal size={12} style={{ color: "var(--color-text-muted)" }} />
+      </div>
+    </div>
+  );
+}
 
 
 export default function InboxPage() {
@@ -138,6 +202,13 @@ export default function InboxPage() {
   // operator-hint placeholder where it actually fits (≥ lg), else "Search mail"
   // so it never clips. Starts false → matches SSR, set on mount (no hydration gap).
   const [wideSearch, setWideSearch] = useState(false);
+  // Outlook-style display density: "comfortable" = 2-line rows (default),
+  // "compact" = one dense single line. Starts comfortable → matches SSR, then a
+  // mount effect reads the persisted choice (no hydration gap).
+  const [density, setDensity] = useState<InboxDensity>("comfortable");
+  // Resizable list width (3-column mode). Default on SSR → first paint matches;
+  // a mount effect reads the persisted px, and a persist effect saves it.
+  const [listW, setListW] = useState(LIST_W_DEFAULT);
   // F3: the last foreground load rejected — drives the list error state so a failed
   // load shows a Retry, not a misleading empty lane (only meaningful when count===0).
   const [listError, setListError] = useState(false);
@@ -145,6 +216,13 @@ export default function InboxPage() {
   const [catchUpCount, setCatchUpCount] = useState(0);
   const seenInitRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
+  // Last list scroll offset while no thread is open — so returning from a thread
+  // lands back where you were instead of at the top. In single-pane mode the
+  // list is display:none while reading, which zeroes its scrollTop; we restore it.
+  const listScrollRef = useRef(0);
+  // The inbox @container — its width decides single-pane (<960px) vs 3-column,
+  // so the scroll-restore effect can tell the two apart precisely (not by proxy).
+  const shellRef = useRef<HTMLDivElement>(null);
   // `m`-then-key mailbox quick-switch state machine (INBOX-K05).
   const mailboxAwaitRef = useRef(false);
   const mailboxAwaitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -325,6 +403,66 @@ export default function InboxPage() {
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
+
+  // Restore the persisted display density once on mount (client-only — keeps SSR
+  // = comfortable so first paint never mismatches).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("inbox-density");
+      if (saved === "compact" || saved === "comfortable") setDensity(saved);
+    } catch {
+      /* localStorage unavailable — keep the default */
+    }
+  }, []);
+
+  const toggleDensity = useCallback(() => {
+    setDensity((d) => {
+      const next: InboxDensity = d === "comfortable" ? "compact" : "comfortable";
+      try {
+        window.localStorage.setItem("inbox-density", next);
+      } catch {
+        /* ignore — persistence is best-effort */
+      }
+      return next;
+    });
+  }, []);
+
+  // Restore the persisted list width once on mount, then persist on change.
+  useEffect(() => {
+    try {
+      const v = Number(window.localStorage.getItem(LIST_W_KEY));
+      if (Number.isFinite(v) && v > 0) setListW(clampPx(v, LIST_W_MIN, LIST_W_MAX));
+    } catch {
+      /* localStorage unavailable — keep the default */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(LIST_W_KEY, String(listW));
+    } catch {
+      /* ignore — persistence is best-effort */
+    }
+  }, [listW]);
+  // The divider feeds dx here: drag right widens the list, narrows the reader.
+  const handleResizeList = useCallback((dx: number) => {
+    setListW((w) => clampPx(w + dx, LIST_W_MIN, LIST_W_MAX));
+  }, []);
+
+  // Return-to-list scroll restoration (the way real mail clients keep your place):
+  // when a thread closes (selectedKey → null) and the list reappears reset to the
+  // top — single-pane hides it with display:none, which zeroes scrollTop — put it
+  // back where the user was. Gated to single-pane (container < 960px): in
+  // 3-column mode the list is never hidden, stays scrollable, and must not be
+  // yanked to a stale offset, so we bail there explicitly instead of inferring
+  // the mode from scrollTop.
+  useLayoutEffect(() => {
+    if (selectedKey) return;
+    if (shellRef.current && shellRef.current.clientWidth >= 960) return; // 3-column → no-op
+    const el = listRef.current;
+    if (el && listScrollRef.current > 0 && el.scrollTop === 0) {
+      el.scrollTop = listScrollRef.current;
+    }
+  }, [selectedKey]);
 
   // Minimal lane creator (INBOX-T01): name + a sender-domain clause. Selecting the
   // new lane triggers the load effect, which refreshes customLanes from the route.
@@ -1086,6 +1224,17 @@ export default function InboxPage() {
                 </button>
               )}
             </div>
+            {/* Display density (Outlook): toggle comfortable 2-line ↔ compact
+                single-line rows. Persisted to localStorage. */}
+            <button
+              onClick={toggleDensity}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors"
+              style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)", color: "var(--color-text-secondary)" }}
+              title={density === "comfortable" ? "Compact list — denser rows" : "Comfortable list — 2-line rows"}
+              aria-label={density === "comfortable" ? "Switch to compact list density" : "Switch to comfortable list density"}
+            >
+              {density === "comfortable" ? <AlignJustify size={15} /> : <Rows2 size={15} />}
+            </button>
           </>
         )}
       </PageHeader>
@@ -1094,13 +1243,13 @@ export default function InboxPage() {
           width (≈ viewport − global sidebar), not the viewport — so a thread
           stays 3-column only while the reading pane is actually comfortable
           (≥ ~600px) on any monitor, and collapses to single-pane otherwise. */}
-      <div className="inbox-shell @container flex min-h-0 flex-1">
+      <div ref={shellRef} className="inbox-shell @container flex min-h-0 flex-1">
       {/* Left: mailbox folders + Splits (the Upstream IA). Collapses to single-pane
           only when a full-width reader is actually shown — i.e. a thread is open AND
           we're in the list/pane branch (not the outbound/bundles table, where a stale
           selectedKey would otherwise hide the rail with no way back). */}
       {mailboxConnected && (
-        <div className={selectedKey && !((tab === "outbound" || tab === "bundles") && !customLaneId) ? "hidden shrink-0 @min-[1100px]:flex" : "flex shrink-0"}>
+        <div className={selectedKey && !((tab === "outbound" || tab === "bundles") && !customLaneId) ? "hidden shrink-0 @min-[960px]:flex" : "flex shrink-0"}>
         <InboxFolders
           tab={customLaneId ? "attention" : tab}
           customLaneId={customLaneId}
@@ -1144,7 +1293,7 @@ export default function InboxPage() {
       {/* Second nav axis: the split-tab strip (attention lane only). Hidden in
           the narrow single-pane reader so the open thread stands alone. */}
       {mailboxConnected && tab === "attention" && !customLaneId && (
-        <div className={selectedKey ? "hidden @min-[1100px]:block" : "block"}>
+        <div className={selectedKey ? "hidden @min-[960px]:block" : "block"}>
           <SplitStrip splits={splitCounts} noiseCount={noiseCount} active={activeSplit} onSelect={setActiveSplit} />
         </div>
       )}
@@ -1173,8 +1322,13 @@ export default function InboxPage() {
               sub-segment); the standalone rail is gone. */}
           <div
             ref={listRef}
-            className={`overflow-y-auto ${selectedKey ? "hidden border-r @min-[1100px]:block @min-[1100px]:w-[260px] @min-[1100px]:shrink-0" : "flex-1"}`}
-            style={{ borderColor: "var(--color-border-default)" }}
+            onScroll={(e) => {
+              // Record the offset only while no thread is open, so reopening the
+              // list (single-pane) restores it instead of jumping to the top.
+              if (!selectedKey) listScrollRef.current = e.currentTarget.scrollTop;
+            }}
+            className={`overflow-y-auto ${selectedKey ? "hidden border-r @min-[960px]:block @min-[960px]:w-[var(--inbox-list-w)] @min-[960px]:shrink-0" : "flex-1"}`}
+            style={{ borderColor: "var(--color-border-default)", "--inbox-list-w": `${listW}px` } as CSSProperties}
           >
             {/* Capture review (INBOX-G02) — auto-captured interactions awaiting approval. */}
             <CaptureReviewDrawer />
@@ -1255,7 +1409,7 @@ export default function InboxPage() {
                 count: conversations.length,
                 hasQuery: !!debouncedSearch,
               });
-              if (listState === "loading") return <InboxListSkeleton />;
+              if (listState === "loading") return <InboxListSkeleton density={density} />;
               if (listState === "error")
                 return (
                   <div className="flex h-full items-center justify-center p-6">
@@ -1288,10 +1442,13 @@ export default function InboxPage() {
                   onClearSearch={() => setSearch("")}
                   onToggleStar={handleToggleStar}
                   activeSplit={activeSplit}
+                  density={density}
                 />
               );
             })()}
           </div>
+          {/* Draggable divider between the list and the open mail (3-column only). */}
+          {selectedKey && <ResizeHandle onDelta={handleResizeList} />}
           {selectedKey && (
             <div className="flex min-w-0 flex-1 flex-col">
               {/* Single-pane back control: shown only when the inbox area is too
@@ -1299,7 +1456,7 @@ export default function InboxPage() {
                   master-detail list is itself the way back. */}
               <button
                 onClick={() => setSelectedKey(null)}
-                className="flex shrink-0 items-center gap-1 border-b px-3 py-2 text-[13px] font-medium @min-[1100px]:hidden"
+                className="flex shrink-0 items-center gap-1 border-b px-3 py-2 text-[13px] font-medium @min-[960px]:hidden"
                 style={{ borderColor: "var(--color-border-default)", color: "var(--color-text-secondary)" }}
               >
                 <ChevronLeft size={15} /> Inbox
