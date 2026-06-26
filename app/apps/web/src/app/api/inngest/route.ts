@@ -46,6 +46,7 @@ import { playbookExtractFromActivity } from "@/inngest/playbook-extract-from-act
 import { sequenceDraftToOutbound } from "@/inngest/sequence-draft-to-outbound";
 import { signalScoreDaily } from "@/inngest/signal-score-daily";
 import { dailyAutopilot } from "@/inngest/daily-autopilot";
+import { autopilotAutoPause } from "@/inngest/autopilot-auto-pause";
 import { visitorPhoneEnrichRequest } from "@/inngest/visitor-phone-enrich-request";
 import { phoneTaskNotification } from "@/inngest/phone-task-notification";
 import { icpFitRecomputeTenant, icpFitRecomputeDaily } from "@/inngest/icp-fit-recompute";
@@ -189,6 +190,10 @@ export const { GET, POST, PUT } = serve({
     // budget over the managed pool → top signal-ranked targeted prospects →
     // grounded copy → auto-enroll or draft. Behind DAILY_AUTOPILOT_ENABLED (off).
     dailyAutopilot,
+    // Autopilot circuit-breaker (AUTOPILOT-AUTOPAUSE) — daily 06:00 UTC, ahead of
+    // daily-autopilot. Detects dead sequences (0 meetings + reply rate under floor
+    // over a sample window) and pauses them. Behind AUTOPILOT_AUTOPAUSE_MODE (off).
+    autopilotAutoPause,
     // Nurture recycle (B6) — daily 07:00 UTC. Completed enrollments
     // with lastStepAt > 30d ago re-enroll into the tenant's Nurture
     // sequence. Skips contacts already in nurture (no recycle loop).

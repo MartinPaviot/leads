@@ -101,6 +101,16 @@ export async function PUT(
     if (name) updates.name = name.trim();
     if (description !== undefined) updates.description = description?.trim() || null;
     if (status) updates.status = status;
+    // AUTOPILOT-AUTOPAUSE: a human resuming a sequence protects it from the
+    // dead-sequence auto-pause (errs toward the operator's intent) and clears the
+    // auto-pause audit fields. Sticky in v1 — a follow-up can lapse protection
+    // after a cooldown so a still-dead resumed sequence becomes re-eligible.
+    if (status === "active") {
+      updates.autopilotProtected = true;
+      updates.pausedReason = null;
+      updates.pausedBy = null;
+      updates.pausedAt = null;
+    }
 
     const [updated] = await db
       .update(sequences)
