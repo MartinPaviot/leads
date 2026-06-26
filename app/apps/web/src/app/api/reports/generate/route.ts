@@ -6,6 +6,7 @@ import { eq, and, sql, gte, inArray, isNull } from "drizzle-orm";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { openPipelineValue } from "../_pipeline-metrics";
 import { z } from "zod";
 
 const reportSchema = z.object({
@@ -103,8 +104,9 @@ async function buildPipelinePrompt(tenantId: string): Promise<string> {
     .from(deals)
     .where(and(eq(deals.tenantId, tenantId), isNull(deals.deletedAt)));
 
-  // Pipeline analytics
-  const totalValue = allDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+  // Pipeline analytics. Pipeline value = OPEN deals only (excl. won/lost) — the
+  // same all-stages defect fixed for dashboard/summary in #444.
+  const totalValue = openPipelineValue(allDeals);
   const wonDeals = allDeals.filter((d) => d.stage === "won");
   const lostDeals = allDeals.filter((d) => d.stage === "lost");
   const closedDeals = wonDeals.length + lostDeals.length;
