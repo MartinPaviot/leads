@@ -3,6 +3,7 @@ import {
   generateMessage,
   assembleBody,
   brandViolations,
+  recipientBenefitViolations,
   personalizationViolations,
   type GenerateMessageDeps,
   type Citation,
@@ -152,5 +153,44 @@ describe("generateMessage — AC3 role + AC4 winning formats passed through", ()
 describe("personalizationViolations — unit", () => {
   it("clean grounded line → no violations", () => {
     expect(personalizationViolations({ line: "Saw your seed raise.", citedIds: ["e1"] }, [evidence[0]], { voice: { banned: [], frFormality: "vouvoiement" }, lang: "en" })).toEqual([]);
+  });
+  it("a seller-brag line is rejected via personalizationViolations", () => {
+    const r = personalizationViolations({ line: "We're the #1 platform on the market.", citedIds: ["e1"] }, [evidence[0]], { voice: { banned: [], frFormality: "vouvoiement" }, lang: "en" });
+    expect(r).toContain("seller-benefit");
+  });
+});
+
+describe("recipientBenefitViolations — Monaco recipient-benefit floor", () => {
+  it("congrats on a raise ALONE is clean (no funding-pitch)", () => {
+    expect(recipientBenefitViolations("Saw you raised your seed in May, congrats.", "en")).toEqual([]);
+    expect(recipientBenefitViolations("Félicitations pour la levée.", "fr")).toEqual([]);
+  });
+  it("funding mention + a sales push in the same line → funding-pitch", () => {
+    expect(recipientBenefitViolations("You raised a Series A — book a demo of our product.", "en")).toContain("funding-pitch");
+    expect(recipientBenefitViolations("Vous avez levé, découvrez notre offre.", "fr")).toContain("funding-pitch");
+  });
+  it("self-referential brags → seller-benefit (FR + EN)", () => {
+    expect(recipientBenefitViolations("We are the leader in outbound.", "en")).toContain("seller-benefit");
+    expect(recipientBenefitViolations("La meilleure solution du marché.", "fr")).toContain("seller-benefit");
+    expect(recipientBenefitViolations("Notre produit est numéro 1.", "fr")).toContain("seller-benefit");
+    expect(recipientBenefitViolations("The only platform you'll need.", "en")).toContain("seller-benefit");
+  });
+  it("a normal recipient-benefit line is clean", () => {
+    expect(recipientBenefitViolations("Voici comment couvrir ce rôle pendant le recrutement.", "fr")).toEqual([]);
+    expect(recipientBenefitViolations("Here's one idea you can apply this week.", "en")).toEqual([]);
+  });
+});
+
+describe("generateMessage — recipient-benefit floor falls back", () => {
+  it("a seller-brag grounded line → segment fallback (not shipped)", async () => {
+    const runAgent = goodAgent("We are the best tool on the market.", ["e1"]);
+    const msg = await generateMessage(baseDeps({ runAgent }));
+    expect(msg.personalization_level).toBe("low");
+    expect(msg.flags).toEqual(expect.arrayContaining(["eval-failed-fallback", "seller-benefit"]));
+  });
+  it("a funding-pitch grounded line → segment fallback", async () => {
+    const runAgent = goodAgent("You raised your seed, buy our product.", ["e1"]);
+    const msg = await generateMessage(baseDeps({ runAgent }));
+    expect(msg.flags).toContain("funding-pitch");
   });
 });

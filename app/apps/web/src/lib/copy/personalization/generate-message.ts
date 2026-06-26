@@ -112,6 +112,45 @@ export function brandViolations(text: string, banned: string[]): string[] {
 }
 
 /**
+ * Self-referential seller brags — the line is about how great WE are, not what's
+ * in it for THEM. FR + EN. High-precision (only unambiguous claims).
+ */
+// NB: avoid a TRAILING `\b` right after an accented char (é) — JS `\b` uses an
+// ASCII word definition, so é reads as a non-word char and the boundary fails
+// ("levé" wouldn't match). Same for a LEADING `\b` before `#`.
+const SELLER_BRAG: RegExp[] = [
+  /(num(é|e)ro|n[°o]|#)\s*1\b/i,
+  /\b(le|la|the)\s+leader\b/i,
+  /\bleaders?\s+(du\s+march(é|e)|mondial|on\s+the\s+market|in\s+(the\s+)?(market|industry))/i,
+  /\b(meilleur(e)?|best)\s+(solution|produit|product|outil|tool|plateforme|platform)/i,
+  /\bindustry[-\s]leading\b/i,
+  /\b(la\s+seule|le\s+seul|the\s+only)\s+(solution|plateforme|platform|outil|tool)/i,
+];
+/** A funding mention (FR + EN). Congrats on a raise is fine ON ITS OWN. */
+const FUNDING_MENTION = /\b(lev[ée]|rais(e|ed)|funding|s(é|e)rie\s*[abc]|series\s*[abc]|tour\s+de\s+table|seed)/i;
+/** A sales push — pitching the sender's product/price/demo. */
+const SALES_PUSH = /\b(achet|souscri|abonn|notre\s+(offre|produit|solution|plateforme|outil|service)|our\s+(product|offer|solution|platform|tool|service)|tarif|pricing|essai\s+gratuit|free\s+trial|d(é|e)mo\s+de\s+notre|book\s+a\s+demo)\b/i;
+
+/**
+ * Recipient-benefit guard (the Monaco rule the proven templates embody): a line
+ * must serve the reader, never brag about the sender or use a milestone as a
+ * pretext to pitch. Two outright rejections (→ the clean segment fallback ships
+ * instead, surfaced via flags):
+ *   - "seller-benefit": a self-referential brag (#1 / the leader / best tool / …).
+ *   - "funding-pitch":  a funding mention AND a sales push in the SAME line
+ *     ("you raised … buy our thing"). Congrats alone never trips it — the
+ *     post-funding template is deliberately congrats-only.
+ * Deterministic + high-precision so it rarely false-positives. `lang` is reserved
+ * for future per-language tuning; the patterns are bilingual today.
+ */
+export function recipientBenefitViolations(line: string, _lang: Lang): string[] {
+  const reasons: string[] = [];
+  if (SELLER_BRAG.some((re) => re.test(line))) reasons.push("seller-benefit");
+  if (FUNDING_MENTION.test(line) && SALES_PUSH.test(line)) reasons.push("funding-pitch");
+  return reasons;
+}
+
+/**
  * AC5 post-check on an agent personalization. Returns the reasons it is NOT
  * usable; an empty array means the grounded line may ship. Deterministic, so a
  * stub model exercises every branch in CI.
@@ -131,6 +170,8 @@ export function personalizationViolations(
   if (deps.lang === "fr" && deps.voice.frFormality === "vouvoiement" && FR_INFORMAL.test(value.line)) {
     reasons.push("fr-informal");
   }
+  // Recipient-benefit floor — reject seller-brag / funding-as-pitch (Monaco rule).
+  reasons.push(...recipientBenefitViolations(value.line, deps.lang));
   return reasons;
 }
 
