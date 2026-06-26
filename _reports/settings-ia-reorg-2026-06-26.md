@@ -82,13 +82,23 @@ settings-actions, level-behavior, route-capability).
 These are what actually **reduce the page count**; each is a content rewrite +
 redirect + test, so they are staged separately.
 
-1. **Autonomy 3 → 1** (~1.5–2 dev-days). Make `/settings/autonomy` canonical.
-   Fold in `/settings/guardrails` (approval mode) and `/settings/inbox-autonomy`
-   (per-feature Off/Suggest/Auto) as sub-sections; keep the outward-feature
-   Suggest cap. **Open question to resolve first**: reconcile the two parallel
-   models — autonomy *level* (copilot/guided/autonomous/strategic) vs *approval
-   mode* (review-each/batch-daily/auto-high-confidence). Pick one; don't ship both.
-   Retire guardrails + inbox-autonomy as redirects.
+1. **Autonomy — DONE (commit 0e7b754f), and it was a 2 → 1, not 3 → 1.**
+   Investigation overturned the premise: the "open question" (which model wins)
+   was already answered in the backend (CLE-10). `resolveEffectiveMode`
+   (lib/guardrails/approval-mode.ts) IGNORES the stored `agentApprovalMode`
+   whenever an autonomy_config row exists, and the autonomy PUT
+   (api/settings/autonomy/route.ts:153) derives + writes the mode back FROM the
+   level. So the autonomy LEVEL is canonical and the `/settings/guardrails`
+   approval-mode toggle was a no-op for any tenant that had set a level — a
+   misleading control. Shipped: guardrails → redirect to `/settings/autonomy`; the
+   chat action `settings.setApprovalMode` relocated to `settings.setAutonomyLevel`
+   on the autonomy page (PUT `{level}`); "Approval mode" nav item dropped;
+   settings-actions + boundary tests updated. `_excluded-ids.ts` kept (imported by
+   the meetings/proposals boundary tests). **`/settings/inbox-autonomy` was NOT
+   folded in** — it is a *different axis* (user-scoped, per-inbox-feature via
+   `resolveFeatureAutonomy`, lib/inbox/autonomy-hub.ts), not the workspace
+   send-leash; conflating it would be a regression, not a simplification. It stays
+   inbox-reachable; surface it as its own nav item later if wanted.
 2. **Voice 3 → 1** (~1.5 dev-days). Make `/settings/writing-style` ("Voice &
    Writing") canonical. Fold in `/settings/inbox-voice` (reply tone + pre-draft
    toggle) and `/settings/inbox-memory` (standing instructions + sign-off +
