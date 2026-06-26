@@ -46,6 +46,11 @@ export default function WritingStylePage() {
   const [defaultPrompt, setDefaultPrompt] = useState("");
   const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([]);
   const [tone, setTone] = useState<VoiceTone>("neutral");
+  // Folded in from the retired /settings/inbox-voice page (Settings IA voice merge):
+  // free-form voice guidance (saved alongside tone in the voice record) + the
+  // auto-draft toggle (resource inbox, key auto_draft). One canonical voice surface.
+  const [customGuidance, setCustomGuidance] = useState("");
+  const [autoDraft, setAutoDraft] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -59,10 +64,11 @@ export default function WritingStylePage() {
     setLoading(true);
     setLoadError(false);
     try {
-      const [wsRes, voiceRes, derRes] = await Promise.all([
+      const [wsRes, voiceRes, derRes, autoRes] = await Promise.all([
         fetch("/api/inbox/writing-style"),
         fetch("/api/inbox/voice"),
         fetch("/api/inbox/writing-style/derive"),
+        fetch("/api/inbox/auto-draft"),
       ]);
       if (!wsRes.ok) {
         // Writing-style is load-bearing — the form can't render without it. The
@@ -76,13 +82,19 @@ export default function WritingStylePage() {
       setDefaultPrompt(ws.defaultPrompt);
       // voice + derive are best-effort: default on failure, never block the page.
       if (voiceRes.ok) {
-        const voice = (await voiceRes.json()) as { options?: VoiceOption[]; voice?: { tone?: VoiceTone } };
+        const voice = (await voiceRes.json()) as { options?: VoiceOption[]; voice?: { tone?: VoiceTone; customGuidance?: string } };
         setVoiceOptions(voice.options ?? []);
         if (voice.voice?.tone) setTone(voice.voice.tone);
+        setCustomGuidance(voice.voice?.customGuidance ?? "");
       }
       if (derRes.ok) {
         const der = (await derRes.json()) as { proposal?: StyleProposal };
         if (der.proposal) setProposal(der.proposal);
+      }
+      // auto-draft is non-critical (defaults off); never block the page on it.
+      if (autoRes.ok) {
+        const data = (await autoRes.json()) as { autoDraft?: { enabled?: boolean } };
+        setAutoDraft(data.autoDraft?.enabled === true);
       }
     } catch {
       setLoadError(true);
@@ -118,7 +130,12 @@ export default function WritingStylePage() {
         fetch("/api/inbox/voice", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tone }),
+          body: JSON.stringify({ tone, customGuidance }),
+        }),
+        fetch("/api/inbox/auto-draft", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: autoDraft }),
         }),
       ]);
       if (ws.ok) {
@@ -366,6 +383,44 @@ export default function WritingStylePage() {
           </div>
         </div>
       )}
+
+      {/* Extra voice guidance + auto-draft — folded in from the retired
+          /settings/inbox-voice page so "how the AI writes" lives in one place. */}
+      <div className="mt-4">
+        <Label>Extra guidance (optional)</Label>
+        <textarea
+          value={customGuidance}
+          maxLength={300}
+          onChange={(e) => { setCustomGuidance(e.target.value); setSaved(false); }}
+          placeholder="e.g. Use the prospect's first name and always offer a short call."
+          rows={3}
+          className="mt-1 w-full rounded-md border px-2 py-1.5 text-[12px] outline-none"
+          style={inputStyle}
+        />
+      </div>
+
+      <label
+        className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+        style={{
+          borderColor: autoDraft ? "var(--color-accent)" : "var(--color-border-default)",
+          background: autoDraft ? "var(--color-accent-soft)" : "var(--color-bg-card)",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={autoDraft}
+          onChange={() => { setAutoDraft((v) => !v); setSaved(false); }}
+          className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+        />
+        <span className="min-w-0">
+          <span className="block text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+            Pre-draft replies on open
+          </span>
+          <span className="block text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+            When you open a thread that warrants a reply, prepare a voice-matched draft automatically. It is never sent on its own, and threads that don&apos;t need a reply are left untouched.
+          </span>
+        </span>
+      </label>
 
       {/* Audiences */}
       <div className="mt-6">
