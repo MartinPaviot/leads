@@ -52,6 +52,15 @@ export const sequences = pgTable(
     // NULL — deleting an ICP unbinds its sequences rather than
     // cascading them away.
     icpId: text("icp_id"),
+    // Autopilot circuit-breaker (AUTOPILOT-AUTOPAUSE). When a sequence's outcomes
+    // go dead (no meetings/replies over a sample window), the auto-pause cron flips
+    // status→'paused' (already honored by sequence-cron + autopilot enrollment) and
+    // records why/who. `autopilotProtected` is set when a human resumes an
+    // auto-paused sequence, suppressing further auto-pause (errs toward the human).
+    pausedReason: text("paused_reason"),
+    pausedBy: text("paused_by"), // 'autopilot' | userId
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    autopilotProtected: boolean("autopilot_protected").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
