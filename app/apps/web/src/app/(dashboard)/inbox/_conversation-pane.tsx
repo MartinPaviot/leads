@@ -622,11 +622,11 @@ export function ConversationPane({
               )}
               {intel?.urgencyLevel && intel.urgencyLevel !== "none" && (
                 <Badge variant={intel.urgencyLevel === "high" ? "error" : "warning"} size="sm">
-                  {intel.urgencyLevel === "high" ? "High urgency" : `Urgency: ${intel.urgencyLevel}`}
+                  {intel.urgencyLevel === "high" ? t("inbox.urgencyHigh") : t("inbox.urgency", { level: intel.urgencyLevel })}
                 </Badge>
               )}
               {intel?.sentimentTrend === "declining" && (
-                <Badge variant="warning" size="sm">Sentiment declining</Badge>
+                <Badge variant="warning" size="sm">{t("inbox.sentimentDeclining")}</Badge>
               )}
             </div>
             <div className="mt-1 flex items-center gap-2">
@@ -652,7 +652,7 @@ export function ConversationPane({
             {/* Last interaction of any channel (INBOX-G03) — recency beyond this thread. */}
             {detail.lastInteraction && (
               <div className="mt-1 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                Last interaction: {timeAgo(detail.lastInteraction.at)} · {detail.lastInteraction.type.replace(/_/g, " ")}
+                {t("inbox.lastInteraction", { ago: timeAgo(detail.lastInteraction.at), type: detail.lastInteraction.type.replace(/_/g, " ") })}
               </div>
             )}
             {/* Sequence-reply link (INBOX-G07): which of our steps they're answering,
@@ -666,7 +666,7 @@ export function ConversationPane({
               );
               return (
                 <div className="mt-1 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  {step > 0 ? `Reply to step ${step} of ` : "In sequence "}
+                  {step > 0 ? t("inbox.replyToStep", { step }) : t("inbox.inSequence")}
                   <Link
                     href={`/sequences/${detail.enrollment.sequenceId}`}
                     className="font-medium hover:underline"
@@ -900,7 +900,7 @@ export function ConversationPane({
                   </span>
                 )}
                 <span className="truncate">
-                  {m.direction === "inbound" ? m.from || conv.displayName : "You"}
+                  {m.direction === "inbound" ? m.from || conv.displayName : t("inbox.you")}
                 </span>
                 {m.direction === "inbound" && m.senderVerified === "pass" && (
                   <ShieldCheck
@@ -920,7 +920,7 @@ export function ConversationPane({
                 )}
                 {m.direction === "outbound" && m.stepNumber ? (
                   <span className="ml-1.5 font-normal" style={{ color: "var(--color-text-tertiary)" }}>
-                    Step {m.stepNumber}
+                    {t("inbox.step", { n: m.stepNumber })}
                   </span>
                 ) : null}
               </span>
@@ -935,7 +935,7 @@ export function ConversationPane({
               <EventCard ics={m.calendar} conversationKey={conv.key} />
               <EmailBody
                 html={m.bodyHtml}
-                text={m.body || "(empty message)"}
+                text={m.body || t("inbox.emptyMessage")}
                 senderEmail={extractSenderEmail(m.from)}
                 trustedSenders={trustedSenders}
                 onTrust={(email) => setTrustedSenders((s) => (s.includes(email) ? s : [...s, email]))}
@@ -955,7 +955,7 @@ export function ConversationPane({
             style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
           >
             <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
-              Fresh signals
+              {t("inbox.freshSignals")}
             </span>
             {detail.freshSignals.map((s, i) => (
               <div key={`fs-${i}`} className="mt-2 flex items-start gap-2">
@@ -992,7 +992,7 @@ export function ConversationPane({
             style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
           >
             <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
-              <ListChecks size={12} /> Action items
+              <ListChecks size={12} /> {t("inbox.actionItems")}
             </span>
             <ul className="mt-1.5 list-inside list-disc space-y-0.5">
               {detail.actionItems.map((a, i) => (
@@ -1000,7 +1000,7 @@ export function ConversationPane({
                   {a.text}
                   {a.due && (
                     <span className="font-medium" style={{ color: "var(--color-accent)" }}>
-                      {" · due "}
+                      {` · ${t("inbox.due")} `}
                       {a.due}
                     </span>
                   )}
@@ -1014,7 +1014,7 @@ export function ConversationPane({
         {(detail.entities.amounts.length > 0 || detail.entities.dates.length > 0 || detail.entities.phones.length > 0) && (
           <div className="mb-3 flex flex-wrap items-center gap-1.5">
             <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
-              Key details
+              {t("inbox.keyDetails")}
             </span>
             {[...detail.entities.amounts, ...detail.entities.dates, ...detail.entities.phones].map((e, i) => (
               <span
@@ -1048,7 +1048,7 @@ export function ConversationPane({
             style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
           >
             <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
-              What this thread tells us
+              {t("inbox.whatThisTells")}
             </span>
             {(intel.signals ?? []).map((s, i) => (
               <div key={`s-${i}`} className="mt-2 flex items-start gap-2">

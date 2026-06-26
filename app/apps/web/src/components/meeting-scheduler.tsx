@@ -64,7 +64,12 @@ export interface BookMeetingResult {
   ok: boolean;
   joinUrl?: string | null;
   conferencing?: string;
+  /** A server-provided error message (already localized by the API, e.g. the FR
+   *  "Aucune boîte connectée…"). Undefined when the failure has no server message. */
   error?: string;
+  /** The request itself failed (network/exception) — the caller shows a localized
+   *  network-error message instead of a server `error`. */
+  networkError?: boolean;
 }
 
 /**
@@ -96,7 +101,7 @@ export async function bookMeetingRequest(slot: BookMeetingSlot): Promise<BookMee
       error?: string;
     };
     if (!res.ok || !data.booked) {
-      return { ok: false, error: data.error ?? "Couldn't book the meeting." };
+      return { ok: false, error: data.error ?? undefined };
     }
     return {
       ok: true,
@@ -104,7 +109,7 @@ export async function bookMeetingRequest(slot: BookMeetingSlot): Promise<BookMee
       conferencing: data.conferencing ?? slot.conferencing ?? "sovereign",
     };
   } catch {
-    return { ok: false, error: "Network error while booking." };
+    return { ok: false, networkError: true };
   }
 }
 
@@ -286,7 +291,7 @@ export function MeetingSchedulerCard({
     });
     setBooking(false);
     if (!r.ok) {
-      toast(r.error ?? t("meeting.bookFailed"), "error");
+      toast(r.networkError ? t("meeting.networkError") : (r.error ?? t("meeting.bookFailed")), "error");
       return;
     }
     toast(t("meeting.bookedToast", { name: firstName || t("common.theProspect") }), "success");
