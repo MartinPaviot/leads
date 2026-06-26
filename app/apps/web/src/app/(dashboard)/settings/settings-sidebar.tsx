@@ -23,6 +23,7 @@ import {
   FlaskConical,
   Lock,
   Shield,
+  ShieldCheck,
   Search,
   Menu,
   X,
@@ -31,14 +32,15 @@ import {
   Radio,
   Inbox,
   Package,
-  Library,
   Send,
   PenLine,
-  AtSign,
+  Gauge,
+  Brain,
+  ChevronDown,
+  LayoutGrid,
 } from "lucide-react";
 import { BILLING_PAGE_ENABLED } from "@/lib/billing/page-visibility";
 import { EVALS_PAGE_ENABLED, MCP_PAGE_ENABLED } from "@/lib/settings/admin-tools-visibility";
-import { DOCS_PAGE_ENABLED } from "@/lib/docs/page-visibility";
 
 interface NavItem {
   label: string;
@@ -57,66 +59,83 @@ interface NavSection {
   items: NavItem[];
 }
 
+// ── Settings IA (2026-06-26 reorg) ─────────────────────────────────────────
+// Six topical sections in a setup-then-operate order: who you are → the AI's
+// brain → who it targets → how it reaches out → org admin → developer tooling.
+// Replaces the old flat 13-item "Workspace" dumping ground. Canonical pages are
+// surfaced (incl. previously-orphaned /autonomy, /agent-memory, /inbox-ai-profile);
+// dead redirect routes (/agent, /icp-profiles, /mailboxes) and soon-to-be-merged
+// inbox-* duplicates stay reachable by URL but are kept out of the nav. Phase-2
+// page merges (3 autonomy → 1, 3 voice → 1, 2 notifications → 1) collapse the
+// remaining redundancy; see _reports for the plan.
 const settingsNav: NavSection[] = [
   {
     label: "Account",
     items: [
-      { label: "Guardrails", href: "/settings/guardrails", icon: Activity },
-      { label: "Privacy & data", href: "/settings/privacy", icon: Shield },
+      { label: "Overview", href: "/settings", icon: LayoutGrid },
+      { label: "Profile", href: "/settings/profile", icon: User },
       { label: "Security", href: "/settings/security", icon: Lock },
-      { label: "Settings", href: "/settings", icon: User },
+      { label: "Notifications", href: "/settings/notifications", icon: Bell },
+    ],
+  },
+  {
+    label: "Your AI",
+    items: [
+      { label: "Autonomy", href: "/settings/autonomy", icon: Gauge },
+      { label: "Voice & Writing", href: "/settings/writing-style", icon: PenLine },
+      { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
+      { label: "Product", href: "/settings/product", icon: Package },
+      { label: "Agent memory", href: "/settings/agent-memory", icon: Brain },
+      { label: "AI data handling", href: "/settings/inbox-ai-profile", icon: ShieldCheck },
+      // Hidden until promoted (ready:false). Page stays reachable by URL.
+      { label: "Sales Plays", href: "/settings/plays", icon: Layers, ready: false },
+    ],
+  },
+  {
+    label: "Targeting & Pipeline",
+    items: [
+      { label: "ICP", href: "/settings/icp", icon: Target },
+      { label: "Opportunity stages", href: "/settings/stages", icon: GitBranch },
+      { label: "Capture approvals", href: "/settings/capture-approvals", icon: Inbox },
+      { label: "Custom fields", href: "/settings/data-model", icon: Database },
+      // Hidden until promoted (ready:false). Pages stay reachable by URL.
+      { label: "Custom signals", href: "/settings/signals", icon: Radio, ready: false },
+      { label: "Workflows", href: "/settings/workflows", icon: Workflow, ready: false },
+      { label: "Custom objects", href: "/settings/objects", icon: Box, ready: false },
+    ],
+  },
+  {
+    label: "Channels",
+    items: [
+      { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
+      { label: "Sending channels", href: "/settings/sending-infrastructure", icon: Send },
+      // Mailbox identity (display name / signature / voice per box) folded into
+      // Mail & Calendar — it now lives as a section there, beside the accounts.
+      // Hidden until promoted (ready:false). Page stays reachable by URL.
+      { label: "Recording", href: "/settings/recording", icon: Video, ready: false },
     ],
   },
   {
     label: "Workspace",
+    adminOnly: true,
     items: [
       { label: "General", href: "/settings/workspace", icon: Building },
-      { label: "ICP", href: "/settings/icp", icon: Target },
-      { label: "Product & Voice", href: "/settings/product", icon: Package },
-      { label: "Writing Style", href: "/settings/writing-style", icon: PenLine },
-      { label: "Mailbox identity", href: "/settings/mailbox-identity", icon: AtSign },
-      { label: "Mail & Calendar", href: "/settings/mail-calendar", icon: Mail },
-      { label: "Sending infrastructure", href: "/settings/sending-infrastructure", icon: Send },
-      { label: "Capture approvals", href: "/settings/capture-approvals", icon: Inbox },
       { label: "Members", href: "/settings/members", icon: Users },
-      { label: "Knowledge", href: "/settings/knowledge", icon: BookOpen },
-      { label: "Notifications", href: "/settings/notifications", icon: Bell },
-      { label: "Opportunity Stages", href: "/settings/stages", icon: GitBranch },
-      { label: "Data Model", href: "/settings/data-model", icon: Database },
-      // ── Hidden: functional pages that show empty states for most
-      // early-stage users. Pages stay accessible via direct URL.
-      // Flip `ready` to `true` when the feature is promoted. ──
-      { label: "Custom Objects", href: "/settings/objects", icon: Box, ready: false },
-      { label: "Plays", href: "/settings/plays", icon: Layers, ready: false },
-      { label: "Recording", href: "/settings/recording", icon: Video, ready: false },
-      { label: "Signals", href: "/settings/signals", icon: Radio, ready: false },
-      { label: "Workflows", href: "/settings/workflows", icon: Workflow, ready: false },
+      { label: "Privacy & data", href: "/settings/privacy", icon: Shield },
+      { label: "AI budget", href: "/settings/llm-budget", icon: DollarSign },
+      // Dev-only: the billing page 404s in production builds (page-visibility.ts).
+      { label: "Billing", href: "/settings/billing", icon: CreditCard, ready: BILLING_PAGE_ENABLED },
     ],
   },
   {
-    label: "Resources",
-    items: [
-      // Dev-only: methodology docs, 404s in production builds
-      // (lib/docs/page-visibility.ts).
-      { label: "Documentation", href: "/settings/docs", icon: Library, ready: DOCS_PAGE_ENABLED },
-    ],
-  },
-  {
-    label: "Admin",
+    label: "Developer",
     adminOnly: true,
     items: [
       // Dev-only: internal tooling, 404s in production builds
       // (admin-tools-visibility.ts).
       { label: "Evaluations", href: "/settings/evals", icon: FlaskConical, ready: EVALS_PAGE_ENABLED },
-      { label: "LLM Budget", href: "/settings/llm-budget", icon: DollarSign },
-      { label: "MCP Integration", href: "/settings/mcp", icon: Plug, ready: MCP_PAGE_ENABLED },
-    ],
-  },
-  {
-    label: "Billing",
-    items: [
-      // Dev-only: the billing page 404s in production builds (page-visibility.ts).
-      { label: "Billing", href: "/settings/billing", icon: CreditCard, ready: BILLING_PAGE_ENABLED },
+      { label: "LLM observability", href: "/settings/llm-evals", icon: Activity },
+      { label: "MCP integration", href: "/settings/mcp", icon: Plug, ready: MCP_PAGE_ENABLED },
     ],
   },
 ];
@@ -129,6 +148,12 @@ export default function SettingsSidebar({
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
+  // The section that owns the active route — kept expanded so the current page
+  // is always visible even when the other sections are collapsed.
+  const activeSectionLabel =
+    settingsNav.find((s) =>
+      s.items.some((i) => i.href === pathname || (i.href !== "/settings" && !!pathname?.startsWith(i.href))),
+    )?.label ?? null;
   // N16 — sidebar fuzzy filter. Substring match on label, lower-cased.
   // Sections with zero matching items collapse so the user only sees
   // hits. Empty query renders the full nav unchanged.
@@ -137,6 +162,13 @@ export default function SettingsSidebar({
   // 240px nav rail + content don't both fit, so below the container breakpoint
   // the nav becomes a slide-in drawer and content goes full-width.
   const [navOpen, setNavOpen] = useState(false);
+  // Collapsible sections (persisted). Six sections × 3-7 items is a tall rail at
+  // the founder's half-screen + 200% zoom — collapsing to scannable headers makes
+  // the whole structure visible at once. The active section, and any the user
+  // expands, stay open; while filtering every section is forced open.
+  const [openSections, setOpenSections] = useState<Set<string>>(
+    () => new Set(activeSectionLabel ? [activeSectionLabel] : []),
+  );
   const filterInputRef = useRef<HTMLInputElement>(null);
   // While the drawer is open: Escape closes it, and focus moves into it (the
   // filter input) so keyboard / screen-reader users have an entry point.
@@ -147,6 +179,41 @@ export default function SettingsSidebar({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [navOpen]);
+
+  // Hydrate persisted open/closed sections (merging the active one so the current
+  // page is never hidden). Runs once on mount; falls back to the default set when
+  // localStorage is unavailable.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("elevay.settings.nav.open");
+      const stored: unknown = raw ? JSON.parse(raw) : [];
+      const arr = Array.isArray(stored) ? (stored as string[]) : [];
+      setOpenSections(new Set([...arr, ...(activeSectionLabel ? [activeSectionLabel] : [])]));
+    } catch { /* keep the default */ }
+    // mount only — activeSectionLabel re-handled by the effect below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Navigating into a collapsed section opens it (the current page must show).
+  useEffect(() => {
+    if (!activeSectionLabel) return;
+    setOpenSections((prev) => (prev.has(activeSectionLabel) ? prev : new Set(prev).add(activeSectionLabel)));
+  }, [activeSectionLabel]);
+
+  // Persist the open set across visits.
+  useEffect(() => {
+    try { localStorage.setItem("elevay.settings.nav.open", JSON.stringify([...openSections])); } catch { /* ignore */ }
+  }, [openSections]);
+
+  const sectionOpen = (label: string) => filter.trim() !== "" || openSections.has(label);
+  function toggleSection(label: string) {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      return next;
+    });
+  }
+
   const visibleSections = settingsNav
     .filter((s) => !s.adminOnly || isAdmin)
     .map((s) => {
@@ -226,14 +293,27 @@ export default function SettingsSidebar({
           </p>
         )}
 
-        {visibleSections.map((section) => (
-          <div key={section.label} className="mb-3">
-            <div
-              className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider"
+        {visibleSections.map((section) => {
+          const open = sectionOpen(section.label);
+          return (
+          <div key={section.label} className="mb-2">
+            <button
+              type="button"
+              onClick={() => toggleSection(section.label)}
+              aria-expanded={open}
+              className="mb-1 flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors"
               style={{ color: "var(--color-text-tertiary)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
-              {section.label}
-            </div>
+              <span>{section.label}</span>
+              <ChevronDown
+                size={12}
+                className="shrink-0"
+                style={{ opacity: 0.5, transform: open ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 150ms ease" }}
+              />
+            </button>
+            {open && (
             <div className="space-y-0.5">
               {section.items.map((item) => {
                 const isActive = pathname === item.href || (item.href !== "/settings" && pathname?.startsWith(item.href));
@@ -255,15 +335,17 @@ export default function SettingsSidebar({
                     <Icon
                       size={15}
                       className="shrink-0"
-                      style={{ color: isActive ? "var(--color-accent)" : undefined, opacity: isActive ? 1 : 0.5 }}
+                      style={{ color: isActive ? "var(--color-accent)" : undefined, opacity: isActive ? 1 : 0.6 }}
                     />
                     {item.label}
                   </Link>
                 );
               })}
             </div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">

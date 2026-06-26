@@ -14,7 +14,7 @@ import { SETTINGS_EXCLUDED_IDS } from "@/app/(dashboard)/settings/guardrails/_ex
 // new registration must be added here on purpose — the test then enforces it
 // stays clear of the excluded set + the substring sweep.
 const REGISTERED_SETTINGS_IDS = [
-  "settings.setApprovalMode",
+  "settings.setAutonomyLevel",
   "settings.updateNotificationPrefs",
   "settings.editPipelineStages",
   "settings.addSignal",

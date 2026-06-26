@@ -26,6 +26,18 @@ interface NotificationPref {
   slack: boolean;
 }
 
+// Folded in from the retired /settings/inbox-notifications page (Settings IA):
+// inbox per-event opt-in + digest cadence + quiet hours, saved to a separate
+// owner-scoped store (/api/inbox/notifications), gated downstream by shouldNotify.
+type InboxDigestMode = "off" | "morning" | "morning_evening";
+interface InboxNotifEvent { id: string; label: string; description: string; default: boolean }
+interface InboxNotifPrefs { events: Record<string, boolean>; digest: InboxDigestMode; dndStart: string | null; dndEnd: string | null }
+const INBOX_DIGEST_OPTIONS: { value: InboxDigestMode; label: string }[] = [
+  { value: "off", label: "Off" },
+  { value: "morning", label: "Morning" },
+  { value: "morning_evening", label: "Morning + evening" },
+];
+
 const DEFAULT_PREFS: NotificationPref[] = [
   { key: "deal_risk", label: "Deal at risk", description: "Get notified when a deal is flagged as high risk or stalled.", category: "Pipeline", email: true, inApp: true, slack: false },
   { key: "deal_won", label: "Deal won", description: "Get notified when a deal is marked as won.", category: "Pipeline", email: true, inApp: true, slack: false },
@@ -44,6 +56,8 @@ export default function NotificationsSettingsPage() {
   const [slackWebhook, setSlackWebhook] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [inboxEvents, setInboxEvents] = useState<InboxNotifEvent[]>([]);
+  const [inboxPrefs, setInboxPrefs] = useState<InboxNotifPrefs>({ events: {}, digest: "morning", dndStart: null, dndEnd: null });
 
   const sfetch = useSafeFetch();
 
@@ -69,6 +83,33 @@ export default function NotificationsSettingsPage() {
       setLoading(false);
     });
   }, [sfetch]);
+
+  // Load the inbox notification prefs (folded in). Best-effort — the section just
+  // stays hidden if the catalog can't load; the rest of the page is unaffected.
+  useEffect(() => {
+    type R = { events?: InboxNotifEvent[]; prefs?: InboxNotifPrefs };
+    sfetch<R>("/api/inbox/notifications", { errorMessage: "Failed to load inbox notification preferences" })
+      .then(({ data }) => {
+        if (data?.events) setInboxEvents(data.events);
+        if (data?.prefs) setInboxPrefs(data.prefs);
+      });
+  }, [sfetch]);
+
+  // Inbox prefs auto-save (matches the general matrix's click-to-save pattern),
+  // through their own endpoint.
+  const saveInbox = useCallback(async (next: InboxNotifPrefs) => {
+    setInboxPrefs(next);
+    await sfetch("/api/inbox/notifications", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next),
+      errorMessage: "Failed to save inbox notification preferences",
+    });
+  }, [sfetch]);
+  const inboxEventEnabled = (e: InboxNotifEvent): boolean => {
+    const v = inboxPrefs.events[e.id];
+    return typeof v === "boolean" ? v : e.default;
+  };
 
   /**
    * CLE-14 — the single PUT path shared by the Save button, the channel
@@ -250,6 +291,85 @@ export default function NotificationsSettingsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Inbox — folded in from the retired /settings/inbox-notifications page:
+          per-event opt-in + digest cadence + quiet hours. Saved live to its own
+          store; the section stays hidden until its catalog loads. */}
+      {inboxEvents.length > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center gap-4 pb-2" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
+            <span className="flex-1 text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
+              Inbox
+            </span>
+          </div>
+          <p className="mt-2 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+            Choose what&apos;s worth interrupting you for in the inbox, when to get a digest, and quiet hours.
+          </p>
+
+          <div className="mt-3 divide-y" style={{ borderColor: "var(--color-border-default)" }}>
+            {inboxEvents.map((e) => (
+              <label key={e.id} className="flex cursor-pointer items-center justify-between gap-4 py-2.5">
+                <span className="min-w-0">
+                  <span className="block text-[13px]" style={{ color: "var(--color-text-primary)" }}>{e.label}</span>
+                  <span className="block text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{e.description}</span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={inboxEventEnabled(e)}
+                  onChange={() => saveInbox({ ...inboxPrefs, events: { ...inboxPrefs.events, [e.id]: !inboxEventEnabled(e) } })}
+                  className="h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="mt-4">
+            <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>Digest</span>
+            <div className="mt-2 flex gap-1.5">
+              {INBOX_DIGEST_OPTIONS.map((o) => {
+                const selected = inboxPrefs.digest === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    onClick={() => saveInbox({ ...inboxPrefs, digest: o.value })}
+                    className="rounded-md border px-2.5 py-1 text-[12px]"
+                    style={{
+                      borderColor: "var(--color-border-default)",
+                      background: selected ? "var(--color-accent)" : "transparent",
+                      color: selected ? "var(--color-accent-foreground, #fff)" : "var(--color-text-secondary)",
+                    }}
+                  >
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>Do not disturb</span>
+            <div className="mt-2 flex items-center gap-2 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+              <span>From</span>
+              <input
+                type="time"
+                value={inboxPrefs.dndStart ?? ""}
+                onChange={(e) => saveInbox({ ...inboxPrefs, dndStart: e.target.value || null })}
+                className="rounded-md border px-2 py-1 text-[12px] outline-none"
+                style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)", color: "var(--color-text-primary)" }}
+              />
+              <span>to</span>
+              <input
+                type="time"
+                value={inboxPrefs.dndEnd ?? ""}
+                onChange={(e) => saveInbox({ ...inboxPrefs, dndEnd: e.target.value || null })}
+                className="rounded-md border px-2 py-1 text-[12px] outline-none"
+                style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)", color: "var(--color-text-primary)" }}
+              />
+              <span style={{ color: "var(--color-text-muted)" }}>(wraps past midnight)</span>
+            </div>
+          </div>
         </div>
       )}
     </>

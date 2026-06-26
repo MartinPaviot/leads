@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge, Tag } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { MailboxIdentitySection } from "./_mailbox-identity";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -836,6 +837,10 @@ export default function MailCalendarPage() {
         onCancel={() => setDisconnectOauth(null)}
         busy={disconnectingOauth}
       />
+
+      {/* Per-mailbox display name / signature / voice — folded in from the
+          retired /settings/mailbox-identity page (Settings IA). */}
+      <MailboxIdentitySection />
     </>
   );
 }
