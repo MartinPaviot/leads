@@ -47,7 +47,16 @@ export interface RunAutopilotDeps {
   getConfig: (tenantId: string) => Promise<TenantAutopilotConfig>;
   /** Autopilot sends already enrolled today (for the per-day budget; re-run safety). */
   spentToday: (tenantId: string) => Promise<number>;
+  /** Confirms ≥1 active sequence exists (the no_active_sequence gate) + the fallback target. */
   getActiveSequenceId: (tenantId: string) => Promise<string | null>;
+  /**
+   * Per-prospect sequence routing (Monaco-style "a different sequence per why-now"):
+   * route each prospect to the active sequence whose ICP/trigger matches its
+   * company+top-signal, instead of enrolling everyone into one sequence. Optional +
+   * falls back to `getActiveSequenceId` when absent or unresolved — so a single-sequence
+   * tenant is unchanged; routing only kicks in once a tenant has multiple sequences.
+   */
+  resolveSequenceId?: (tenantId: string, companyId: string) => Promise<string | null>;
   loadCandidates: (tenantId: string, limit: number) => Promise<CandidatePool>;
   prepare: (tenantId: string, contactId: string, companyId: string) => Promise<unknown>;
   enroll: (input: {
@@ -109,7 +118,13 @@ export async function runAutopilotForTenant(tenantId: string, deps: RunAutopilot
     try {
       await deps.prepare(tenantId, p.contactId, p.companyId);
       prepared++;
-      const r = await deps.enroll({ tenantId, contactId: p.contactId, sequenceId, action, draftPayload: { companyId: p.companyId } });
+      // Route to the cohort's purpose-built sequence (ICP/trigger match); fall back to
+      // the tenant's active sequence when there's no router or no better match.
+      let seqId = sequenceId;
+      if (deps.resolveSequenceId) {
+        seqId = (await deps.resolveSequenceId(tenantId, p.companyId).catch(() => null)) ?? sequenceId;
+      }
+      const r = await deps.enroll({ tenantId, contactId: p.contactId, sequenceId: seqId, action, draftPayload: { companyId: p.companyId } });
       if (r.outcome === "enrolled") enrolled++;
       else if (r.outcome === "drafted") drafted++;
       consecutive = 0;
