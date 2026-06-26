@@ -6,6 +6,8 @@ import {
   templatesForTrigger,
   uncoveredSignalTypes,
   validateCatalog,
+  toTemplateSummary,
+  templateIdOf,
 } from "../registry";
 import type { ProvenSequenceTemplate } from "../types";
 
@@ -97,5 +99,38 @@ describe("validateCatalog catches malformed templates", () => {
     const a = base();
     const b = base();
     expect(validateCatalog([a, b])).toContainEqual({ templateId: "x", problem: "duplicate template id" });
+  });
+});
+
+describe("toTemplateSummary (gallery shape)", () => {
+  it("derives channels, stepCount, and cadenceDays (sum of delays) without full bodies", () => {
+    const s = toTemplateSummary(getTemplate("post-funding")!);
+    expect(s.id).toBe("post-funding");
+    expect(s.stepCount).toBe(3);
+    expect(s.channels).toContain("email");
+    expect(s.channels).toContain("linkedin_message");
+    expect(s.cadenceDays).toBe(getTemplate("post-funding")!.steps.reduce((n, x) => n + x.delayDays, 0));
+    // Summary steps carry preview fields but NOT the full body.
+    expect(s.steps[0]).toHaveProperty("subjectTemplate");
+    expect(s.steps[0]).toHaveProperty("valueAdded");
+    expect(s.steps[0]).not.toHaveProperty("bodyTemplate");
+  });
+
+  it("every template summarizes without throwing", () => {
+    for (const t of PROVEN_TEMPLATES) {
+      const s = toTemplateSummary(t);
+      expect(s.steps.length).toBe(t.steps.length);
+    }
+  });
+});
+
+describe("templateIdOf", () => {
+  it("reads the templateId off campaignConfig", () => {
+    expect(templateIdOf({ templateId: "post-funding", triggerSignalTypes: ["post_funding"] })).toBe("post-funding");
+  });
+  it("returns null when absent or malformed", () => {
+    expect(templateIdOf(null)).toBeNull();
+    expect(templateIdOf({})).toBeNull();
+    expect(templateIdOf({ templateId: 42 } as unknown as Record<string, unknown>)).toBeNull();
   });
 });
