@@ -519,8 +519,15 @@ export const processOutboundEmails = inngest.createFunction(
             metadata: { messageId: sendResult.messageId, via: sendResult.via },
           });
 
-          // Update mailbox sent count
-          if (mailbox && email.mailboxId) {
+          // Update the sent count on the mailbox that ACTUALLY sent (the resolved
+          // `mailbox` — the per-email box OR the round-robin `:default`), not
+          // `email.mailboxId`. Autopilot/sequence sends queue with mailboxId=null and
+          // ride the `:default` box, so gating on email.mailboxId left their counter
+          // never advancing → the daily-limit check (mailbox.sentToday >= dailyLimit
+          // above) never tripped → the box over-sent past its cap → reputation burn.
+          // Also bump the in-memory copy so the cap is accurate WITHIN this batch
+          // (multiple emails resolve to the same shared `mailbox` map object).
+          if (mailbox?.id) {
             await db
               .update(connectedMailboxes)
               .set({
@@ -528,7 +535,8 @@ export const processOutboundEmails = inngest.createFunction(
                 sentTotal: sql`${connectedMailboxes.sentTotal} + 1`,
                 updatedAt: new Date(),
               })
-              .where(eq(connectedMailboxes.id, email.mailboxId));
+              .where(eq(connectedMailboxes.id, mailbox.id));
+            mailbox.sentToday += 1;
           }
 
           // Update activity log
