@@ -7,12 +7,14 @@ import {
   type InboxScope,
 } from "../user-scope";
 
-function scopeOf(addresses: string[], mailboxIds: string[] = []): InboxScope {
+function scopeOf(addresses: string[], mailboxIds: string[] = [], linkedinAccountIds: string[] = []): InboxScope {
   return {
     hasMailbox: addresses.length > 0 || mailboxIds.length > 0,
     addresses: new Set(addresses.map((a) => a.toLowerCase())),
     mailboxIds: new Set(mailboxIds),
     mailboxes: [],
+    hasLinkedin: linkedinAccountIds.length > 0,
+    linkedinAccountIds: new Set(linkedinAccountIds),
   };
 }
 
@@ -75,6 +77,20 @@ describe("inboundBelongsToUser", () => {
     expect(inboundBelongsToUser({ metadata: null }, scope)).toBe(false);
     expect(inboundBelongsToUser({ metadata: {} }, scope)).toBe(false);
   });
+
+  it("scopes a LinkedIn inbound by the receiving seat (metadata.linkedinAccountId)", () => {
+    const liScope = scopeOf([], [], ["li-acct-1"]);
+    expect(inboundBelongsToUser({ metadata: { channel: "linkedin", linkedinAccountId: "li-acct-1" } }, liScope)).toBe(true);
+    expect(inboundBelongsToUser({ metadata: { channel: "linkedin", linkedinAccountId: "li-acct-2" } }, liScope)).toBe(false);
+  });
+
+  it("never crosses channels: a LinkedIn row fails an email-only scope, and vice versa", () => {
+    // email scope, linkedin row → false (no seat match, never the email path)
+    expect(inboundBelongsToUser({ metadata: { channel: "linkedin", linkedinAccountId: "x" } }, scope)).toBe(false);
+    // linkedin scope, email row → false (email path needs an address)
+    const liScope = scopeOf([], [], ["li-acct-1"]);
+    expect(inboundBelongsToUser({ metadata: { to: "me@pilae.ch" } }, liScope)).toBe(false);
+  });
 });
 
 describe("scopeConversationRows", () => {
@@ -103,5 +119,16 @@ describe("scopeConversationRows", () => {
     expect(out.outbound).toEqual([]);
     // triage is still passed through (harmless without any conversations).
     expect(out.triage).toBe(triage);
+  });
+
+  it("a LinkedIn-only user (no mailbox) still sees their own LinkedIn inbound", () => {
+    const inboundLi = [
+      { id: "li-mine", metadata: { channel: "linkedin", linkedinAccountId: "li-1" } },
+      { id: "li-theirs", metadata: { channel: "linkedin", linkedinAccountId: "li-2" } },
+      { id: "email-mine", metadata: { to: "me@pilae.ch" } },
+    ];
+    const scope = scopeOf([], [], ["li-1"]); // connected LinkedIn seat, no mailbox
+    const out = scopeConversationRows({ inbound: inboundLi, outbound: [], triage }, scope);
+    expect(out.inbound.map((r) => r.id)).toEqual(["li-mine"]); // own seat only; email excluded
   });
 });

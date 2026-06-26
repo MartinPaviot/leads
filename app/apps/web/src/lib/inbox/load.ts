@@ -15,6 +15,17 @@ import { withTenantTx } from "@/db/rls";
 const ROW_CAP = 500;
 
 /**
+ * LINKEDIN-INBOUND: which inbound activity types feed the inbox. LinkedIn
+ * messages (captured by lib/capture/linkedin-capture.ts) only enter the inbox
+ * read-model when LINKEDIN_INBOUND_ENABLED is on — a flag-gated dark launch. Off
+ * (default) → email-only, byte-identical to before.
+ */
+const INBOUND_ACTIVITY_TYPES: ("email_received" | "linkedin_message_received")[] =
+  process.env.LINKEDIN_INBOUND_ENABLED === "1" || process.env.LINKEDIN_INBOUND_ENABLED === "true"
+    ? ["email_received", "linkedin_message_received"]
+    : ["email_received"];
+
+/**
  * INBOX-P05 / R-08b foundation: when INBOX_RLS_TX=1, run the inbox reads inside
  * withTenantTx so `app.tenant_id` is bound and the DB-level RLS policies (0074)
  * enforce isolation. Behavior-neutral under 0074's fallback (no context → still
@@ -47,7 +58,7 @@ async function fetchConversationRows(exec: Executor, tenantId: string) {
       .where(
         and(
           eq(activities.tenantId, tenantId),
-          eq(activities.activityType, "email_received"),
+          inArray(activities.activityType, INBOUND_ACTIVITY_TYPES),
           isNull(activities.deletedAt),
         ),
       )

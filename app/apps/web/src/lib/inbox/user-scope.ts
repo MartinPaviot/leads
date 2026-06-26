@@ -21,7 +21,7 @@
  */
 
 import { db } from "@/db";
-import { connectedMailboxes } from "@/db/schema";
+import { connectedMailboxes, linkedinAccount } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
 export interface InboxScope {
@@ -31,6 +31,10 @@ export interface InboxScope {
   addresses: Set<string>;
   /** connected_mailboxes.id values the user can read in this tenant. */
   mailboxIds: Set<string>;
+  /** false → the user has no connected LinkedIn seat in this tenant. */
+  hasLinkedin: boolean;
+  /** linkedin_account.id values the user owns (connected seats) — scopes inbound LinkedIn rows. */
+  linkedinAccountIds: Set<string>;
   /**
    * The readable mailboxes as {id,address,label,shared} — feeds the per-mailbox
    * navigation + attribution of the unified inbox (lib/inbox/mailbox-attribution).
@@ -52,7 +56,11 @@ interface MailboxRow {
  * unit-tested. Own mailboxes win on a duplicate id, so a user's own box is never
  * mislabelled "shared". Default (no shared rows) is byte-identical to personal.
  */
-export function buildScopeFromRows(own: MailboxRow[], shared: MailboxRow[]): InboxScope {
+export function buildScopeFromRows(
+  own: MailboxRow[],
+  shared: MailboxRow[],
+  linkedinAccountIds: string[] = [],
+): InboxScope {
   const addresses = new Set<string>();
   const mailboxIds = new Set<string>();
   const mailboxes: { id: string; address: string; label: string; shared?: boolean }[] = [];
@@ -68,7 +76,37 @@ export function buildScopeFromRows(own: MailboxRow[], shared: MailboxRow[]): Inb
   };
   for (const r of own) add(r, false);
   for (const r of shared) add(r, true);
-  return { hasMailbox: mailboxes.length > 0, addresses, mailboxIds, mailboxes };
+  return {
+    hasMailbox: mailboxes.length > 0,
+    addresses,
+    mailboxIds,
+    mailboxes,
+    hasLinkedin: linkedinAccountIds.length > 0,
+    linkedinAccountIds: new Set(linkedinAccountIds),
+  };
+}
+
+/**
+ * The signed-in user's connected LinkedIn seat ids (personal seats). DEFENSIVE:
+ * if the linkedin_account table isn't present the query throws and we return [] —
+ * so the inbox runs identically (email-only) with or without the linkedin schema.
+ */
+async function loadLinkedinAccountIds(tenantId: string, authUserId: string): Promise<string[]> {
+  try {
+    const rows = await db
+      .select({ id: linkedinAccount.id })
+      .from(linkedinAccount)
+      .where(
+        and(
+          eq(linkedinAccount.tenantId, tenantId),
+          eq(linkedinAccount.userId, authUserId),
+          eq(linkedinAccount.status, "connected"),
+        ),
+      );
+    return rows.map((r) => r.id);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -96,8 +134,16 @@ export async function getInboxScope(
   tenantId: string,
   authUserId: string | null | undefined,
 ): Promise<InboxScope> {
-  if (!authUserId) return { hasMailbox: false, addresses: new Set(), mailboxIds: new Set(), mailboxes: [] };
-  const [own, shared] = await Promise.all([
+  if (!authUserId)
+    return {
+      hasMailbox: false,
+      addresses: new Set(),
+      mailboxIds: new Set(),
+      mailboxes: [],
+      hasLinkedin: false,
+      linkedinAccountIds: new Set(),
+    };
+  const [own, shared, linkedinIds] = await Promise.all([
     db
       .select({
         id: connectedMailboxes.id,
@@ -107,8 +153,9 @@ export async function getInboxScope(
       .from(connectedMailboxes)
       .where(and(eq(connectedMailboxes.tenantId, tenantId), eq(connectedMailboxes.userId, authUserId))),
     loadSharedMailboxes(tenantId),
+    loadLinkedinAccountIds(tenantId, authUserId),
   ]);
-  return buildScopeFromRows(own, shared);
+  return buildScopeFromRows(own, shared, linkedinIds);
 }
 
 /**
@@ -144,6 +191,12 @@ export function outboundBelongsToUser(row: ScopableOutbound, scope: InboxScope):
 
 /** Was this inbound (email_received) activity addressed to the user's mailbox? */
 export function inboundBelongsToUser(row: ScopableInbound, scope: InboxScope): boolean {
+  // LinkedIn inbound has no email recipient — scope it by the seat that received
+  // it (metadata.linkedinAccountId ∈ the user's connected seats).
+  if (row.metadata?.channel === "linkedin") {
+    const acct = row.metadata?.linkedinAccountId;
+    return typeof acct === "string" && scope.linkedinAccountIds.has(acct);
+  }
   const to = row.metadata?.to;
   return headerAddresses(typeof to === "string" ? to : "").some((a) => scope.addresses.has(a));
 }
@@ -164,7 +217,7 @@ export function scopeConversationRows<
   outbound: O[];
   triage: T[];
 } {
-  if (!scope.hasMailbox) return { inbound: [], outbound: [], triage: rows.triage };
+  if (!scope.hasMailbox && !scope.hasLinkedin) return { inbound: [], outbound: [], triage: rows.triage };
   return {
     inbound: rows.inbound.filter((r) => inboundBelongsToUser(r, scope)),
     outbound: rows.outbound.filter((r) => outboundBelongsToUser(r, scope)),
