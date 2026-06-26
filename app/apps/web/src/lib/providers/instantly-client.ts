@@ -324,6 +324,82 @@ export function disableInstantlyWarmup(options: InstantlyClientOptions, emails: 
   return postWarmupToggle(options, "disable", emails.slice(0, 100));
 }
 
+export interface InstantlyConnectMailboxInput {
+  email: string;
+  firstName: string;
+  lastName: string;
+  /** Decrypted SMTP/IMAP plaintext password — NEVER the ciphertext, never logged. */
+  password: string;
+  smtpHost: string;
+  smtpPort: number;
+  imapHost: string;
+  imapPort: number;
+  /** Fresh-box warmup ramp (default 10/day, slow-ramp on). */
+  warmupDailyLimit?: number;
+  /** Tag stamped on warmup mail so inbound capture can exclude it (avoids polluting the inbox). */
+  warmupCustomFtag?: string;
+}
+
+export interface InstantlyConnectMailboxResult {
+  ok: boolean;
+  status: number;
+  /** Instantly account id (the v2 response uses `id` or `account_id`). */
+  accountId?: string;
+  errorMessage?: string;
+}
+
+/**
+ * Register an ELEVAY-OWNED custom IMAP/SMTP mailbox INTO the Instantly workspace, for
+ * WARMUP ONLY. `provider_code: 1` = Custom IMAP/SMTP (Instantly v2 enum: 1=Custom,
+ * 2=Google, 3=Microsoft, 4=AWS — confirmed against developer.instantly.ai). Instantly
+ * needs BOTH IMAP + SMTP; for a single custom mailbox the IMAP and SMTP user/pass are
+ * the same (email + password). Elevay keeps the creds and SENDS cold via owner-SMTP
+ * (mailbox-transport.ts) — this box must NEVER be added to an Instantly campaign, or
+ * Instantly would also send and double up.
+ *
+ * `input.password` MUST be the decrypted plaintext (`decryptSecret(secretEncrypted)`).
+ * Precondition for `enableInstantlyWarmup` (which intersects against listed accounts):
+ * the box must be registered here first, or the warmup toggle no-ops.
+ */
+export async function connectCustomMailbox(
+  options: InstantlyClientOptions,
+  input: InstantlyConnectMailboxInput,
+): Promise<InstantlyConnectMailboxResult> {
+  const base = options.baseUrl ?? DEFAULT_BASE_URL;
+  const body: Record<string, unknown> = {
+    email: input.email,
+    first_name: input.firstName,
+    last_name: input.lastName,
+    provider_code: 1,
+    imap_username: input.email,
+    imap_password: input.password,
+    imap_host: input.imapHost,
+    imap_port: input.imapPort,
+    smtp_username: input.email,
+    smtp_password: input.password,
+    smtp_host: input.smtpHost,
+    smtp_port: input.smtpPort,
+    warmup: { daily_limit: input.warmupDailyLimit ?? 10, enable_slow_ramp: true },
+  };
+  if (input.warmupCustomFtag) body.warmup_custom_ftag = input.warmupCustomFtag;
+
+  try {
+    const res = await fetchWithTimeout(
+      `${base}/api/v2/accounts`,
+      { method: "POST", headers: buildHeaders(options.apiKey), body: JSON.stringify(body) },
+      TIMEOUT_MS,
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return { ok: false, status: res.status, errorMessage: text.slice(0, 300) || `HTTP ${res.status}` };
+    }
+    const data = (await res.json().catch(() => ({}))) as { id?: string; account_id?: string };
+    return { ok: true, status: res.status, accountId: data.id ?? data.account_id };
+  } catch (err) {
+    return { ok: false, status: 0, errorMessage: err instanceof Error ? err.message : "unknown fetch error" };
+  }
+}
+
 /** One mailbox's live warmup health: warmup_status (1=active/-1=banned/-2=spam/-3=suspended/0=paused) + stat_warmup_score (0-100). */
 export interface InstantlyAccountWarmup {
   ok: boolean;
