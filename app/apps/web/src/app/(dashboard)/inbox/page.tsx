@@ -95,7 +95,7 @@ const clampPx = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi,
  * Pointer listeners bind once and read the latest onDelta via a ref. Mirrors
  * Call Mode's ResizeHandle, on Elevay tokens (no raw palette colors).
  */
-function ResizeHandle({ onDelta }: { onDelta: (dx: number) => void }) {
+function ResizeHandle({ onDelta, value, min, max }: { onDelta: (dx: number) => void; value: number; min: number; max: number }) {
   const onDeltaRef = useRef(onDelta);
   onDeltaRef.current = onDelta;
   const startX = useRef<number | null>(null);
@@ -127,14 +127,24 @@ function ResizeHandle({ onDelta }: { onDelta: (dx: number) => void }) {
         document.body.style.userSelect = "none";
         e.preventDefault();
       }}
-      className="group relative z-10 hidden w-0 shrink-0 select-none @min-[960px]:block"
+      onKeyDown={(e) => {
+        // Keyboard-resizable (a11y): ←/→ nudge the list width by 16px.
+        if (e.key === "ArrowLeft") { e.preventDefault(); onDeltaRef.current(-16); }
+        else if (e.key === "ArrowRight") { e.preventDefault(); onDeltaRef.current(16); }
+      }}
+      tabIndex={0}
+      className="group relative z-10 hidden w-0 shrink-0 select-none outline-none @min-[960px]:block"
       title="Glisser pour redimensionner"
       role="separator"
       aria-orientation="vertical"
+      aria-label="Redimensionner la liste"
+      aria-valuenow={value}
+      aria-valuemin={min}
+      aria-valuemax={max}
     >
       <div className="absolute inset-y-0 -left-1 w-2 cursor-col-resize" />
-      <div className="pointer-events-none absolute inset-y-0 -left-px w-px bg-transparent transition-colors group-hover:bg-[var(--color-accent)]" />
-      <div className="pointer-events-none absolute left-1/2 top-1/2 flex h-7 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded border opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+      <div className="pointer-events-none absolute inset-y-0 -left-px w-px bg-transparent transition-colors group-hover:bg-[var(--color-accent)] group-focus:bg-[var(--color-accent)]" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 flex h-7 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded border opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus:opacity-100"
         style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}>
         <MoveHorizontal size={12} style={{ color: "var(--color-text-muted)" }} />
       </div>
@@ -1228,6 +1238,7 @@ export default function InboxPage() {
                 single-line rows. Persisted to localStorage. */}
             <button
               onClick={toggleDensity}
+              aria-pressed={density === "compact"}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors"
               style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)", color: "var(--color-text-secondary)" }}
               title={density === "comfortable" ? "Compact list — denser rows" : "Comfortable list — 2-line rows"}
@@ -1448,7 +1459,7 @@ export default function InboxPage() {
             })()}
           </div>
           {/* Draggable divider between the list and the open mail (3-column only). */}
-          {selectedKey && <ResizeHandle onDelta={handleResizeList} />}
+          {selectedKey && <ResizeHandle onDelta={handleResizeList} value={listW} min={LIST_W_MIN} max={LIST_W_MAX} />}
           {selectedKey && (
             <div className="flex min-w-0 flex-1 flex-col">
               {/* Single-pane back control: shown only when the inbox area is too
