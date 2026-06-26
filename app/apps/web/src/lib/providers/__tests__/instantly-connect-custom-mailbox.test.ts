@@ -9,7 +9,8 @@ const input = {
 };
 
 const mockFetch = (status: number, json: unknown) =>
-  vi.fn(async () => new Response(JSON.stringify(json), { status, headers: { "content-type": "application/json" } }));
+  vi.fn(async (_url: string, _init?: RequestInit) =>
+    new Response(JSON.stringify(json), { status, headers: { "content-type": "application/json" } }));
 
 const lastBody = (m: ReturnType<typeof mockFetch>) =>
   JSON.parse((m.mock.calls[0][1] as RequestInit).body as string) as Record<string, unknown>;
