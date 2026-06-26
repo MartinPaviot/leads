@@ -37,6 +37,7 @@ import {
   AtSign,
   Gauge,
   Brain,
+  ChevronDown,
 } from "lucide-react";
 import { BILLING_PAGE_ENABLED } from "@/lib/billing/page-visibility";
 import { EVALS_PAGE_ENABLED, MCP_PAGE_ENABLED } from "@/lib/settings/admin-tools-visibility";
@@ -145,6 +146,12 @@ export default function SettingsSidebar({
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
+  // The section that owns the active route — kept expanded so the current page
+  // is always visible even when the other sections are collapsed.
+  const activeSectionLabel =
+    settingsNav.find((s) =>
+      s.items.some((i) => i.href === pathname || (i.href !== "/settings" && !!pathname?.startsWith(i.href))),
+    )?.label ?? null;
   // N16 — sidebar fuzzy filter. Substring match on label, lower-cased.
   // Sections with zero matching items collapse so the user only sees
   // hits. Empty query renders the full nav unchanged.
@@ -153,6 +160,13 @@ export default function SettingsSidebar({
   // 240px nav rail + content don't both fit, so below the container breakpoint
   // the nav becomes a slide-in drawer and content goes full-width.
   const [navOpen, setNavOpen] = useState(false);
+  // Collapsible sections (persisted). Six sections × 3-7 items is a tall rail at
+  // the founder's half-screen + 200% zoom — collapsing to scannable headers makes
+  // the whole structure visible at once. The active section, and any the user
+  // expands, stay open; while filtering every section is forced open.
+  const [openSections, setOpenSections] = useState<Set<string>>(
+    () => new Set(activeSectionLabel ? [activeSectionLabel] : []),
+  );
   const filterInputRef = useRef<HTMLInputElement>(null);
   // While the drawer is open: Escape closes it, and focus moves into it (the
   // filter input) so keyboard / screen-reader users have an entry point.
@@ -163,6 +177,41 @@ export default function SettingsSidebar({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [navOpen]);
+
+  // Hydrate persisted open/closed sections (merging the active one so the current
+  // page is never hidden). Runs once on mount; falls back to the default set when
+  // localStorage is unavailable.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("elevay.settings.nav.open");
+      const stored: unknown = raw ? JSON.parse(raw) : [];
+      const arr = Array.isArray(stored) ? (stored as string[]) : [];
+      setOpenSections(new Set([...arr, ...(activeSectionLabel ? [activeSectionLabel] : [])]));
+    } catch { /* keep the default */ }
+    // mount only — activeSectionLabel re-handled by the effect below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Navigating into a collapsed section opens it (the current page must show).
+  useEffect(() => {
+    if (!activeSectionLabel) return;
+    setOpenSections((prev) => (prev.has(activeSectionLabel) ? prev : new Set(prev).add(activeSectionLabel)));
+  }, [activeSectionLabel]);
+
+  // Persist the open set across visits.
+  useEffect(() => {
+    try { localStorage.setItem("elevay.settings.nav.open", JSON.stringify([...openSections])); } catch { /* ignore */ }
+  }, [openSections]);
+
+  const sectionOpen = (label: string) => filter.trim() !== "" || openSections.has(label);
+  function toggleSection(label: string) {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      return next;
+    });
+  }
+
   const visibleSections = settingsNav
     .filter((s) => !s.adminOnly || isAdmin)
     .map((s) => {
@@ -242,14 +291,27 @@ export default function SettingsSidebar({
           </p>
         )}
 
-        {visibleSections.map((section) => (
-          <div key={section.label} className="mb-3">
-            <div
-              className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider"
+        {visibleSections.map((section) => {
+          const open = sectionOpen(section.label);
+          return (
+          <div key={section.label} className="mb-2">
+            <button
+              type="button"
+              onClick={() => toggleSection(section.label)}
+              aria-expanded={open}
+              className="mb-1 flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors"
               style={{ color: "var(--color-text-tertiary)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
-              {section.label}
-            </div>
+              <span>{section.label}</span>
+              <ChevronDown
+                size={12}
+                className="shrink-0"
+                style={{ opacity: 0.5, transform: open ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 150ms ease" }}
+              />
+            </button>
+            {open && (
             <div className="space-y-0.5">
               {section.items.map((item) => {
                 const isActive = pathname === item.href || (item.href !== "/settings" && pathname?.startsWith(item.href));
@@ -271,15 +333,17 @@ export default function SettingsSidebar({
                     <Icon
                       size={15}
                       className="shrink-0"
-                      style={{ color: isActive ? "var(--color-accent)" : undefined, opacity: isActive ? 1 : 0.5 }}
+                      style={{ color: isActive ? "var(--color-accent)" : undefined, opacity: isActive ? 1 : 0.6 }}
                     />
                     {item.label}
                   </Link>
                 );
               })}
             </div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
