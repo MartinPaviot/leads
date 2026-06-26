@@ -31,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
+import { useT } from "@/lib/i18n/locale";
 import { EmailComposerPanel, type EmailComposerDraft } from "@/components/email-composer-panel";
 import { ContactCollisionNotice } from "@/components/collision/contact-collision-notice";
 import { MeetingSchedulerCard } from "@/components/meeting-scheduler";
@@ -65,10 +66,10 @@ import { pickPaneState } from "@/lib/inbox/list-state";
 
 // The presets live in lib/inbox/snooze-presets (pure, unit-tested) so the popover
 // and the `s` keyboard shortcut resolve to the SAME instant (B6.4).
-const SNOOZE_OPTIONS: Array<{ label: string; until: () => Date }> = [
-  { label: "Tomorrow morning", until: tomorrowMorning },
-  { label: "In 3 days", until: inThreeDays },
-  { label: "Next Monday", until: nextMonday },
+const SNOOZE_OPTIONS: Array<{ key: string; until: () => Date }> = [
+  { key: "inbox.snoozeTomorrowMorning", until: tomorrowMorning },
+  { key: "inbox.snoozeIn3Days", until: inThreeDays },
+  { key: "inbox.snoozeNextMonday", until: nextMonday },
 ];
 
 /**
@@ -119,6 +120,7 @@ export function ConversationPane({
   apiRef?: Ref<ConversationPaneApi | null>;
 }) {
   const { toast } = useToast();
+  const t = useT();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(false);
   // F3: the detail fetch rejected (network/5xx) — distinct from a resolved-but-
@@ -567,7 +569,7 @@ export function ConversationPane({
   const moreItems: MoreMenuItem[] = [];
   if (detail.contact && proposedTime && !schedOpen) {
     moreItems.push({
-      label: `Book ${proposedTime.phrase}`,
+      label: t("inbox.bookProposed", { phrase: proposedTime.phrase }),
       icon: <CalendarPlus size={14} />,
       onClick: () => {
         setPrefillWhen(toDatetimeLocal(proposedTime.start));
@@ -576,14 +578,14 @@ export function ConversationPane({
     });
   }
   if (detail.conversation.followup?.dueAt != null) {
-    moreItems.push({ label: "Generate nudge", icon: <AlarmClock size={14} />, onClick: () => void generateNudge(), disabled: drafting });
+    moreItems.push({ label: t("inbox.generateNudge"), icon: <AlarmClock size={14} />, onClick: () => void generateNudge(), disabled: drafting });
   }
   if (detail.enrollment) {
-    moreItems.push({ label: "Stop sequence", icon: <OctagonX size={14} />, onClick: () => void stopSequence(), disabled: stopping });
+    moreItems.push({ label: t("inbox.stopSequence"), icon: <OctagonX size={14} />, onClick: () => void stopSequence(), disabled: stopping });
   }
   if (onSpam) {
     moreItems.push({
-      label: isSpamView ? "Not spam" : "Mark as spam",
+      label: isSpamView ? t("inbox.notSpam") : t("inbox.markSpam"),
       icon: isSpamView ? <RotateCcw size={14} /> : <ShieldAlert size={14} />,
       onClick: () => onSpam(conv.key, !isSpamView),
       divider: true,
@@ -591,7 +593,7 @@ export function ConversationPane({
   }
   if (onTrash) {
     moreItems.push({
-      label: isTrashView ? "Restore to inbox" : "Delete",
+      label: isTrashView ? t("inbox.restoreToInbox") : t("inbox.delete"),
       icon: isTrashView ? <RotateCcw size={14} /> : <Trash2 size={14} />,
       onClick: () => onTrash(conv.key, !isTrashView),
     });
@@ -693,19 +695,19 @@ export function ConversationPane({
               only Reply — the generate affordance is absent (selectivity). */}
           {conv.replyWorthy ? (
             <>
-              <Button size="sm" onClick={generateDraft} disabled={drafting} className="gap-1.5" title="Generate a voice-matched draft (⌘/Ctrl+J)">
+              <Button size="sm" onClick={generateDraft} disabled={drafting} className="gap-1.5" title={t("inbox.generateDraftTitle")}>
                 {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                {drafting ? "Drafting…" : "Generate draft"}
+                {drafting ? t("inbox.drafting") : t("inbox.generateDraft")}
               </Button>
               <Button size="sm" variant="outline" onClick={openReply} disabled={drafting} className="gap-1.5">
                 <Mail className="h-3.5 w-3.5" />
-                Reply
+                {t("inbox.reply")}
               </Button>
             </>
           ) : (
             <Button size="sm" onClick={openReply} disabled={drafting} className="gap-1.5">
               {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
-              {drafting ? "Drafting…" : "Reply"}
+              {drafting ? t("inbox.drafting") : t("inbox.reply")}
             </Button>
           )}
           {/* Schedule a meeting straight from the open mail — a calm, visible
@@ -725,21 +727,21 @@ export function ConversationPane({
           {/* Secondary actions behind the overflow (nudge / stop sequence /
               contextual proposed-time booking). Assignee/labels/presence are in
               the header meta line above. */}
-          {moreItems.length > 0 && <MoreMenu label="More" items={moreItems} />}
+          {moreItems.length > 0 && <MoreMenu label={t("inbox.more")} items={moreItems} />}
           <div className="ml-auto flex items-center gap-2">
             {triageable && (
               <div className="relative" ref={snoozeRef}>
                 <Button variant="outline" size="sm" onClick={() => setSnoozeOpen((v) => !v)} className="gap-1.5">
                   <AlarmClock className="h-3.5 w-3.5" />
-                  Snooze
+                  {t("inbox.snooze")}
                   <ChevronDown className="h-3 w-3" />
                 </Button>
                 {snoozeOpen && (() => {
                   const parsed = snoozeText.trim() ? parseWhen(snoozeText) : null;
                   return (
                     <div
-                      className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border p-1 shadow-lg"
-                      style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+                      className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border p-1"
+                      style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)", boxShadow: "var(--shadow-floating)" }}
                     >
                       {/* Natural-language snooze (INBOX-T05): "2d", "monday", "tomorrow 9am". */}
                       <div className="px-1.5 pt-1 pb-1">
@@ -769,14 +771,14 @@ export function ConversationPane({
                           >
                             {parsed
                               ? `→ ${parsed.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
-                              : "couldn't read that time"}
+                              : t("inbox.snoozeUnparseable")}
                           </div>
                         )}
                       </div>
                       <div className="my-1 border-t" style={{ borderColor: "var(--color-border-default)" }} />
                       {SNOOZE_OPTIONS.map((opt) => (
                         <button
-                          key={opt.label}
+                          key={opt.key}
                           className="block w-full rounded px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--color-bg-hover)]"
                           style={{ color: "var(--color-text-primary)" }}
                           onClick={() => {
@@ -784,7 +786,7 @@ export function ConversationPane({
                             void onTriage(conv.key, "snooze", opt.until().toISOString());
                           }}
                         >
-                          {opt.label}
+                          {t(opt.key)}
                         </button>
                       ))}
                     </div>
@@ -795,11 +797,11 @@ export function ConversationPane({
             {triageable ? (
               <Button size="sm" variant="outline" onClick={() => void onTriage(conv.key, "done")} className="gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Done
+                {t("inbox.done")}
               </Button>
             ) : lane === "done" ? (
               <Button size="sm" variant="outline" onClick={() => void onTriage(conv.key, "reopen")}>
-                Reopen
+                {t("inbox.reopen")}
               </Button>
             ) : null}
           </div>
@@ -1060,14 +1062,14 @@ export function ConversationPane({
             {(intel.objections ?? []).map((o, i) => (
               <div key={`o-${i}`} className="mt-2 flex items-start gap-2">
                 <Badge variant={o.status === "unresolved" ? "warning" : "neutral"} size="sm">
-                  {o.category}{o.status === "unresolved" ? " · unresolved" : ""}
+                  {o.category}{o.status === "unresolved" ? ` · ${t("inbox.unresolved")}` : ""}
                 </Badge>
                 <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{o.summary}</p>
               </div>
             ))}
             {(intel.nextSteps ?? []).length > 0 && (
               <div className="mt-2">
-                <span className="text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>Next steps mentioned</span>
+                <span className="text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>{t("inbox.nextStepsMentioned")}</span>
                 <ul className="mt-0.5 list-inside list-disc">
                   {(intel.nextSteps ?? []).map((step, i) => (
                     <li key={i} className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{step}</li>
@@ -1077,7 +1079,7 @@ export function ConversationPane({
             )}
             {(intel.competitors ?? []).length > 0 && (
               <div className="mt-2 flex items-center gap-1.5">
-                <span className="text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>Competitors mentioned</span>
+                <span className="text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>{t("inbox.competitorsMentioned")}</span>
                 {(intel.competitors ?? []).map((c) => (
                   <Badge key={c} variant="info" size="sm">{c}</Badge>
                 ))}

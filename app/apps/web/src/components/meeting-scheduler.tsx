@@ -346,6 +346,7 @@ export function MeetingSchedulerCard({
             <input
               type="datetime-local"
               value={when}
+              min={toLocalInput(new Date())}
               onChange={(e) => setManualWhen(e.target.value)}
               className="mt-1 w-full rounded-md px-2 py-1 text-[13px] outline-none"
               style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
@@ -420,6 +421,7 @@ export function MeetingSchedulerCard({
             <input
               type="datetime-local"
               value={when}
+              min={toLocalInput(new Date())}
               onChange={(e) => setManualWhen(e.target.value)}
               aria-label={t("meeting.when")}
               className="mt-1 w-full rounded-md px-2 py-1 text-[13px] outline-none"

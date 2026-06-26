@@ -422,8 +422,8 @@ describe("B7 /inbox — Generate nudge affordance (B3.2)", () => {
       jsonRes({ ...FIXTURE_DETAIL, conversation: { ...FIXTURE_DETAIL.conversation, followup: dueFollowup } });
     await mountLoaded();
     // Generate nudge now lives in the "⋮ More" overflow (Upstream-clean toolbar).
-    fireEvent.click(await screen.findByText("More"));
-    const btn = await screen.findByText("Generate nudge");
+    fireEvent.click(await screen.findByText("Plus"));
+    const btn = await screen.findByText("Générer une relance");
     fireEvent.click(btn);
     await flush();
     // Robust against any auto-draft (which POSTs without a mode): count only nudge posts.
@@ -436,7 +436,7 @@ describe("B7 /inbox — Generate nudge affordance (B3.2)", () => {
 
   it("hides Generate nudge when the thread has no due follow-up", async () => {
     await mountLoaded(); // default detail carries no followup
-    expect(screen.queryByText("Generate nudge")).toBeNull();
+    expect(screen.queryByText("Générer une relance")).toBeNull();
   });
 });
 
