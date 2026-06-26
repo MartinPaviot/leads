@@ -59,6 +59,14 @@ export default function WritingStylePage() {
   // round-trips it intact — signOffName/keyColleagues are preserved (not edited
   // here; the canonical sign-off is the writing-style "Sign off" field above).
   const [memory, setMemory] = useState<InboxMemory>({ standingInstructions: [], aboutMe: {} });
+  // Per-store load success. A folded-in store (voice / auto-draft / memory) is
+  // only PUT on Save if its GET succeeded — otherwise Save would overwrite the
+  // stored value with the in-state default and WIPE it (memory PUT is a full
+  // replace). The retired standalone pages were return-gated on their own load
+  // error; this restores that guard at the section level.
+  const [voiceLoaded, setVoiceLoaded] = useState(false);
+  const [autoDraftLoaded, setAutoDraftLoaded] = useState(false);
+  const [memoryLoaded, setMemoryLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -95,6 +103,7 @@ export default function WritingStylePage() {
         setVoiceOptions(voice.options ?? []);
         if (voice.voice?.tone) setTone(voice.voice.tone);
         setCustomGuidance(voice.voice?.customGuidance ?? "");
+        setVoiceLoaded(true);
       }
       if (derRes.ok) {
         const der = (await derRes.json()) as { proposal?: StyleProposal };
@@ -104,6 +113,7 @@ export default function WritingStylePage() {
       if (autoRes.ok) {
         const data = (await autoRes.json()) as { autoDraft?: { enabled?: boolean } };
         setAutoDraft(data.autoDraft?.enabled === true);
+        setAutoDraftLoaded(true);
       }
       // standing instructions / company line — best-effort; default empty.
       if (memRes.ok) {
@@ -114,6 +124,7 @@ export default function WritingStylePage() {
             aboutMe: data.memory.aboutMe ?? {},
           });
         }
+        setMemoryLoaded(true);
       }
     } catch {
       setLoadError(true);
@@ -162,33 +173,48 @@ export default function WritingStylePage() {
     setSaving(true);
     setSaved(false);
     try {
-      const [ws] = await Promise.all([
+      const reqs: Promise<Response>[] = [
         fetch("/api/inbox/writing-style", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(style),
         }),
-        fetch("/api/inbox/voice", {
+      ];
+      // Only persist a folded-in store if its GET loaded — never overwrite a
+      // store we couldn't read, or its in-state default would WIPE it (the
+      // memory PUT is a full replace; this is the per-store load guard).
+      if (voiceLoaded) {
+        reqs.push(fetch("/api/inbox/voice", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tone, customGuidance }),
-        }),
-        fetch("/api/inbox/auto-draft", {
+        }));
+      }
+      if (autoDraftLoaded) {
+        reqs.push(fetch("/api/inbox/auto-draft", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ enabled: autoDraft }),
-        }),
+        }));
+      }
+      if (memoryLoaded) {
         // Round-trips the FULL memory record so signOffName/keyColleagues (not
         // edited here) are preserved — only standing instructions + company line change.
-        fetch("/api/inbox/memory", {
+        reqs.push(fetch("/api/inbox/memory", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(memory),
-        }),
-      ]);
+        }));
+      }
+      const results = await Promise.all(reqs);
+      const ws = results[0];
       if (ws.ok) {
         const data = (await ws.json()) as { style?: WritingStyle };
         if (data.style) setStyle(data.style);
+      }
+      // Surface a failure on ANY write (not just writing-style) so a failed
+      // voice/auto-draft/memory PUT isn't silently reported as saved.
+      if (results.every((r) => r.ok)) {
         setSaved(true);
       } else {
         toast("Couldn't save your writing style.", "error");

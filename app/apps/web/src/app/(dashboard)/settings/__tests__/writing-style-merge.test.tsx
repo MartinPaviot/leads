@@ -121,4 +121,26 @@ describe("Voice & Writing — folded-in inbox-memory config", () => {
     expect(body.aboutMe.signOffName).toBe("M. Paviot");
     expect(body.aboutMe.keyColleagues).toEqual(["Anna"]);
   });
+
+  it("does NOT overwrite a folded-in store whose GET failed (no wipe on partial load failure)", async () => {
+    // writing-style + voice load fine, but the memory GET 500s. The page still
+    // renders (writing-style is load-bearing), so Save is live — it must SKIP the
+    // memory PUT, otherwise the in-state default would erase the stored record.
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      const u = String(url);
+      const m = init?.method ?? "GET";
+      if (u === "/api/inbox/memory" && m === "GET") return Promise.resolve(jsonRes({}, false));
+      return Promise.resolve(router(u, init));
+    });
+    render(<WritingStylePage />);
+    await waitFor(() => expect(screen.getByText("Standing instructions")).toBeTruthy(), { timeout: 8000 });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
+
+    await waitFor(() => expect(callsTo("/api/inbox/writing-style", "PUT").length).toBe(1));
+    // the un-loaded memory store is never written -> stored data preserved
+    expect(callsTo("/api/inbox/memory", "PUT").length).toBe(0);
+    // the stores that DID load still persist
+    expect(callsTo("/api/inbox/voice", "PUT").length).toBe(1);
+  });
 });

@@ -1,16 +1,12 @@
 import { redirect } from "next/navigation";
 
 /**
- * WS-1 — `/settings/agent` is superseded by `/settings/guardrails`,
- * which consolidates approval mode + LLM budget + sending infra into
- * one page. Kept as a server-side redirect so existing bookmarks and
- * deep links from chat suggestions don't 404 during the transition.
- *
- * The full Guardrails UI ships in WS-1 PR E. Until then, the redirect
- * lands on `/settings/guardrails`; Next.js renders a 404 gracefully if
- * the target page doesn't yet exist, which is preferable to showing a
- * stale 2-option radio tied to the legacy enum.
+ * `/settings/agent` is a legacy alias. Autonomy/guardrails now live on
+ * `/settings/autonomy` (the autonomy LEVEL is the canonical control; the old
+ * `/settings/guardrails` approval-mode page was itself retired to a redirect in
+ * the Settings IA reorg). Point straight at the canonical page so an old bookmark
+ * or chat deep link resolves in ONE hop, not agent → guardrails → autonomy.
  */
 export default function AgentSettingsRedirect() {
-  redirect("/settings/guardrails");
+  redirect("/settings/autonomy");
 }
