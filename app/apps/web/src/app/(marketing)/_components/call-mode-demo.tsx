@@ -45,7 +45,7 @@ const QUEUE = [
 // Transcript finals, the way Deepgram lands them: whole chunks, not letters.
 const CHUNKS: { who: "prospect" | "agent"; text: string; ts: string; at: number }[] = [
   { who: "prospect", text: "Honestly? Half my week goes to building lists and chasing follow-ups.", ts: "00:08", at: 600 },
-  { who: "agent", text: "That's the exact work we take off your plate — the list, the research, the follow-ups.", ts: "00:15", at: 2100 },
+  { who: "agent", text: "That's the exact work we take off your plate: the list, the research, the follow-ups.", ts: "00:15", at: 2100 },
   { who: "prospect", text: "Interesting. It would need to play nice with our CRM though.", ts: "00:24", at: 3700 },
   { who: "agent", text: "It writes straight into it, both ways. Want me to show you Thursday morning?", ts: "00:31", at: 5300 },
 ];
@@ -312,7 +312,7 @@ export function CallModeDemo() {
                           </div>
                           <div className="border-t px-3 py-2" style={{ borderColor: T.soft }}>
                             <div className="text-[8px] font-semibold uppercase tracking-wide" style={{ color: T.ter }}>Relationship</div>
-                            <div className="mt-0.5 text-[10px]" style={{ color: T.sec }}>First contact — never touched. Open on the hiring spike, not a pitch.</div>
+                            <div className="mt-0.5 text-[10px]" style={{ color: T.sec }}>First contact, never touched. Open on the hiring spike, not a pitch.</div>
                           </div>
                         </div>
                       </div>
@@ -364,7 +364,7 @@ export function CallModeDemo() {
                               <div className="flex items-center gap-1.5 text-[10px] font-medium" style={{ color: C.green }}>
                                 <Check size={11} /> Meeting booked · captured: deal created, 2 tasks
                               </div>
-                              <div className="mt-0.5 text-[8.5px]" style={{ color: T.ter }}>Execution — you spoke 54% (target ~55%) · next: Dana Liu, Mercury</div>
+                              <div className="mt-0.5 text-[8.5px]" style={{ color: T.ter }}>Execution · you spoke 54% (target ~55%) · next: Dana Liu, Mercury</div>
                             </m.div>
                           )}
                         </AnimatePresence>
@@ -414,7 +414,7 @@ export function CallModeDemo() {
                       })}
                     </div>
                     <div className="mx-2 rounded-lg border px-2.5 py-2 text-[9px] leading-relaxed" style={{ borderColor: T.soft, background: T.page, color: T.sec }}>
-                      <span className="font-semibold" style={{ color: T.text }}>Peer story.</span> A founder selling to the same segment cut list-building from 6 h to 20 min a week — tell it, then ask what their setup looks like.
+                      <span className="font-semibold" style={{ color: T.text }}>Peer story.</span> A founder selling to the same segment cut list-building from 6 h to 20 min a week. Tell it, then ask what their setup looks like.
                     </div>
                   </aside>
                 </div>

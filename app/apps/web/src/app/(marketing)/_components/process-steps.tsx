@@ -29,13 +29,13 @@ const steps: { label: string; headline: string; body: string; Real?: ComponentTy
   {
     label: "Find demand",
     headline: "Your TAM builds and scores itself",
-    body: "Describe your ICP once. We scan a live B2B database around the clock and assemble your market — every account graded the moment it lands, the buying triggers behind it in plain view (hiring, fresh funding, shared investors, YC). Fits you'd never spot by hand rise to the top, and the list never goes stale.",
+    body: "Describe your ICP once. We scan a live B2B database around the clock and assemble your market. Every account is graded the moment it lands, the buying triggers behind it in plain view (hiring, fresh funding, shared investors, YC). Fits you'd never spot by hand rise to the top, and the list never goes stale.",
     Demo: AccountsDemo,
   },
   {
     label: "Engage",
     headline: "Outreach written for one, not a list",
-    body: "The moment an account heats up, we write a multi-touch sequence from its triggers and your notes — tailored to its real situation, not a first-name merge tag.",
+    body: "The moment an account heats up, we write a multi-touch sequence from its triggers and your notes, tailored to its real situation, not a first-name merge tag.",
     Demo: CampaignsDemo,
   },
   {
@@ -53,7 +53,7 @@ const steps: { label: string; headline: string; body: string; Real?: ComponentTy
   {
     label: "Capture",
     headline: "Your CRM fills itself",
-    body: "Deal values, fields and stages refresh straight from your calls and emails — your pipeline mirrors reality, with nothing to type.",
+    body: "Deal values, fields and stages refresh straight from your calls and emails. Your pipeline mirrors reality, with nothing to type.",
     Demo: OpportunitiesDemo,
   },
 ];

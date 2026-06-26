@@ -129,11 +129,11 @@ function AnimatedStat({ to, suffix = "", className = "", style }: { to: number; 
 const faqs = [
   {
     q: "How is this different from a CRM like HubSpot or Salesforce?",
-    a: "Those are databases you keep up to date by hand. We assemble and grade your market, log every email and call automatically, surface who's ready, and write the outreach — all in the background, so you spend your time with customers.",
+    a: "Those are databases you keep up to date by hand. We assemble and grade your market, log every email and call automatically, surface who's ready, and write the outreach. All of it in the background, so you spend your time with customers.",
   },
   {
     q: "Isn't this just another AI SDR that spams people?",
-    a: "No. We don't blast generic cold email. Every message is written from each account's real context and goes out on the guardrails you set — so your domain and your reputation stay yours.",
+    a: "No. We don't blast generic cold email. Every message is written from each account's real context and goes out on the guardrails you set, so your domain and your reputation stay yours.",
   },
   {
     q: "Where does the target list come from?",
@@ -399,7 +399,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-[1240px] px-6">
           <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">How the engine works</p></Animate>
           <Animate><h2 className="mt-4 text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">One engine, from cold list to closed deal</h2></Animate>
-          <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">Follow one account, Notion. We run every step — sourcing, ranking, reading intent, drafting, logging — and remember every interaction, so the deal keeps moving on its own.</p></Animate>
+          <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">Follow one account, Notion. We run every step: sourcing, ranking, reading intent, drafting, logging. And we remember every interaction, so the deal keeps moving on its own.</p></Animate>
           {/* Market evidence — speed-to-lead. Cited third-party data
               (Dr. James Oldroyd, MIT / InsideSales), the reason the
               "prioritize" step exists: timing is most of the win. */}
@@ -431,12 +431,12 @@ export default function LandingPage() {
           <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-10 md:p-14">
             <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">Built around you</p></Animate>
             <Animate><h2 className="mt-3 max-w-2xl text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">We run the engine. You spend your time with customers.</h2></Animate>
-            <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Sourcing, ranking, intent detection, drafting, capture, follow-ups — all of it runs nonstop, on your terms. That frees you for the one thing software can&apos;t touch: the conversations and the relationships only a founder can build.</p></Animate>
+            <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Sourcing, ranking, intent detection, drafting, capture, follow-ups: all of it runs nonstop, on your terms. That frees you for the one thing software can&apos;t touch: the conversations and the relationships only a founder can build.</p></Animate>
             <div className="mt-10 grid gap-8 md:grid-cols-3">
               {[
-                { h: "We handle", b: "Prospecting, enrichment, grading, signal detection, copywriting, transcription, follow-ups — always-on, in the background." },
-                { h: "You focus on", b: "The conversations, the read on the room, and the relationships — the part of selling only a person can do." },
-                { h: "On your guardrails", b: "Set the rules once and we run within them. Open the throttle or pull back to drafts-only anytime — autonomy is earned, never assumed." },
+                { h: "We handle", b: "Prospecting, enrichment, grading, signal detection, copywriting, transcription, follow-ups. Always-on, in the background." },
+                { h: "You focus on", b: "The conversations, the read on the room, and the relationships: the part of selling only a person can do." },
+                { h: "On your guardrails", b: "Set the rules once and we run within them. Open the throttle or pull back to drafts-only anytime. Autonomy is earned, never assumed." },
               ].map((col) => (
                 <Animate key={col.h}>
                   <div className="border-l-2 pl-4" style={{ borderColor: "rgba(44,107,237,0.22)" }}>
@@ -459,7 +459,7 @@ export default function LandingPage() {
           <div className="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white p-8 md:p-12">
             <Animate>
               <blockquote className="text-[22px] font-medium leading-[1.45] tracking-tight text-gray-900 md:text-[26px]">
-In founder-led sales, you are the pipeline — and the work around the conversations quietly eats your week. We built Elevay to run all of it, so the only thing left to you is the conversation.
+In founder-led sales, you are the pipeline, and the work around the conversations quietly eats your week. We built Elevay to run all of it, so the only thing left to you is the conversation.
               </blockquote>
             </Animate>
             <Animate>

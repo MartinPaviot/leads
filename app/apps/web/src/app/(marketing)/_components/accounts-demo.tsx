@@ -89,16 +89,16 @@ const DESIGN_WIDTH = COLS.reduce((sum, c) => sum + c.w, 0); // 1080
 const FETCHED_AT = new Date().toISOString();
 function reasonFor(key: SigKey, detail: string | number): string {
   switch (key) {
-    case "investor_overlap": return `Backed by ${detail} — an investor you share.`;
+    case "investor_overlap": return `Backed by ${detail}, an investor you share.`;
     case "funding_recent": return `Raised a ${detail} in the last 6 months.`;
     case "hiring_intent": return `${detail} SDR / AE roles posted recently.`;
-    case "yc_company": return `Y Combinator — ${detail} batch.`;
+    case "yc_company": return `Y Combinator, ${detail} batch.`;
   }
 }
 function sourceFor(co: Co, key: SigKey) {
   if (key === "hiring_intent") return { url: `https://${co.dom}/careers`, title: `Careers · ${co.name}` };
   if (key === "yc_company") return { url: "https://www.ycombinator.com/companies", title: `${co.name} · Y Combinator` };
-  return { url: "https://techcrunch.com/", title: `${co.name} — funding & investors` };
+  return { url: "https://techcrunch.com/", title: `${co.name} funding & investors` };
 }
 function payloadFor(co: Co, key: SigKey): SignalPayload {
   const detail = co.sig[key];
@@ -226,7 +226,7 @@ export function AccountsDemo() {
                 <div className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
                   <Building2 size={14} style={{ color: "var(--color-text-tertiary)" }} /> Accounts
                 </div>
-                <div className="mt-0.5 truncate text-[10.5px]" style={{ color: "var(--color-text-tertiary)" }}>ICP · SaaS founders, Series A–B · ranked by fit</div>
+                <div className="mt-0.5 truncate text-[10.5px]" style={{ color: "var(--color-text-tertiary)" }}>ICP · SaaS founders, Series A/B · ranked by fit</div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold" style={{ background: done ? "var(--color-success-soft)" : "var(--color-accent-soft, rgba(44,107,237,0.08))", color: done ? "var(--color-success)" : "var(--color-accent)" }}>
                 {done ? <Check size={12} /> : <Loader2 size={12} className={reduced ? "" : "animate-spin"} />}
@@ -284,19 +284,22 @@ export function AccountsDemo() {
                         <td className="align-middle text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{co.size}</td>
                         {/* Score — real grade chip + heat */}
                         <td className="align-middle"><ScoreCell score={co.score} /></td>
-                        {/* Signals — real SignalChip, shimmer until computed */}
-                        {SIGNAL_COLS.map((sc) => (
-                          <td key={sc.key} className="align-middle">
-                            <SignalChip
-                              signalKey={sc.key}
-                              payload={sigResolved ? payloadFor(co, sc.key) : null}
-                              label={sc.label}
-                              id={`${co.id}::${sc.key}`}
-                              openId={openChip}
-                              onOpenChange={setOpenChip}
-                            />
-                          </td>
-                        ))}
+                        {/* Signals — real SignalChip. Computing: shimmer. Resolved
+                            + detected: the lit chip. Resolved + not detected: leave
+                            the cell blank (the real "—" placeholder would scatter
+                            dashes across the whole table). */}
+                        {SIGNAL_COLS.map((sc) => {
+                          const detected = co.sig[sc.key] !== undefined;
+                          return (
+                            <td key={sc.key} className="align-middle">
+                              {!sigResolved ? (
+                                <SignalChip signalKey={sc.key} payload={null} label={sc.label} id={`${co.id}::${sc.key}`} openId={openChip} onOpenChange={setOpenChip} />
+                              ) : detected ? (
+                                <SignalChip signalKey={sc.key} payload={payloadFor(co, sc.key)} label={sc.label} id={`${co.id}::${sc.key}`} openId={openChip} onOpenChange={setOpenChip} />
+                              ) : null}
+                            </td>
+                          );
+                        })}
                       </m.tr>
                     );
                   })}

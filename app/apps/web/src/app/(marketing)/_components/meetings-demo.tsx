@@ -26,11 +26,11 @@ const GREEN_SOFT = "rgba(78,158,134,0.13)";
 
 const CHUNKS: { who: string; name: string; text: string }[] = [
   { who: "prospect", name: "Dana Liu", text: "We're growing the team fast, so onboarding new reps is the bottleneck right now." },
-  { who: "you", name: "You", text: "That's exactly where Elevay helps — the list, research and follow-ups are done before they start." },
+  { who: "you", name: "You", text: "That's exactly where Elevay helps: the list, research and follow-ups are done before they start." },
   { who: "prospect", name: "Dana Liu", text: "Budget's approved for Q3. I'd want to see it write into our CRM though." },
   { who: "you", name: "You", text: "It logs every call straight into your CRM. I'll send the one-pager and book a technical review." },
 ];
-const SUMMARY = "Strong fit — budget approved for Q3, CRM-sync is the deciding factor.";
+const SUMMARY = "Strong fit. Budget approved for Q3, CRM-sync is the deciding factor.";
 const ACTIONS = ["Send the CRM-sync one-pager", "Book a technical review for Thursday"];
 const SIGNALS = [
   { label: "Budget approved · Q3", tone: GREEN },
