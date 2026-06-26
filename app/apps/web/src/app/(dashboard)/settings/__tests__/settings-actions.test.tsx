@@ -30,7 +30,7 @@ vi.mock("@/hooks/use-custom-fields", () => ({
   useCustomFields: () => ({ fields: [], loading: false }),
 }));
 
-import GuardrailsSettingsPage from "@/app/(dashboard)/settings/guardrails/page";
+import AutonomySettingsPage from "@/app/(dashboard)/settings/autonomy/page";
 import NotificationsSettingsPage from "@/app/(dashboard)/settings/notifications/page";
 import StagesSettingsPage from "@/app/(dashboard)/settings/stages/page";
 import CustomSignalsPage from "@/app/(dashboard)/settings/signals/page";
@@ -58,6 +58,16 @@ const FIXTURE_SENDING = {
   providers: { instantly: { connected: false } },
   pendingManagedRequest: null,
 };
+const FIXTURE_AUTONOMY = {
+  config: {
+    level: "copilot",
+    permissions: {},
+    guardrails: { maxEmailsPerDay: 40, maxNewProspectsPerWeek: 25, maxEmailsPerProspect: 5, neverContact: [] },
+    brand: {},
+  },
+  trustScore: { overall: 50, trend: "stable", actionsCount: 0, approvalsWithoutEdit: 0, rejections: 0, suggestedLevel: "copilot", readyForUpgrade: false, shouldDowngrade: false },
+  thresholds: null,
+};
 const FIXTURE_NOTIF_PREFS = {
   emailEnabled: true,
   inAppEnabled: true,
@@ -83,6 +93,8 @@ function router(url: string, init?: RequestInit): Response {
   if (u === "/api/settings/workspace" && method === "GET") return jsonRes(FIXTURE_WORKSPACE);
   if (u === "/api/settings/workspace" && method === "PUT") return jsonRes({ success: true });
   if (u === "/api/settings/sending-infra") return jsonRes(FIXTURE_SENDING);
+  if (u === "/api/settings/autonomy" && method === "GET") return jsonRes(FIXTURE_AUTONOMY);
+  if (u === "/api/settings/autonomy" && method === "PUT") return jsonRes({ config: FIXTURE_AUTONOMY.config, trustScore: 50, levelChangeApplied: true });
   if (u === "/api/notifications/preferences" && method === "GET") return jsonRes(FIXTURE_NOTIF_PREFS);
   if (u === "/api/notifications/preferences" && method === "PUT") return jsonRes({ success: true });
   if (u === "/api/settings/stages" && method === "GET") return jsonRes(FIXTURE_STAGES);
@@ -144,9 +156,9 @@ async function mountAndWait(Comp: React.ComponentType, id: string) {
 /* ── per-page manifest membership: each registers exactly its one id ── */
 
 describe("CLE-14 /settings — per-page single-action membership", () => {
-  it("guardrails -> only settings.setApprovalMode", async () => {
-    await mountAndWait(GuardrailsSettingsPage, "settings.setApprovalMode");
-    expect(getActionManifest().map((a) => a.id)).toEqual(["settings.setApprovalMode"]);
+  it("autonomy -> only settings.setAutonomyLevel", async () => {
+    await mountAndWait(AutonomySettingsPage, "settings.setAutonomyLevel");
+    expect(getActionManifest().map((a) => a.id)).toEqual(["settings.setAutonomyLevel"]);
   });
   it("notifications -> only settings.updateNotificationPrefs", async () => {
     await mountAndWait(NotificationsSettingsPage, "settings.updateNotificationPrefs");
@@ -170,7 +182,7 @@ describe("CLE-14 /settings — per-page single-action membership", () => {
 
 describe("CLE-14 /settings — action metadata", () => {
   const cases: Array<[string, React.ComponentType]> = [
-    ["settings.setApprovalMode", GuardrailsSettingsPage],
+    ["settings.setAutonomyLevel", AutonomySettingsPage],
     ["settings.updateNotificationPrefs", NotificationsSettingsPage],
     ["settings.editPipelineStages", StagesSettingsPage],
     ["settings.addSignal", CustomSignalsPage],
@@ -191,32 +203,32 @@ describe("CLE-14 /settings — action metadata", () => {
 
 /* ── each run -> the correct fetch URL + body ── */
 
-describe("CLE-14 /settings — setApprovalMode (PUT /api/settings/workspace {agentApprovalMode})", () => {
-  it("PUTs the chosen mode; bad enum -> invalid_params, no PUT", async () => {
-    await mountAndWait(GuardrailsSettingsPage, "settings.setApprovalMode");
-    const r = await runRegisteredAction("settings.setApprovalMode", { mode: "auto-high-confidence" });
+describe("CLE-14 /settings — setAutonomyLevel (PUT /api/settings/autonomy {level})", () => {
+  it("PUTs the chosen level; bad enum -> invalid_params, no PUT", async () => {
+    await mountAndWait(AutonomySettingsPage, "settings.setAutonomyLevel");
+    const r = await runRegisteredAction("settings.setAutonomyLevel", { level: "autonomous" });
     expect(r.ok).toBe(true);
-    expect(r.summary).toContain("auto-high-confidence");
-    const put = callsTo("/api/settings/workspace", "PUT");
+    expect(r.summary).toContain("autonomous");
+    const put = callsTo("/api/settings/autonomy", "PUT");
     expect(put.length).toBe(1);
-    expect(bodyOf(put[0])).toEqual({ agentApprovalMode: "auto-high-confidence" });
+    expect(bodyOf(put[0])).toEqual({ level: "autonomous" });
 
-    const bad = await runRegisteredAction("settings.setApprovalMode", { mode: "yolo" });
+    const bad = await runRegisteredAction("settings.setAutonomyLevel", { level: "yolo" });
     expect(bad.ok).toBe(false);
     expect(bad.error).toBe("invalid_params");
-    expect(callsTo("/api/settings/workspace", "PUT").length).toBe(1); // unchanged
+    expect(callsTo("/api/settings/autonomy", "PUT").length).toBe(1); // unchanged
   });
 
   it("server reject -> ok:false (rolled back)", async () => {
     fetchMock.mockImplementation((url: string, init?: RequestInit) => {
       const u = String(url);
-      if (u === "/api/settings/workspace" && (init?.method ?? "GET") === "PUT") {
-        return Promise.resolve(jsonRes({ error: "nope" }, false, 500));
+      if (u === "/api/settings/autonomy" && (init?.method ?? "GET") === "PUT") {
+        return Promise.resolve(jsonRes({ error: "Trust score must be >= 80 to enable strategic mode" }, false, 403));
       }
       return Promise.resolve(router(url, init));
     });
-    await mountAndWait(GuardrailsSettingsPage, "settings.setApprovalMode");
-    const r = await runRegisteredAction("settings.setApprovalMode", { mode: "batch-daily" });
+    await mountAndWait(AutonomySettingsPage, "settings.setAutonomyLevel");
+    const r = await runRegisteredAction("settings.setAutonomyLevel", { level: "strategic" });
     expect(r.ok).toBe(false);
   });
 });
@@ -318,7 +330,7 @@ describe("CLE-14 /settings — updateWorkspaceName (PUT /api/settings/workspace 
 
 describe("CLE-14 /settings — off-page degradation", () => {
   const cases: Array<[string, React.ComponentType]> = [
-    ["settings.setApprovalMode", GuardrailsSettingsPage],
+    ["settings.setAutonomyLevel", AutonomySettingsPage],
     ["settings.updateNotificationPrefs", NotificationsSettingsPage],
     ["settings.editPipelineStages", StagesSettingsPage],
     ["settings.addSignal", CustomSignalsPage],

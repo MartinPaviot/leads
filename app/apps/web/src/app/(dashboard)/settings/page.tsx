@@ -1,179 +1,136 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
-import { SettingsHeader } from "@/components/ui/settings-header";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import { Mail } from "lucide-react";
+/**
+ * Settings overview — the "Your AI at a glance" cockpit (Settings IA).
+ *
+ * Elevay is an autonomous engine, so opening Settings should answer "what is my
+ * AI doing right now, and how aggressive is it?" before it offers a list of
+ * config pages. The two top cards read LIVE state (autonomy level + trust score,
+ * connected mailboxes); the rest are deep links into the section a founder most
+ * often needs. Profile moved to /settings/profile.
+ */
 
-export default function ProfileSettingsPage() {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [language, setLanguage] = useState("en");
-  const [timezone, setTimezone] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState("");
-  const [loaded, setLoaded] = useState(false);
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { SettingsHeader } from "@/components/ui/settings-header";
+import { Gauge, Mail, PenLine, Target, BadgeCheck, ArrowRight } from "lucide-react";
+
+type AutonomyLevel = "copilot" | "guided" | "autonomous" | "strategic";
+const LEVEL_LABEL: Record<AutonomyLevel, string> = {
+  copilot: "Copilot",
+  guided: "Guided",
+  autonomous: "Autonomous",
+  strategic: "Strategic",
+};
+const LEVEL_BLURB: Record<AutonomyLevel, string> = {
+  copilot: "Approves everything before it happens",
+  guided: "Acts on safe changes, sends still wait",
+  autonomous: "Auto-runs high-confidence work",
+  strategic: "More leeway once trust is earned",
+};
+
+export default function SettingsOverviewPage() {
+  const [level, setLevel] = useState<AutonomyLevel | null>(null);
+  const [trust, setTrust] = useState<number | null>(null);
+  const [mailboxes, setMailboxes] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
-      try {
-        const r = await fetch("/api/settings/profile");
-        if (!r.ok) {
-          // Was `.then(r => r.json())` with no status check: a 500's error body
-          // parsed into empty fields, so the form rendered blank with no error.
-          setError("Failed to load profile");
-          setLoaded(true);
-          return;
-        }
-        const data = await r.json();
-        setFirstName(data.firstName || "");
-        setLastName(data.lastName || "");
-        setEmail(data.email || "");
-        setLanguage(data.language || "en");
-        setTimezone(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
-        setLoaded(true);
-      } catch {
-        setError("Failed to load profile");
-        setLoaded(true);
-      }
+      const [a, m] = await Promise.all([
+        fetch("/api/settings/autonomy").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch("/api/settings/mailboxes").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
+      if (a?.config?.level) setLevel(a.config.level as AutonomyLevel);
+      const overall = typeof a?.trustScore === "number" ? a.trustScore : a?.trustScore?.overall;
+      if (typeof overall === "number") setTrust(Math.round(overall));
+      if (Array.isArray(m?.mailboxes)) setMailboxes(m.mailboxes.length);
     })();
   }, []);
 
-  async function handleSave() {
-    setSaving(true);
-    setError("");
-    try {
-      const res = await fetch("/api/settings/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName: firstName.trim(), lastName: lastName.trim(), language, timezone }),
-      });
-      if (res.ok) {
-        setSaved(true);
-        setError("");
-        setTimeout(() => setSaved(false), 3000);
-      } else {
-        setError("Failed to save profile");
-      }
-    } catch {
-      setError("Failed to save profile");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!loaded) return null;
-
   return (
     <>
-      <SettingsHeader
-        title="Profile"
-        subtitle="Manage settings for your personal profile."
-      />
+      <SettingsHeader title="Overview" subtitle="Your AI at a glance — and where to tune it." />
 
-      <div className="space-y-5">
-        <div className="flex gap-4">
-          <div className="flex-1">
-            <Input
-              label="First name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-            />
-          </div>
-          <div className="flex-1">
-            <Input
-              label="Last name"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div>
-          <Input label="Email" value={email} disabled />
-        </div>
-
-        <div className="flex gap-4">
-          <div className="flex-1">
-            <label className="mb-1 block text-[11px] font-medium" style={{ color: "var(--color-text-secondary)" }}>Language</label>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="w-full rounded-lg px-3 py-1.5 text-[12px] outline-none"
-              style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
-            >
-              <option value="en">English</option>
-              <option value="fr">Fran\u00e7ais</option>
-              <option value="de">Deutsch</option>
-              <option value="es">Espa\u00f1ol</option>
-              <option value="pt">Portugu\u00eas</option>
-              <option value="it">Italiano</option>
-              <option value="nl">Nederlands</option>
-              <option value="ja">\u65e5\u672c\u8a9e</option>
-              <option value="ko">\ud55c\uad6d\uc5b4</option>
-              <option value="zh">\u4e2d\u6587</option>
-            </select>
-          </div>
-          <div className="flex-1">
-            <label className="mb-1 block text-[11px] font-medium" style={{ color: "var(--color-text-secondary)" }}>Timezone</label>
-            <select
-              value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
-              className="w-full rounded-lg px-3 py-1.5 text-[12px] outline-none"
-              style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
-            >
-              {Intl.supportedValuesOf?.("timeZone")?.map((tz: string) => (
-                <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
-              )) || [
-                "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
-                "Europe/London", "Europe/Paris", "Europe/Berlin", "Asia/Tokyo", "Asia/Shanghai",
-                "Australia/Sydney", "Pacific/Auckland",
-              ].map((tz) => <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button variant="solid" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Update"}
-          </Button>
-          {saved && <Badge variant="success">Saved</Badge>}
-          {error && <p className="text-[12px]" style={{ color: "var(--color-error)" }}>{error}</p>}
-        </div>
+      {/* Live state — autonomy + channels */}
+      <div className="grid gap-3 @min-[560px]:grid-cols-2">
+        <StatCard
+          href="/settings/autonomy"
+          icon={<Gauge size={16} />}
+          label="Autonomy"
+          value={level ? LEVEL_LABEL[level] : "—"}
+          sub={level ? LEVEL_BLURB[level] : "How much it acts on its own"}
+          meta={trust != null ? `Trust ${trust}/100` : undefined}
+        />
+        <StatCard
+          href="/settings/sending-infrastructure"
+          icon={<Mail size={16} />}
+          label="Channels"
+          value={mailboxes != null ? `${mailboxes} connected` : "—"}
+          sub={mailboxes === 0 ? "Connect a mailbox to start sending" : "Mailboxes it sends from"}
+        />
       </div>
 
-      {/* Email & Calendar — link to dedicated page */}
-      <section className="mt-12">
-        <h2
-          className="text-[12px] font-semibold uppercase tracking-wider"
-          style={{ color: "var(--color-text-tertiary)" }}
-        >
-          Email & Calendar
-        </h2>
-        <Link
-          href="/settings/mail-calendar"
-          className="mt-3 flex items-center gap-3 rounded-lg p-4 transition-colors"
-          style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
-        >
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--color-bg-hover)" }}>
-            <Mail size={16} style={{ color: "var(--color-text-secondary)" }} />
-          </div>
-          <div className="flex-1">
-            <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-              Mail & Calendar settings
-            </p>
-            <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-              Manage connected accounts, sync preferences, and sending settings.
-            </p>
-          </div>
-          <span className="text-[12px]" style={{ color: "var(--color-accent)" }}>&rarr;</span>
-        </Link>
-      </section>
+      {/* Where to tune the AI */}
+      <h2 className="mt-8 mb-2 px-0.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+        Tune your AI
+      </h2>
+      <div className="space-y-2">
+        <LinkRow href="/settings/writing-style" icon={<PenLine size={15} />} title="Voice & Writing" sub="How it sounds, your standing instructions, audiences" />
+        <LinkRow href="/settings/icp" icon={<Target size={15} />} title="Targeting" sub="Your ICP — who the engine goes after" />
+        <LinkRow href="/settings/guardrails" icon={<BadgeCheck size={15} />} title="Approval mode" sub="When it must ask before acting" />
+        <LinkRow href="/settings/profile" icon={<ArrowRight size={15} />} title="Profile & account" sub="Your name, language, security, notifications" />
+      </div>
     </>
+  );
+}
+
+function StatCard({
+  href, icon, label, value, sub, meta,
+}: { href: string; icon: React.ReactNode; label: string; value: string; sub: string; meta?: string }) {
+  return (
+    <Link
+      href={href}
+      className="group flex flex-col rounded-xl p-4 transition-colors"
+      style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--color-accent)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--color-border-default)"; }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[12px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>
+          <span style={{ color: "var(--color-accent)" }}>{icon}</span>
+          {label}
+        </div>
+        {meta && (
+          <span className="text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>{meta}</span>
+        )}
+      </div>
+      <div className="mt-2 text-[20px] font-semibold" style={{ color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}>
+        {value}
+      </div>
+      <div className="mt-0.5 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>{sub}</div>
+    </Link>
+  );
+}
+
+function LinkRow({
+  href, icon, title, sub,
+}: { href: string; icon: React.ReactNode; title: string; sub: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 rounded-lg p-3 transition-colors"
+      style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg-hover)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-bg-card)"; }}
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: "var(--color-bg-hover)", color: "var(--color-text-secondary)" }}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{title}</span>
+        <span className="block text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>{sub}</span>
+      </span>
+      <ArrowRight size={14} style={{ color: "var(--color-text-tertiary)" }} />
+    </Link>
   );
 }

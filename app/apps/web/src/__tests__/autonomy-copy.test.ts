@@ -11,7 +11,7 @@ import { LEVEL_BEHAVIOR } from "@/lib/guardrails/level-behavior";
 
 const PAGE_PATH = join(
   process.cwd(),
-  "src/app/(dashboard)/(rest)/settings/autonomy/page.tsx",
+  "src/app/(dashboard)/settings/autonomy/page.tsx",
 );
 const pageSrc = readFileSync(PAGE_PATH, "utf8");
 

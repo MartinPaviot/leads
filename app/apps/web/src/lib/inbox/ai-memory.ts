@@ -76,7 +76,10 @@ export function clampMemory(memory: InboxMemory): InboxMemory {
  * Pure. Returns { prompt, ignored }: auto-send-style instructions are excluded
  * from `prompt` and listed in `ignored` (never honored). Empty when nothing set.
  */
-export function buildMemoryPrompt(memory: InboxMemory): { prompt: string; ignored: string[] } {
+export function buildMemoryPrompt(
+  memory: InboxMemory,
+  opts: { omitSignOff?: boolean } = {},
+): { prompt: string; ignored: string[] } {
   const m = memory || EMPTY_MEMORY;
   const ignored: string[] = [];
   const honored = (m.standingInstructions || []).filter((s) => {
@@ -88,7 +91,12 @@ export function buildMemoryPrompt(memory: InboxMemory): { prompt: string; ignore
   });
   const lines: string[] = [];
   const a = m.aboutMe || {};
-  if (a.signOffName) lines.push(`- Sign off as: ${a.signOffName}`);
+  // Sign-off has a SINGLE source of truth: the writing-style "Sign off with …"
+  // block (the reachable Voice & Writing surface). When a caller already injects
+  // that, it passes omitSignOff so the same prompt never carries two conflicting
+  // signatures. memory.signOffName stays the fallback for paths that don't load
+  // writing-style (compose/draft, ask-inbox). Settings IA de-dup.
+  if (a.signOffName && !opts.omitSignOff) lines.push(`- Sign off as: ${a.signOffName}`);
   if (a.companyLine) lines.push(`- The user's company: ${a.companyLine}`);
   if (a.keyColleagues?.length) lines.push(`- Key colleagues: ${a.keyColleagues.join(", ")}`);
   for (const s of honored) lines.push(`- ${s.text}`);

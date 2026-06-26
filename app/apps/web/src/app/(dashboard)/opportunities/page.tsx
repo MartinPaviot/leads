@@ -202,6 +202,13 @@ export default function OpportunitiesPage() {
 
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
+  // Open the create modal when arrived via the command palette's
+  // "Create opportunity" action (href /opportunities?create=true).
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("create") === "true") {
+      setShowCreate(true);
+    }
+  }, []);
   const [createStage, setCreateStage] = useState("lead");
   const [newName, setNewName] = useState("");
   const [newValue, setNewValue] = useState("");

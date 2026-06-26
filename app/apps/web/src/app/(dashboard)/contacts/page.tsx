@@ -134,6 +134,13 @@ export default function ContactsPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   // Create contact
   const [showCreate, setShowCreate] = useState(false);
+  // Open the create modal when arrived via the command palette's
+  // "Create contact" action (href /contacts?create=true).
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("create") === "true") {
+      setShowCreate(true);
+    }
+  }, []);
   const [createForm, setCreateForm] = useState({ firstName: "", lastName: "", email: "", title: "", companyName: "" });
   // Smart Search — stacks on top of the text search box, powered by
   // /api/filters/parse-nl (resourceType: "contact"). Applied before the

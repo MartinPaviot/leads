@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
-import { PageHeader } from "@/components/ui/page-header";
+import { SettingsHeader } from "@/components/ui/settings-header";
 import { useToast } from "@/components/ui/toast";
 import { Shield, Zap, Brain, Rocket, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { LEVEL_BEHAVIOR } from "@/lib/guardrails/level-behavior";
+import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
+import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+
+/* page-action helpers (pure, shared) — mirrors the /settings cluster pattern. */
+const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
+const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
+function definePageAction<P>(a: PageAction<P>): PageAction { return a as unknown as PageAction; }
 
 type AutonomyLevel = "copilot" | "guided" | "autonomous" | "strategic";
 
@@ -141,17 +149,69 @@ export default function AutonomySettingsPage() {
     setGuardrails({ ...guardrails, neverContact: guardrails.neverContact.filter((d) => d !== domain) });
   }
 
+  // Chat live-executor action — set the autonomy level. The API derives the
+  // effective approval mode from the level (CLE-10 write-side sync), so this is
+  // the canonical control. Relocated here from the retired /settings/guardrails
+  // approval-mode page: same one SAFE config-write surface, optimistic + rollback.
+  const setLevelValue = useCallback(
+    async (next: AutonomyLevel): Promise<{ ok: boolean; error?: string }> => {
+      const prev = level;
+      setLevel(next); // optimistic
+      try {
+        const res = await fetch("/api/settings/autonomy", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ level: next }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        return { ok: true };
+      } catch (err) {
+        setLevel(prev); // rollback
+        return { ok: false, error: err instanceof Error ? err.message : "Couldn't set autonomy level" };
+      }
+    },
+    [level],
+  );
+
+  const autonomyActions: PageAction[] = useMemo(
+    () => [
+      definePageAction({
+        id: "settings.setAutonomyLevel",
+        title: "Set the agent autonomy level",
+        description:
+          "Set how autonomously the agent acts: 'copilot' (approve everything before it happens), " +
+          "'guided', 'autonomous' (auto-run safe high-confidence work; sends still wait for you), or " +
+          "'strategic' (requires a trust score >= 80). Use when the user wants to change how much the " +
+          "agent does on its own / its trust or autonomy.",
+        params: z.object({ level: z.enum(["copilot", "guided", "autonomous", "strategic"]) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ level: next }): Promise<PageActionResult> => {
+          const r = await setLevelValue(next);
+          return r.ok ? okResult(`Autonomy level set to ${next}.`) : errResult(r.error ?? "Couldn't set autonomy level.");
+        },
+      }),
+    ],
+    // run() reaches the latest setLevelValue via the identity below; the id set
+    // is stable so registration is idempotent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [setLevelValue],
+  );
+  useRegisterPageActions(autonomyActions);
+
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="space-y-6">
         <div className="h-8 w-48 animate-pulse rounded" style={{ background: "var(--color-bg-hover)" }} />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6 space-y-6">
-      <PageHeader title="Autonomy & Guardrails" subtitle="Control how much the campaign engine acts on its own" />
+    <div className="space-y-6">
+      <SettingsHeader title="Autonomy & Guardrails" subtitle="Control how much the campaign engine acts on its own" />
 
       {loadError && (
         <div

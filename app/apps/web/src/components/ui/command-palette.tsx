@@ -13,9 +13,9 @@ import {
   Zap,
   Clock,
   Calendar,
-  Shield,
-  FileBarChart,
-  MessageCircle,
+  Briefcase,
+  Inbox,
+  Phone,
   Plus,
   ArrowRight,
   Mail,
@@ -56,29 +56,34 @@ interface SearchResults {
 
 /* ── Static items ── */
 
+// Keep this list in sync with the real product navigation (the sidebar's
+// `navSections` in components/sidebar.tsx) — it is the source of truth for what
+// counts as a destination. Pages that exist only by URL (deliverability,
+// reports, tasks, insights, notes, voice-of-customer, knowledge, skills) are
+// intentionally NOT offered here: surfacing them as "tabs" confused users into
+// thinking removed sections still existed.
 const NAV_ITEMS: CommandItem[] = [
   { id: "nav-home", label: "Up next", icon: <Clock size={16} />, href: "/", section: "Navigate to" },
   { id: "nav-accounts", label: "Accounts", icon: <Building2 size={16} />, href: "/accounts", section: "Navigate to" },
   { id: "nav-contacts", label: "Contacts", icon: <Users size={16} />, href: "/contacts", section: "Navigate to" },
   { id: "nav-opportunities", label: "Opportunities", icon: <CircleDot size={16} />, href: "/opportunities", section: "Navigate to" },
-  { id: "nav-sequences", label: "Sequences", icon: <Zap size={16} />, href: "/sequences", section: "Navigate to" },
-  { id: "nav-deliverability", label: "Deliverability", icon: <Shield size={16} />, href: "/deliverability", section: "Navigate to" },
-  { id: "nav-reports", label: "Reports", icon: <FileBarChart size={16} />, href: "/reports", section: "Navigate to" },
-  { id: "nav-tasks", label: "Tasks", icon: <CheckSquare size={16} />, href: "/tasks", section: "Navigate to" },
+  { id: "nav-proposals", label: "Proposals", icon: <Briefcase size={16} />, href: "/proposals", section: "Navigate to" },
+  { id: "nav-inbox", label: "Inbox", icon: <Inbox size={16} />, href: "/inbox", section: "Navigate to" },
+  { id: "nav-call-mode", label: "Call Mode", icon: <Phone size={16} />, href: "/call-mode", section: "Navigate to" },
+  { id: "nav-campaigns", label: "Campaigns", icon: <Zap size={16} />, href: "/sequences", section: "Navigate to" },
   { id: "nav-meetings", label: "Meetings", icon: <Calendar size={16} />, href: "/meetings", section: "Navigate to" },
-  { id: "nav-notes", label: "Notes", icon: <FileText size={16} />, href: "/notes", section: "Navigate to" },
-  { id: "nav-voc", label: "Voice of Customer", icon: <MessageCircle size={16} />, href: "/voice-of-customer", section: "Navigate to" },
   { id: "nav-chat", label: "Ask Elevay", icon: <MessageSquare size={16} />, href: "/chat", section: "Navigate to" },
   { id: "nav-settings", label: "Settings", icon: <Settings size={16} />, href: "/settings", section: "Navigate to" },
 ];
 
+// Only entities with a real create modal that honours `?create=true` (wired in
+// each page). Tasks (deprecated tab) and sequences/campaigns (no create modal —
+// built via the agent) are intentionally absent.
 const ACTION_ITEMS: CommandItem[] = [
   { id: "act-new-chat", label: "New chat", icon: <Plus size={16} />, href: "/chat", section: "Actions" },
   { id: "act-new-account", label: "Create account", icon: <Building2 size={16} />, href: "/accounts?create=true", section: "Actions" },
   { id: "act-new-contact", label: "Create contact", icon: <Users size={16} />, href: "/contacts?create=true", section: "Actions" },
   { id: "act-new-deal", label: "Create opportunity", icon: <CircleDot size={16} />, href: "/opportunities?create=true", section: "Actions" },
-  { id: "act-new-task", label: "Create task", icon: <CheckSquare size={16} />, href: "/tasks?create=true", section: "Actions" },
-  { id: "act-new-sequence", label: "Create sequence", icon: <Zap size={16} />, href: "/sequences?create=true", section: "Actions" },
 ];
 
 /* ── Icon by record type ── */

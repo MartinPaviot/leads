@@ -198,6 +198,14 @@ export default function AccountsPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  // Open the create modal when arrived via the command palette's
+  // "Create account" action (href /accounts?create=true). Client-only read so
+  // there's no useSearchParams Suspense requirement.
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("create") === "true") {
+      setShowCreate(true);
+    }
+  }, []);
   const [newName, setNewName] = useState("");
   const [newDomain, setNewDomain] = useState("");
   const [creating, setCreating] = useState(false);
