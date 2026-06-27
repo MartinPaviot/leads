@@ -90,4 +90,24 @@ describe("instantiateTemplates (batch)", () => {
     expect(ids).toEqual(PROVEN_TEMPLATES.map((t) => t.id));
     expect(results.every((r) => r.outcome === "created")).toBe(true);
   });
+
+  it("isolates a failure: one throwing template is recorded as 'failed', the batch continues", async () => {
+    let n = 0;
+    const three = PROVEN_TEMPLATES.slice(0, 3);
+    const results = await instantiateTemplates(
+      "t1",
+      three,
+      deps({
+        insertSequence: async () => {
+          n += 1;
+          if (n === 2) throw new Error("db hiccup");
+          return { id: `seq_${n}` };
+        },
+      }),
+    );
+    expect(results.length).toBe(3);
+    expect(results.map((r) => r.outcome)).toEqual(["created", "failed", "created"]);
+    expect(results[1].error).toContain("db hiccup");
+    expect(results[1].sequenceId).toBe("");
+  });
 });
