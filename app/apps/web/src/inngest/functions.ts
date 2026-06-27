@@ -8,6 +8,7 @@ import { addBusinessDays } from "@/lib/util/business-days";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { dispatchStep } from "@/lib/sequence-dispatch/registry";
 import type { SequenceStepType } from "@/lib/sequence-dispatch/types";
+import { manualTaskExists } from "@/lib/sequences/manual-task-guard";
 import { enqueueOutbound } from "@/lib/emails/outbound-hold";
 import { pauseEnrollment } from "@/lib/sequences/enrollment";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -502,7 +503,7 @@ const emailSchema = z.object({
  * Channel-agnostic — shared by the email path and the non-email dispatch path so
  * the cadence logic stays in one place.
  */
-async function advanceEnrollment(
+export async function advanceEnrollment(
   enrollment: { sequenceId: string; currentStep: number },
   tenantId: string,
   enrollmentId: string,
@@ -647,10 +648,18 @@ export const sendSequenceStep = inngest.createFunction(
     // Multi-channel: a non-email step dispatches through the channel registry
     // (manual "Needs you" task today; live send once the channel's provider is
     // wired) — it must NOT be rendered + sent as an email. Email steps fall
-    // through to the unchanged pipeline below. Inngest memoizes the dispatch
-    // step, so a function retry never creates a duplicate task.
+    // through to the unchanged pipeline below.
     const stepType = ((stepTemplate.stepType as string) || "email") as SequenceStepType;
     if (stepType !== "email") {
+      // Idempotency (mirrors the email check-duplicate): a duplicate
+      // sequence/step-due event (cron overlap / trigger re-delivery / a run that
+      // hasn't advanced the enrollment yet) must not mint a second manual task.
+      const alreadyTasked = await step.run("check-duplicate-nonemail", async () =>
+        manualTaskExists(enrollmentId, stepTemplate.id),
+      );
+      if (alreadyTasked) {
+        return { enrollmentId, sent: false, channel: stepType, reason: "manual task already exists for this step" };
+      }
       const dispatch = await step.run("dispatch-nonemail-step", async () =>
         dispatchStep({
           tenantId,
