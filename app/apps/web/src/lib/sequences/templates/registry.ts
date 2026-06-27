@@ -94,7 +94,13 @@ export interface CatalogIssue {
   problem: string;
 }
 
-const VAR_PATTERN = /\{\{\s*([a-zA-Z]+)\s*\}\}/g;
+// Match ANY `{{...}}` occurrence, then require the inner text to be EXACTLY a
+// supported var. The send path builds `new RegExp(\`\\{\\{${key}\\}\\}\`)` with
+// no whitespace tolerance (inngest/functions.ts), so `{{ firstName }}` or
+// `{{first_name}}` would pass a loose check yet ship literally to the prospect.
+const VAR_PATTERN = /\{\{([^}]*)\}\}/g;
+/** Copy AI-slop tokens banned everywhere (mirrors lib/copy ALWAYS_BANNED). */
+const BANNED_COPY_TOKENS = ["—", "–", "--"];
 
 /**
  * Assert the catalog invariants. Returns [] when healthy, else one issue per
@@ -108,6 +114,21 @@ export function validateCatalog(templates: ProvenSequenceTemplate[] = PROVEN_TEM
   for (const t of templates) {
     if (seenIds.has(t.id)) issues.push({ templateId: t.id, problem: "duplicate template id" });
     seenIds.add(t.id);
+
+    // Banned AI-slop tokens (em-dashes) in ANY shipped/displayed copy — the
+    // template floor ships unguarded on the LLM-fallback path, so the catalog
+    // itself must be clean (the live copy engine bans these tokens).
+    const copyStrings = [
+      t.name,
+      t.description,
+      t.recipientBenefitAngle,
+      ...t.steps.flatMap((s) => [s.subjectTemplate, s.bodyTemplate, s.valueAdded, JSON.stringify(s.channelConfig ?? {})]),
+    ];
+    for (const tok of BANNED_COPY_TOKENS) {
+      if (copyStrings.some((str) => str.includes(tok))) {
+        issues.push({ templateId: t.id, problem: `contains banned copy token "${tok}" (AI-slop; use a colon/comma)` });
+      }
+    }
 
     if (t.triggerSignalTypes.length === 0) {
       issues.push({ templateId: t.id, problem: "no triggerSignalTypes → would match ALL signals (not trigger-specific)" });
@@ -135,7 +156,10 @@ export function validateCatalog(templates: ProvenSequenceTemplate[] = PROVEN_TEM
       for (const field of [s.subjectTemplate, s.bodyTemplate]) {
         for (const m of field.matchAll(VAR_PATTERN)) {
           if (!supported.has(m[1])) {
-            issues.push({ templateId: t.id, problem: `step ${s.stepNumber} uses unsupported var {{${m[1]}}}` });
+            issues.push({
+              templateId: t.id,
+              problem: `step ${s.stepNumber} uses an unsupported/malformed var {{${m[1]}}} (must be exactly one of ${SUPPORTED_TEMPLATE_VARS.join("/")}, no spaces)`,
+            });
           }
         }
       }

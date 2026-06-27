@@ -1,16 +1,16 @@
 /**
- * The proven sequence templates — one structurally-distinct cadence per trigger.
+ * The proven sequence templates : one structurally-distinct cadence per trigger.
  *
  * These are DATA. Each is tuned to a why-now: the angle is recipient-benefit
  * (what's in it for THEM), every follow-up adds new value, and the cadence shape
- * (step count, channel mix, delays) differs by trigger — that difference IS the
+ * (step count, channel mix, delays) differs by trigger : that difference IS the
  * Monaco moat, not the wording. Copy is FR (vouvoiement), tight (cold-email
  * length), hype-free (the voice guide bans "leverage/transform/unlock" and their
  * FR equivalents), and uses only the interpolation vars the send path supports
  * (`{{firstName}}` `{{lastName}}` `{{fullName}}` `{{title}}`).
  *
  * Adding/Tuning a template here changes what the autopilot router can land a
- * cohort on — no schema change, no migration.
+ * cohort on : no schema change, no migration.
  */
 
 import type { ProvenSequenceTemplate } from "./types";
@@ -18,7 +18,7 @@ import type { ProvenSequenceTemplate } from "./types";
 /** Post-funding: congrats + a genuinely useful resource. NEVER a "you raised, buy my thing" pitch. */
 const postFunding: ProvenSequenceTemplate = {
   id: "post-funding",
-  name: "Post-financement — félicitations, zéro pitch",
+  name: "Post-financement : félicitations, zéro pitch",
   description: "Une levée récente (<180j) : on aide à scaler le GTM, on ne vend pas sur la levée.",
   triggerSignalTypes: ["post_funding"],
   personaFit: ["founder", "exec"],
@@ -32,9 +32,9 @@ const postFunding: ProvenSequenceTemplate = {
       delayDays: 0,
       subjectTemplate: "Félicitations pour la levée, {{firstName}}",
       bodyTemplate:
-        "{{firstName}}, félicitations pour la levée — la barre se déplace vite après ça.\n\n" +
+        "{{firstName}}, félicitations pour la levée : la barre se déplace vite après ça.\n\n" +
         "On a compilé ce que les équipes qui scalent leur acquisition juste après une levée font différemment (et les pièges qui brûlent du cash les 6 premiers mois). Je vous l'envoie, sans contrepartie : dites-moi juste si ça vous est utile.\n\n" +
-        "Pas de rendez-vous à caler — c'est vraiment pour aider sur le moment.",
+        "Pas de rendez-vous à caler : c'est vraiment pour aider sur le moment.",
       valueAdded: "Une ressource concrète (benchmark post-levée) offerte sans demande de meeting.",
     },
     {
@@ -43,10 +43,10 @@ const postFunding: ProvenSequenceTemplate = {
       delayDays: 3,
       subjectTemplate: "",
       bodyTemplate:
-        "{{firstName}}, je suis votre parcours depuis la levée — beau move. " +
+        "{{firstName}}, je suis votre parcours depuis la levée : beau move. " +
         "Je vous ai envoyé par mail un récap des écueils GTM post-levée ; je me connecte au cas où ça vous serve plus tard.",
       valueAdded: "Rappel du même cadeau sur un autre canal, sans réitérer la demande.",
-      channelConfig: { connectionNote: "Félicitations pour la levée — j'aide les fondateurs à scaler l'acquisition juste après." },
+      channelConfig: { connectionNote: "Félicitations pour la levée : j'aide les fondateurs à scaler l'acquisition juste après." },
     },
     {
       stepNumber: 3,
@@ -54,7 +54,7 @@ const postFunding: ProvenSequenceTemplate = {
       delayDays: 7,
       subjectTemplate: "Une idée précise pour {{firstName}}",
       bodyTemplate:
-        "{{firstName}}, une seule idée, applicable cette semaine : prioriser vos premiers envois sur les comptes qui montrent un signal d'achat plutôt que sur toute la liste — c'est ce qui change le taux de réponse à budget constant.\n\n" +
+        "{{firstName}}, une seule idée, applicable cette semaine : prioriser vos premiers envois sur les comptes qui montrent un signal d'achat plutôt que sur toute la liste : c'est ce qui change le taux de réponse à budget constant.\n\n" +
         "Si vous voulez, je vous montre à quoi ça ressemblerait sur vos segments en 15 min. Sinon, l'idée tient sans moi.",
       valueAdded: "Une tactique actionnable + un CTA léger, après deux touches sans ask.",
     },
@@ -64,7 +64,7 @@ const postFunding: ProvenSequenceTemplate = {
 /** Hiring signal: the role they're opening IS the problem we solve. To the hiring manager. */
 const hiringSignal: ProvenSequenceTemplate = {
   id: "hiring-signal",
-  name: "Recrutement en cours — couvrir le rôle sans embaucher",
+  name: "Recrutement en cours : couvrir le rôle sans embaucher",
   description: "Une offre ouverte pour un rôle qu'on automatise/augmente : on adresse le manager qui recrute.",
   triggerSignalTypes: ["hiring_signal"],
   personaFit: ["vp", "manager", "exec"],
@@ -76,7 +76,7 @@ const hiringSignal: ProvenSequenceTemplate = {
       stepNumber: 1,
       stepType: "email",
       delayDays: 0,
-      subjectTemplate: "Votre offre {{title}} — une façon de la couvrir dès maintenant",
+      subjectTemplate: "Couvrir votre poste ouvert dès maintenant, {{firstName}}",
       bodyTemplate:
         "{{firstName}}, j'ai vu que vous recrutez sur ce périmètre. Entre l'ouverture et l'opérationnel, il se passe souvent 3 à 4 mois.\n\n" +
         "On aide des équipes à couvrir cette partie du rôle dès la première semaine, le temps que la personne arrive (et après). Je vous montre le « avant/après » d'une équipe comparable ?",
@@ -89,7 +89,7 @@ const hiringSignal: ProvenSequenceTemplate = {
       subjectTemplate: "Comment {{firstName}} pourrait gagner les 3 mois de recrutement",
       bodyTemplate:
         "{{firstName}}, un cas concret : une équipe de votre taille a couvert exactement ce périmètre pendant son recrutement, et a gardé le dispositif une fois la personne en poste parce que ça déchargeait le répétitif.\n\n" +
-        "Le détail tient en une page — je vous l'envoie si c'est utile.",
+        "Le détail tient en une page : je vous l'envoie si c'est utile.",
       valueAdded: "Un cas chiffré comparable (preuve), nouvelle information vs le step 1.",
     },
     {
@@ -98,9 +98,9 @@ const hiringSignal: ProvenSequenceTemplate = {
       delayDays: 7,
       subjectTemplate: "",
       bodyTemplate:
-        "{{firstName}}, je me connecte — vous recrutez sur un périmètre qu'on couvre souvent en attendant la bonne personne. Aucun pitch, juste au cas où le timing colle.",
+        "{{firstName}}, je me connecte : vous recrutez sur un périmètre qu'on couvre souvent en attendant la bonne personne. Aucun pitch, juste au cas où le timing colle.",
       valueAdded: "Touche LinkedIn qui ouvre le canal sans répéter la demande email.",
-      channelConfig: { connectionNote: "Vous recrutez sur ce périmètre — on aide à le couvrir le temps du recrutement." },
+      channelConfig: { connectionNote: "Vous recrutez sur ce périmètre : on aide à le couvrir le temps du recrutement." },
     },
   ],
 };
@@ -108,7 +108,7 @@ const hiringSignal: ProvenSequenceTemplate = {
 /** Product launch: congrats + how our value amplifies post-launch traction. */
 const productLaunch: ProvenSequenceTemplate = {
   id: "product-launch",
-  name: "Lancement produit — amplifier la traction post-launch",
+  name: "Lancement produit : amplifier la traction post-launch",
   description: "Un lancement récent : on aide à transformer le pic d'attention en pipeline, sans gâcher le momentum.",
   triggerSignalTypes: ["product_launch"],
   personaFit: ["founder", "exec", "vp"],
@@ -120,9 +120,9 @@ const productLaunch: ProvenSequenceTemplate = {
       stepNumber: 1,
       stepType: "email",
       delayDays: 0,
-      subjectTemplate: "Vu votre lancement, {{firstName}} — une remarque",
+      subjectTemplate: "Vu votre lancement, {{firstName}} : une remarque",
       bodyTemplate:
-        "{{firstName}}, j'ai vu le lancement — c'est propre. Le pic d'attention d'un launch retombe en quelques jours ; ce qui reste, c'est ce que vous en convertissez en conversations.\n\n" +
+        "{{firstName}}, j'ai vu le lancement : c'est propre. Le pic d'attention d'un launch retombe en quelques jours ; ce qui reste, c'est ce que vous en convertissez en conversations.\n\n" +
         "On aide à capter les comptes qui ont réagi au lancement et à les engager pendant qu'ils sont chauds. Je vous montre comment sur votre cas ?",
       valueAdded: "Pointe l'enjeu temporel propre au lancement (fenêtre courte).",
     },
@@ -132,9 +132,9 @@ const productLaunch: ProvenSequenceTemplate = {
       delayDays: 2,
       subjectTemplate: "",
       bodyTemplate:
-        "{{firstName}}, félicitations pour le lancement. Je me connecte — j'ai un angle précis sur la conversion du momentum post-launch que je vous ai esquissé par mail.",
+        "{{firstName}}, félicitations pour le lancement. Je me connecte : j'ai un angle précis sur la conversion du momentum post-launch que je vous ai esquissé par mail.",
       valueAdded: "Renforce sur LinkedIn pendant que le launch est encore visible.",
-      channelConfig: { connectionNote: "Félicitations pour le lancement — un angle sur la conversion du momentum." },
+      channelConfig: { connectionNote: "Félicitations pour le lancement : un angle sur la conversion du momentum." },
     },
     {
       stepNumber: 3,
@@ -143,7 +143,7 @@ const productLaunch: ProvenSequenceTemplate = {
       subjectTemplate: "Le momentum {{firstName}}, une semaine après",
       bodyTemplate:
         "{{firstName}}, une semaine après un lancement, l'attention retombe mais les comptes qui ont réagi sont encore identifiables. C'est la dernière bonne fenêtre pour les engager.\n\n" +
-        "Si vous voulez, je vous liste comment les repérer dans vos propres signaux — 15 min, repartez avec, qu'on travaille ensemble ou non.",
+        "Si vous voulez, je vous liste comment les repérer dans vos propres signaux : 15 min, repartez avec, qu'on travaille ensemble ou non.",
       valueAdded: "Crée l'urgence de la fenêtre qui se ferme + offre tangible.",
     },
   ],
@@ -152,7 +152,7 @@ const productLaunch: ProvenSequenceTemplate = {
 /** Leadership change: new in seat → a quick first-90-days win. */
 const leadershipChange: ProvenSequenceTemplate = {
   id: "leadership-change",
-  name: "Nouveau poste — une victoire pour les 90 premiers jours",
+  name: "Nouveau poste : une victoire pour les 90 premiers jours",
   description: "Une prise de poste récente : on propose un quick win visible, pas un grand projet.",
   triggerSignalTypes: ["leadership_change"],
   personaFit: ["exec", "vp"],
@@ -167,7 +167,7 @@ const leadershipChange: ProvenSequenceTemplate = {
       subjectTemplate: "Félicitations pour le poste, {{firstName}}",
       bodyTemplate:
         "{{firstName}}, félicitations pour la prise de poste. Les 90 premiers jours, ce qui compte c'est une victoire rapide et visible, pas un grand chantier.\n\n" +
-        "On aide précisément à en livrer une sur l'acquisition — résultat mesurable en quelques semaines. Je vous montre laquelle serait la plus crédible dans votre contexte ?",
+        "On aide précisément à en livrer une sur l'acquisition : résultat mesurable en quelques semaines. Je vous montre laquelle serait la plus crédible dans votre contexte ?",
       valueAdded: "Cadre la proposition sur l'enjeu réel du nouveau dirigeant (quick win 90j).",
     },
     {
@@ -186,9 +186,9 @@ const leadershipChange: ProvenSequenceTemplate = {
       delayDays: 9,
       subjectTemplate: "",
       bodyTemplate:
-        "{{firstName}}, bienvenue dans le nouveau rôle. Je me connecte — je vous ai partagé par mail un quick win d'acquisition pensé pour vos premières semaines. Au cas où.",
+        "{{firstName}}, bienvenue dans le nouveau rôle. Je me connecte : je vous ai partagé par mail un quick win d'acquisition pensé pour vos premières semaines. Au cas où.",
       valueAdded: "Ouvre LinkedIn pour rester accessible sur la durée des 90 jours.",
-      channelConfig: { connectionNote: "Félicitations pour la prise de poste — un quick win d'acquisition pour vos premières semaines." },
+      channelConfig: { connectionNote: "Félicitations pour la prise de poste : un quick win d'acquisition pour vos premières semaines." },
     },
   ],
 };
@@ -196,7 +196,7 @@ const leadershipChange: ProvenSequenceTemplate = {
 /** Tech-stack change: adopted X → here's what teams plug on top to get more from it. */
 const techStackChange: ProvenSequenceTemplate = {
   id: "tech-stack-change",
-  name: "Nouvel outil adopté — en tirer 2× plus vite",
+  name: "Nouvel outil adopté : en tirer 2× plus vite",
   description: "Une techno récemment adoptée : on se positionne en complément qui accélère le ROI de cet outil.",
   triggerSignalTypes: ["tech_stack_change"],
   personaFit: ["vp", "manager", "ic"],
@@ -208,9 +208,9 @@ const techStackChange: ProvenSequenceTemplate = {
       stepNumber: 1,
       stepType: "email",
       delayDays: 0,
-      subjectTemplate: "Vous avez adopté un nouvel outil, {{firstName}} — un complément utile",
+      subjectTemplate: "Vous avez adopté un nouvel outil, {{firstName}} : un complément utile",
       bodyTemplate:
-        "{{firstName}}, j'ai vu que vous avez intégré un nouvel outil sur votre stack. La valeur arrive rarement le premier mois — il y a souvent une pièce manquante côté usage.\n\n" +
+        "{{firstName}}, j'ai vu que vous avez intégré un nouvel outil sur votre stack. La valeur arrive rarement le premier mois : il y a souvent une pièce manquante côté usage.\n\n" +
         "On est précisément cette pièce pour plusieurs équipes : ça raccourcit le temps avant que l'outil paie. Je vous montre où, sur votre cas ?",
       valueAdded: "Se positionne en accélérateur du ROI de l'outil déjà choisi (pas un remplaçant).",
     },
@@ -220,17 +220,17 @@ const techStackChange: ProvenSequenceTemplate = {
       delayDays: 4,
       subjectTemplate: "La pièce manquante, {{firstName}}",
       bodyTemplate:
-        "{{firstName}}, le détail : les équipes qui tirent vite la valeur d'un nouvel outil branchent dessus un flux qui alimente l'usage réel — sinon l'outil reste sous-utilisé.\n\n" +
+        "{{firstName}}, le détail : les équipes qui tirent vite la valeur d'un nouvel outil branchent dessus un flux qui alimente l'usage réel : sinon l'outil reste sous-utilisé.\n\n" +
         "Une page suffit à l'expliquer ; je vous l'envoie si c'est pertinent.",
       valueAdded: "Explique le mécanisme concret (nouvelle info), preuve d'expertise.",
     },
   ],
 };
 
-/** Website visit: warm, noticed interest — answer the usual next question without being creepy. */
+/** Website visit: warm, noticed interest : answer the usual next question without being creepy. */
 const websiteVisit: ProvenSequenceTemplate = {
   id: "website-visit",
-  name: "Visite du site — répondre à la question d'après",
+  name: "Visite du site : répondre à la question d'après",
   description: "Un intérêt manifesté (visite) : on répond à la question que cet intérêt pose d'habitude, sans surveiller.",
   triggerSignalTypes: ["website_visit"],
   personaFit: ["vp", "manager", "ic", "exec"],
@@ -244,7 +244,7 @@ const websiteVisit: ProvenSequenceTemplate = {
       delayDays: 0,
       subjectTemplate: "Une réponse rapide, {{firstName}}",
       bodyTemplate:
-        "{{firstName}}, sans vous solliciter inutilement : quand des équipes comme la vôtre s'intéressent à ce sujet, la question d'après est presque toujours la même — comment le mettre en place sans alourdir l'équipe.\n\n" +
+        "{{firstName}}, sans vous solliciter inutilement : quand des équipes comme la vôtre s'intéressent à ce sujet, la question d'après est presque toujours la même : comment le mettre en place sans alourdir l'équipe.\n\n" +
         "La réponse courte tient en trois points ; je vous les envoie si ça vous fait gagner du temps.",
       valueAdded: "Apporte la réponse utile attendue, sans mentionner la visite (non intrusif).",
     },
@@ -255,7 +255,7 @@ const websiteVisit: ProvenSequenceTemplate = {
       subjectTemplate: "Les trois points, {{firstName}}",
       bodyTemplate:
         "{{firstName}}, je reviens avec le concret : prioriser les bons comptes, personnaliser à l'échelle, et garder un humain dans la boucle pour valider. C'est l'ossature qui marche.\n\n" +
-        "Si vous voulez, je vous montre à quoi ça ressemble sur votre périmètre — sinon, vous repartez avec les trois points.",
+        "Si vous voulez, je vous montre à quoi ça ressemble sur votre périmètre : sinon, vous repartez avec les trois points.",
       valueAdded: "Livre la valeur promise (les 3 points) + CTA optionnel, jamais bloquant.",
     },
   ],
@@ -264,7 +264,7 @@ const websiteVisit: ProvenSequenceTemplate = {
 /** Exec engagement: they engaged with content → give the deeper version + one applicable point. */
 const execEngagement: ProvenSequenceTemplate = {
   id: "exec-engagement",
-  name: "Engagement sur un contenu — la version qui va au fond",
+  name: "Engagement sur un contenu : la version qui va au fond",
   description: "Une réaction à un contenu : on prolonge sur LinkedIn (là où ça s'est passé) puis par mail.",
   triggerSignalTypes: ["exec_engagement"],
   personaFit: ["exec", "vp", "founder"],
@@ -278,9 +278,9 @@ const execEngagement: ProvenSequenceTemplate = {
       delayDays: 0,
       subjectTemplate: "",
       bodyTemplate:
-        "{{firstName}}, vous avez réagi au sujet — content que ça résonne. J'ai une version plus complète sur le point précis qui revient le plus, et un angle applicable chez vous. Je me connecte et je vous l'envoie ?",
+        "{{firstName}}, vous avez réagi au sujet : content que ça résonne. J'ai une version plus complète sur le point précis qui revient le plus, et un angle applicable chez vous. Je me connecte et je vous l'envoie ?",
       valueAdded: "Prolonge la conversation sur le canal même de l'engagement.",
-      channelConfig: { connectionNote: "Content que le sujet vous ait parlé — j'ai une version plus complète à partager." },
+      channelConfig: { connectionNote: "Content que le sujet vous ait parlé : j'ai une version plus complète à partager." },
     },
     {
       stepNumber: 2,
@@ -298,7 +298,7 @@ const execEngagement: ProvenSequenceTemplate = {
 /** Review left: they reviewed X → here's what we do differently on the exact pain they flagged. */
 const reviewLeft: ProvenSequenceTemplate = {
   id: "review-left",
-  name: "Avis laissé sur un outil — la différence sur le point qui gêne",
+  name: "Avis laissé sur un outil : la différence sur le point qui gêne",
   description: "Un avis public sur un outil concurrent : on adresse précisément le point de friction mentionné.",
   triggerSignalTypes: ["review_left"],
   personaFit: ["manager", "vp", "ic"],
@@ -332,7 +332,7 @@ const reviewLeft: ProvenSequenceTemplate = {
 /** Competitor mention: they're evaluating a competitor → an honest comparison on what matters to them. */
 const competitorMention: ProvenSequenceTemplate = {
   id: "competitor-mention",
-  name: "Évaluation d'un concurrent — la comparaison honnête",
+  name: "Évaluation d'un concurrent : la comparaison honnête",
   description: "Un signal d'évaluation d'un concurrent : on propose une comparaison honnête sur les critères qui comptent.",
   triggerSignalTypes: ["competitor_mention"],
   personaFit: ["vp", "manager", "exec"],
@@ -346,7 +346,7 @@ const competitorMention: ProvenSequenceTemplate = {
       delayDays: 0,
       subjectTemplate: "Si vous comparez les options, {{firstName}}",
       bodyTemplate:
-        "{{firstName}}, si vous regardez les solutions du marché en ce moment, autant que ce soit utile : voici les trois critères sur lesquels la décision se joue vraiment dans votre cas — y compris celui où on n'est pas le meilleur choix.\n\n" +
+        "{{firstName}}, si vous regardez les solutions du marché en ce moment, autant que ce soit utile : voici les trois critères sur lesquels la décision se joue vraiment dans votre cas : y compris celui où on n'est pas le meilleur choix.\n\n" +
         "Comparaison honnête, vous tranchez. Je vous l'envoie ?",
       valueAdded: "Offre une grille de décision honnête (concède un point), gagne la confiance.",
     },
@@ -356,9 +356,9 @@ const competitorMention: ProvenSequenceTemplate = {
       delayDays: 3,
       subjectTemplate: "",
       bodyTemplate:
-        "{{firstName}}, je me connecte — je vous ai partagé par mail une comparaison honnête sur les options du marché, critère par critère. Aucun parti pris, c'est fait pour vous faire gagner du temps d'évaluation.",
+        "{{firstName}}, je me connecte : je vous ai partagé par mail une comparaison honnête sur les options du marché, critère par critère. Aucun parti pris, c'est fait pour vous faire gagner du temps d'évaluation.",
       valueAdded: "Réaffirme la posture honnête sur un second canal.",
-      channelConfig: { connectionNote: "Une comparaison honnête des options du marché, critère par critère — pour gagner du temps d'éval." },
+      channelConfig: { connectionNote: "Une comparaison honnête des options du marché, critère par critère : pour gagner du temps d'éval." },
     },
     {
       stepNumber: 3,
@@ -373,7 +373,7 @@ const competitorMention: ProvenSequenceTemplate = {
   ],
 };
 
-/** The full proven library — one structurally-distinct sequence per KNOWN_SIGNAL_TYPE. */
+/** The full proven library : one structurally-distinct sequence per KNOWN_SIGNAL_TYPE. */
 export const PROVEN_TEMPLATES: ProvenSequenceTemplate[] = [
   postFunding,
   hiringSignal,

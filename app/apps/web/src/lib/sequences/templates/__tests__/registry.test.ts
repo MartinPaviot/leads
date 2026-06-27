@@ -71,7 +71,25 @@ describe("validateCatalog catches malformed templates", () => {
   it("flags an unsupported interpolation var", () => {
     const t = base();
     t.steps[0].bodyTemplate = "Bonjour {{companyName}}";
-    expect(validateCatalog([t])).toContainEqual({ templateId: "x", problem: "step 1 uses unsupported var {{companyName}}" });
+    expect(validateCatalog([t]).some((i) => i.templateId === "x" && i.problem.includes("{{companyName}}"))).toBe(true);
+  });
+
+  it("flags a whitespace-padded var the send path can't substitute", () => {
+    const t = base();
+    t.steps[0].bodyTemplate = "Bonjour {{ firstName }}"; // padded → ships literally
+    expect(validateCatalog([t]).some((i) => i.problem.includes("{{ firstName }}"))).toBe(true);
+  });
+
+  it("flags an underscore var the send path can't substitute", () => {
+    const t = base();
+    t.steps[0].bodyTemplate = "Bonjour {{first_name}}";
+    expect(validateCatalog([t]).some((i) => i.problem.includes("{{first_name}}"))).toBe(true);
+  });
+
+  it("flags a banned em-dash anywhere in the copy (AI-slop)", () => {
+    const t = base();
+    t.steps[0].bodyTemplate = "Bonjour — un mot";
+    expect(validateCatalog([t]).some((i) => i.problem.includes('banned copy token "—"'))).toBe(true);
   });
 
   it("flags an out-of-order step number", () => {
