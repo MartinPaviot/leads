@@ -88,6 +88,44 @@ export function priorMultiplier(signalType: string): number {
 }
 
 /**
+ * Producer-side signal aliases → their canonical learned-outcome family.
+ *
+ * The detectors / outcome attribution key funding outcomes as `funding`
+ * (lib/scoring/signal-detectors.ts), but `funding-signal-monitor` writes a
+ * FRESH raise as `funding_recent` into `properties.signals[]` (the array the
+ * daily scorer reads — lib/signals/record-signal.ts). Without this map a
+ * tenant's LEARNED funding lift would never reach a `funding_recent` signal:
+ * the multiplier table has no `funding_recent` outcome key, so it sits on the
+ * static prior forever, defeating the whole point of the outcome loop.
+ *
+ * `warm_connection` is intentionally ABSENT: it has no detector counterpart by
+ * design (a standing relationship fact never accrues won/lost outcomes), so it
+ * always — and correctly — rides its prior.
+ */
+export const SIGNAL_CANONICAL_ALIAS: Record<string, string> = {
+  funding_recent: "funding",
+};
+
+/**
+ * Pure: let producer aliases inherit their canonical family's LEARNED multiplier
+ * — but only when it was actually learned (the canonical type cleared
+ * MIN_SAMPLE_SIZE). Below the threshold the alias keeps its own informed prior:
+ * a "recent" raise is a stronger prior than a generic one, and we only ever
+ * override a prior with real data, never with another prior. Mutates + returns.
+ */
+export function inheritAliasMultipliers(
+  multipliers: Record<string, number>,
+  learnedTypes: ReadonlySet<string>,
+): Record<string, number> {
+  for (const [alias, canonical] of Object.entries(SIGNAL_CANONICAL_ALIAS)) {
+    if (learnedTypes.has(canonical) && canonical in multipliers) {
+      multipliers[alias] = multipliers[canonical];
+    }
+  }
+  return multipliers;
+}
+
+/**
  * Inspect a company's properties JSONB for fired signals and insert
  * one row per detected signal type into `signal_outcomes`. Safe to
  * call multiple times — downstream aggregation tolerates duplicates
@@ -220,13 +258,15 @@ export async function getSignalMultipliers(tenantId: string): Promise<SignalMult
   const baselineWinRate = totalOutcomes > 0 ? totalWon / totalOutcomes : 0;
 
   const multipliers: Record<string, number> = {};
+  const learnedTypes = new Set<string>();
   for (const [signalType, { won, lost }] of byType.entries()) {
     // Enough attributed outcomes → trust the computed lift; otherwise fall
     // back to the informed prior (not flat 1.0) so the signal still lifts.
-    multipliers[signalType] =
-      won + lost >= MIN_SAMPLE_SIZE
-        ? computeMultiplier({ wonWithSignal: won, lostWithSignal: lost, baselineWinRate })
-        : priorMultiplier(signalType);
+    const learned = won + lost >= MIN_SAMPLE_SIZE;
+    if (learned) learnedTypes.add(signalType);
+    multipliers[signalType] = learned
+      ? computeMultiplier({ wonWithSignal: won, lostWithSignal: lost, baselineWinRate })
+      : priorMultiplier(signalType);
   }
 
   // Signals we know about but never attributed → their informed PRIOR (not
@@ -235,6 +275,10 @@ export async function getSignalMultipliers(tenantId: string): Promise<SignalMult
   for (const signalType of [...listKnownSignalTypes(), ...Object.keys(SIGNAL_PRIORS)]) {
     if (!(signalType in multipliers)) multipliers[signalType] = priorMultiplier(signalType);
   }
+
+  // Producer aliases (funding_recent) inherit the canonical family's LEARNED
+  // lift so the outcome loop reaches the variant the monitors actually write.
+  inheritAliasMultipliers(multipliers, learnedTypes);
 
   return { multipliers, baselineWinRate, totalOutcomes };
 }

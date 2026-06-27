@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   computeMultiplier,
+  inheritAliasMultipliers,
   listKnownSignalTypes,
   priorMultiplier,
+  SIGNAL_CANONICAL_ALIAS,
   SIGNAL_PRIORS,
 } from "@/lib/scoring/signal-outcomes";
 
@@ -89,6 +91,42 @@ describe("signal-outcomes math", () => {
       expect(types).toContain("tech_stack_change");
       expect(types).toContain("leadership_change");
       expect(types).toContain("investor_overlap");
+    });
+  });
+
+  describe("inheritAliasMultipliers — producer aliases inherit the LEARNED family lift", () => {
+    it("maps funding_recent onto the funding family (the variant the monitor writes)", () => {
+      // funding-signal-monitor writes a FRESH raise as `funding_recent` into
+      // properties.signals[]; outcomes are keyed `funding`. Without inheritance
+      // the learned funding lift never reaches a funding_recent signal.
+      expect(SIGNAL_CANONICAL_ALIAS.funding_recent).toBe("funding");
+    });
+
+    it("copies the learned funding multiplier onto funding_recent when funding cleared the sample threshold", () => {
+      const multipliers = { funding: 2.2, funding_recent: 1.6 };
+      inheritAliasMultipliers(multipliers, new Set(["funding"]));
+      // The learned 2.2× now reaches the recent-raise variant (was stuck at 1.6 prior).
+      expect(multipliers.funding_recent).toBe(2.2);
+    });
+
+    it("keeps the alias's own prior when the canonical family is NOT learned (no real data yet)", () => {
+      const multipliers = { funding: 1.5, funding_recent: 1.6 };
+      // `funding` absent from learnedTypes → still on its prior → do NOT clobber
+      // funding_recent's stronger prior with another prior.
+      inheritAliasMultipliers(multipliers, new Set());
+      expect(multipliers.funding_recent).toBe(1.6);
+    });
+
+    it("does not invent an alias entry when the canonical multiplier is missing", () => {
+      const multipliers: Record<string, number> = { funding_recent: 1.6 };
+      inheritAliasMultipliers(multipliers, new Set(["funding"]));
+      expect(multipliers.funding_recent).toBe(1.6);
+      expect("funding" in multipliers).toBe(false);
+    });
+
+    it("returns the same map it mutates (chainable)", () => {
+      const multipliers = { funding: 2.0, funding_recent: 1.6 };
+      expect(inheritAliasMultipliers(multipliers, new Set(["funding"]))).toBe(multipliers);
     });
   });
 });
