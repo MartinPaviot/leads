@@ -32,12 +32,19 @@ export const SIGNAL_TTL_DAYS: Record<string, number | null> = {
   // Hiring (~30 days per posting)
   hiring: 30,
   hiring_intent: 30,
+  // A hiring SURGE (≥5 open roles, signal-monitor) is the same shelf life as a
+  // single posting — a 2-month-old surge is no longer a reason to reach out.
+  hiring_surge: 30,
   // Fundraise (~180 days)
   funding: 180,
   funding_recent: 180,
   funding_crunchbase: 180,
+  // M&A: the integration / budget-reset window runs long, like a raise.
+  acquisition: 180,
   // New executive in seat (~120 days)
   leadership_change: 120,
+  // A fresh VP/C-level hire (signal-monitor) decays on the same ~120d window.
+  executive_hire: 120,
   // Technology change detected (~90 days)
   tech_stack_change: 90,
   tech_adoption: 90,

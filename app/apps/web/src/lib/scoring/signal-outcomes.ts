@@ -71,6 +71,15 @@ export const SIGNAL_PRIORS: Record<string, number> = {
   funding_recent: 1.6,
   funding: 1.5,
   funding_crunchbase: 1.5,
+  // Continuous Signal Monitor (inngest/signal-monitor.ts) writes these from
+  // news/job feeds straight into properties.signals[]. Without a prior here
+  // they were `undefined` in the multiplier table → floored to a dead 1.0× on
+  // the daily priority score AND never cleared KAIROS_WEIGHT_THRESHOLD, so the
+  // cadence accelerator ignored them too. Ordered: a raise/M&A outranks a
+  // hiring surge outranks a single exec hire.
+  acquisition: 1.6,
+  hiring_surge: 1.5,
+  executive_hire: 1.4,
   investor_overlap: 1.4,
   hiring: 1.4,
   hiring_intent: 1.4,
@@ -85,6 +94,51 @@ export const SIGNAL_PRIORS: Record<string, number> = {
 /** The prior for a type, clamped to the multiplier band. 1.0 when none. */
 export function priorMultiplier(signalType: string): number {
   return Math.max(MIN_MULTIPLIER, Math.min(MAX_MULTIPLIER, SIGNAL_PRIORS[signalType] ?? 1));
+}
+
+/**
+ * Producer-side signal aliases → their canonical learned-outcome family.
+ *
+ * The detectors / outcome attribution key funding outcomes as `funding`
+ * (lib/scoring/signal-detectors.ts), but `funding-signal-monitor` writes a
+ * FRESH raise as `funding_recent` into `properties.signals[]` (the array the
+ * daily scorer reads — lib/signals/record-signal.ts). Without this map a
+ * tenant's LEARNED funding lift would never reach a `funding_recent` signal:
+ * the multiplier table has no `funding_recent` outcome key, so it sits on the
+ * static prior forever, defeating the whole point of the outcome loop.
+ *
+ * `funding_recent`→`funding`, `hiring_surge`→`hiring`, `executive_hire`→
+ * `leadership_change`: each producer variant is the same underlying event as a
+ * detector type that DOES accrue outcomes, so it should ride the learned lift
+ * once one exists.
+ *
+ * `acquisition` and `warm_connection` are intentionally ABSENT: neither has a
+ * detector counterpart (no won/lost is ever attributed to them), so they always
+ * — and correctly — ride their prior.
+ */
+export const SIGNAL_CANONICAL_ALIAS: Record<string, string> = {
+  funding_recent: "funding",
+  hiring_surge: "hiring",
+  executive_hire: "leadership_change",
+};
+
+/**
+ * Pure: let producer aliases inherit their canonical family's LEARNED multiplier
+ * — but only when it was actually learned (the canonical type cleared
+ * MIN_SAMPLE_SIZE). Below the threshold the alias keeps its own informed prior:
+ * a "recent" raise is a stronger prior than a generic one, and we only ever
+ * override a prior with real data, never with another prior. Mutates + returns.
+ */
+export function inheritAliasMultipliers(
+  multipliers: Record<string, number>,
+  learnedTypes: ReadonlySet<string>,
+): Record<string, number> {
+  for (const [alias, canonical] of Object.entries(SIGNAL_CANONICAL_ALIAS)) {
+    if (learnedTypes.has(canonical) && canonical in multipliers) {
+      multipliers[alias] = multipliers[canonical];
+    }
+  }
+  return multipliers;
 }
 
 /**
@@ -220,13 +274,15 @@ export async function getSignalMultipliers(tenantId: string): Promise<SignalMult
   const baselineWinRate = totalOutcomes > 0 ? totalWon / totalOutcomes : 0;
 
   const multipliers: Record<string, number> = {};
+  const learnedTypes = new Set<string>();
   for (const [signalType, { won, lost }] of byType.entries()) {
     // Enough attributed outcomes → trust the computed lift; otherwise fall
     // back to the informed prior (not flat 1.0) so the signal still lifts.
-    multipliers[signalType] =
-      won + lost >= MIN_SAMPLE_SIZE
-        ? computeMultiplier({ wonWithSignal: won, lostWithSignal: lost, baselineWinRate })
-        : priorMultiplier(signalType);
+    const learned = won + lost >= MIN_SAMPLE_SIZE;
+    if (learned) learnedTypes.add(signalType);
+    multipliers[signalType] = learned
+      ? computeMultiplier({ wonWithSignal: won, lostWithSignal: lost, baselineWinRate })
+      : priorMultiplier(signalType);
   }
 
   // Signals we know about but never attributed → their informed PRIOR (not
@@ -235,6 +291,10 @@ export async function getSignalMultipliers(tenantId: string): Promise<SignalMult
   for (const signalType of [...listKnownSignalTypes(), ...Object.keys(SIGNAL_PRIORS)]) {
     if (!(signalType in multipliers)) multipliers[signalType] = priorMultiplier(signalType);
   }
+
+  // Producer aliases (funding_recent) inherit the canonical family's LEARNED
+  // lift so the outcome loop reaches the variant the monitors actually write.
+  inheritAliasMultipliers(multipliers, learnedTypes);
 
   return { multipliers, baselineWinRate, totalOutcomes };
 }

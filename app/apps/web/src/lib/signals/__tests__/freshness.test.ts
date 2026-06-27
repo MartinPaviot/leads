@@ -17,6 +17,13 @@ describe("ttlDaysFor", () => {
     expect(ttlDaysFor("leadership_change")).toBe(120);
     expect(ttlDaysFor("tech_stack_change")).toBe(90);
   });
+  it("gives the signal-monitor producer types an explicit shelf life (not the 90d default)", () => {
+    // inngest/signal-monitor.ts writes these; the default 90d left a hiring
+    // surge over-fresh (60d-old surge still lifting) and an exec hire under-fresh.
+    expect(ttlDaysFor("hiring_surge")).toBe(30);
+    expect(ttlDaysFor("executive_hire")).toBe(120);
+    expect(ttlDaysFor("acquisition")).toBe(180);
+  });
   it("normalizes case and whitespace", () => {
     expect(ttlDaysFor("  Hiring ")).toBe(30);
     expect(ttlDaysFor("FUNDING_RECENT")).toBe(180);
