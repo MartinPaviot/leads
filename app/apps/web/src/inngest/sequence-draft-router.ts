@@ -37,6 +37,10 @@ import { deriveSourcesFromContext, type DraftSource } from "@/lib/sequence-draft
 import { personalizeStepEmail } from "@/lib/agents/sequence-generator";
 import { STEP_STRATEGIES, getMethodology } from "@/lib/scoring/outbound-methodologies";
 import { gradeGeneratedStep } from "@/lib/evals/sequence-quality";
+import { dispatchStep } from "@/lib/sequence-dispatch/registry";
+import type { SequenceStepType } from "@/lib/sequence-dispatch/types";
+import { manualTaskExists } from "@/lib/sequences/manual-task-guard";
+import { advanceEnrollment } from "./functions";
 import {
   generateShadowCopy,
   generateCopyMessage,
@@ -182,6 +186,45 @@ export const routeSequenceStepToDraft = inngest.createFunction(
         draftId: existingDraft.id,
         status: existingDraft.status,
       };
+    }
+
+    // 3b) Multi-channel: a non-email step is NOT an email draft. Create the
+    // manual "Needs you" task (the founder performs the LinkedIn/phone touch)
+    // and advance the cadence — never write an email draft with wrong-channel
+    // copy + an empty subject. Idempotent on (enrollment, step).
+    const stepType = ((stepTemplate.stepType as string) || "email") as SequenceStepType;
+    if (stepType !== "email") {
+      const alreadyTasked = await step.run("nonemail-check-duplicate", async () =>
+        manualTaskExists(enrollmentId, stepTemplate.id),
+      );
+      if (!alreadyTasked) {
+        const dispatch = await step.run("nonemail-dispatch", async () =>
+          dispatchStep({
+            tenantId,
+            enrollmentId,
+            contactId: contact.id,
+            step: {
+              id: stepTemplate.id,
+              stepNumber: enrollment.currentStep ?? 1,
+              stepType,
+              subjectTemplate: stepTemplate.subjectTemplate,
+              bodyTemplate: stepTemplate.bodyTemplate,
+              channelConfig: (stepTemplate.channelConfig ?? {}) as Record<string, unknown>,
+            },
+          }),
+        );
+        if (!dispatch.ok) {
+          return { enrollmentId, channel: stepType, skipped: dispatch.error ?? "dispatch failed" };
+        }
+        await step.run("nonemail-advance", async () =>
+          advanceEnrollment(
+            { sequenceId: enrollment.sequenceId, currentStep: enrollment.currentStep ?? 1 },
+            tenantId,
+            enrollmentId,
+          ),
+        );
+      }
+      return { enrollmentId, channel: stepType, manualTask: true };
     }
 
     // 4) Opt-out check — never queue a draft for an opted-out

@@ -57,8 +57,11 @@ export interface InstantiateOptions {
 
 export interface InstantiateResult {
   templateId: string;
-  outcome: "created" | "skipped_exists";
+  outcome: "created" | "skipped_exists" | "failed";
+  /** The sequence id (created or existing); "" when outcome is "failed". */
   sequenceId: string;
+  /** Set when outcome is "failed". */
+  error?: string;
 }
 
 /** Build the `campaignConfig` jsonb for a seeded sequence (routing + provenance). */
@@ -109,7 +112,12 @@ export async function instantiateTemplate(
   return { templateId: template.id, outcome: "created", sequenceId: seq.id };
 }
 
-/** Seed many templates for a tenant (sequential — preserves order, isolates failures). */
+/**
+ * Seed many templates for a tenant (sequential — preserves order). Isolates
+ * failures: one template that throws is recorded as outcome "failed" and the
+ * batch continues, so the caller gets a per-template result instead of an
+ * aborted run with no record of what already succeeded.
+ */
 export async function instantiateTemplates(
   tenantId: string,
   templates: ProvenSequenceTemplate[],
@@ -118,7 +126,11 @@ export async function instantiateTemplates(
 ): Promise<InstantiateResult[]> {
   const results: InstantiateResult[] = [];
   for (const t of templates) {
-    results.push(await instantiateTemplate(tenantId, t, deps, opts));
+    try {
+      results.push(await instantiateTemplate(tenantId, t, deps, opts));
+    } catch (err) {
+      results.push({ templateId: t.id, outcome: "failed", sequenceId: "", error: err instanceof Error ? err.message : String(err) });
+    }
   }
   return results;
 }
