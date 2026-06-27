@@ -11,6 +11,7 @@ import { Resend } from "resend";
 import { buildUnsubscribeUrl } from "@/lib/emails/unsubscribe-token";
 import { signTrackingId } from "@/lib/emails/tracking-token";
 import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
+import { isEmptyEmailBody, EMPTY_BODY_REASON } from "@/lib/emails/empty-body-guard";
 import { sendViaMailbox } from "@/lib/emails/mailbox-transport";
 import { pickResendEligibleMailbox } from "@/lib/emails/resend-mailbox-select";
 import { checkPlanLimit } from "@/lib/billing/plan-limits";
@@ -299,6 +300,25 @@ export const processOutboundEmails = inngest.createFunction(
 
     for (const email of sendableEmails) {
       await step.run(`send-${email.id}`, async () => {
+        // EMPTY-BODY BACKSTOP — never put a blank email (footer + tracking pixel
+        // only) in front of a prospect. The autonomous copy path can queue a
+        // bodyless row when no copy assets are loaded; fail it with an actionable
+        // reason instead of shipping nothing. Checked on the RAW body, before the
+        // footer/tracking injection below would mask the emptiness.
+        if (isEmptyEmailBody(email.bodyHtml, email.bodyText)) {
+          await db
+            .update(outboundEmails)
+            .set({
+              status: "failed",
+              failedAt: new Date(),
+              errorMessage: EMPTY_BODY_REASON,
+              updatedAt: new Date(),
+            })
+            .where(eq(outboundEmails.id, email.id));
+          failed++;
+          return;
+        }
+
         // TEST-MODE GUARDRAIL — never let a campaign reach a real prospect
         // while test mode is on. Fail the row with a clear reason instead of
         // sending. Holds regardless of how the email got queued.
@@ -638,6 +658,21 @@ export const sendSingleEmail = inngest.createFunction(
 
     if (!email || (email.status !== "queued" && email.status !== "draft")) {
       return { emailId, sent: false, reason: "Not in sendable state" };
+    }
+
+    // EMPTY-BODY BACKSTOP — refuse a blank outbound (footer/pixel only) the same
+    // way the cron worker does, so no path can ship copy-less mail to a prospect.
+    if (isEmptyEmailBody(email.bodyHtml, email.bodyText)) {
+      await db
+        .update(outboundEmails)
+        .set({
+          status: "failed",
+          failedAt: new Date(),
+          errorMessage: EMPTY_BODY_REASON,
+          updatedAt: new Date(),
+        })
+        .where(eq(outboundEmails.id, emailId));
+      return { emailId, sent: false, reason: EMPTY_BODY_REASON };
     }
 
     // Honor opt-outs even on event-driven sends
