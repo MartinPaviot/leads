@@ -195,6 +195,40 @@ describe("recipientBenefitViolations — Monaco recipient-benefit floor", () => 
     expect(recipientBenefitViolations("Voici comment couvrir ce rôle pendant le recrutement.", "fr")).toEqual([]);
     expect(recipientBenefitViolations("Here's one idea you can apply this week.", "en")).toEqual([]);
   });
+
+  // Regression: FUNDING_MENTION must NOT trip on these common non-funding words
+  // (they were causing good copy to be wrongly rejected via the AND-gate).
+  it("does NOT flag funding-pitch on leverage/level/seed-data/generic-raise + a sales push", () => {
+    expect(recipientBenefitViolations("Leverage our platform to cut costs.", "en")).toEqual([]);
+    expect(recipientBenefitViolations("Level up with our tool.", "en")).toEqual([]);
+    expect(recipientBenefitViolations("We will seed your account in our platform.", "en")).toEqual([]);
+    expect(recipientBenefitViolations("This will raise our product's value.", "en")).toEqual([]);
+  });
+
+  it("still flags real funding terms + a sales push (no recall lost)", () => {
+    expect(recipientBenefitViolations("Félicitations pour la levée, découvrez notre offre.", "fr")).toContain("funding-pitch");
+    expect(recipientBenefitViolations("You raised a Series A — book a demo of our product.", "en")).toContain("funding-pitch");
+    expect(recipientBenefitViolations("Post seed round, buy our tool.", "en")).toContain("funding-pitch");
+  });
+
+  // Regression: SALES_PUSH verb stems (achet/souscri/abonn) must fire (the
+  // trailing \b previously made them dead → funding-pitch false negatives).
+  it("catches the verb-stem sales push after a funding mention", () => {
+    expect(recipientBenefitViolations("Après votre levée, pensez à acheter.", "fr")).toContain("funding-pitch");
+    expect(recipientBenefitViolations("Suite à votre levée, abonnez-vous.", "fr")).toContain("funding-pitch");
+  });
+
+  // Regression: "the leader OF X" / "your best Y" describe the RECIPIENT → not a brag.
+  it("does NOT flag recipient role/compliment references", () => {
+    expect(recipientBenefitViolations("As the leader of growth at Acme, you set the pace.", "en")).toEqual([]);
+    expect(recipientBenefitViolations("Vous êtes le leader de votre équipe.", "fr")).toEqual([]);
+    expect(recipientBenefitViolations("Congrats on shipping your best product to date.", "en")).toEqual([]);
+  });
+
+  it("still flags genuine self-referential brags", () => {
+    expect(recipientBenefitViolations("We're the leader in the market.", "en")).toContain("seller-benefit");
+    expect(recipientBenefitViolations("Try the best tool on the market.", "en")).toContain("seller-benefit");
+  });
 });
 
 describe("generateMessage — recipient-benefit floor falls back", () => {

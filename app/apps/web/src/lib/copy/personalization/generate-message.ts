@@ -120,16 +120,30 @@ export function brandViolations(text: string, banned: string[]): string[] {
 // ("levé" wouldn't match). Same for a LEADING `\b` before `#`.
 const SELLER_BRAG: RegExp[] = [
   /(num(é|e)ro|n[°o]|#)\s*1\b/i,
-  /\b(le|la|the)\s+leader\b/i,
+  // "the leader" but NOT "the leader OF/DE growth" (a recipient's own role).
+  /\b(le|la|the)\s+leader\b(?!\s+(of|de|du|des|d'))/i,
   /\bleaders?\s+(du\s+march(é|e)|mondial|on\s+the\s+market|in\s+(the\s+)?(market|industry))/i,
-  /\b(meilleur(e)?|best)\s+(solution|produit|product|outil|tool|plateforme|platform)/i,
-  /\bindustry[-\s]leading\b/i,
+  // "best/meilleur X" but NOT "your/votre best X" (a compliment to the reader).
+  /\b(?<!your\s)(?<!votre\s)(meilleur(e)?|best)\s+(solution|produit|product|outil|tool|plateforme|platform)/i,
+  /\b(?<!your\s)(?<!votre\s)industry[-\s]leading\b/i,
   /\b(la\s+seule|le\s+seul|the\s+only)\s+(solution|plateforme|platform|outil|tool)/i,
 ];
-/** A funding mention (FR + EN). Congrats on a raise is fine ON ITS OWN. */
-const FUNDING_MENTION = /\b(lev[ée]|rais(e|ed)|funding|s(é|e)rie\s*[abc]|series\s*[abc]|tour\s+de\s+table|seed)/i;
-/** A sales push — pitching the sender's product/price/demo. */
-const SALES_PUSH = /\b(achet|souscri|abonn|notre\s+(offre|produit|solution|plateforme|outil|service)|our\s+(product|offer|solution|platform|tool|service)|tarif|pricing|essai\s+gratuit|free\s+trial|d(é|e)mo\s+de\s+notre|book\s+a\s+demo)\b/i;
+/**
+ * A funding mention (FR + EN). Anchored to actual funding terms so it does NOT
+ * trip on the common non-funding words "leverage" / "level" / generic "raise" /
+ * bare "seed" (those degraded good copy via the funding-pitch AND-gate). FR uses
+ * `levé` (with the accent) which distinguishes levé/levée from leverage/level.
+ * Congrats on a raise is fine ON ITS OWN (needs SALES_PUSH too to be a pitch).
+ */
+const FUNDING_MENTION =
+  /(\blevé|\btour\s+de\s+table|\bs[ée]rie\s*[abc]\b|\bseries\s*[abc]\b|\bfunding\b|\bpre-?seed\b|\bseed\s+(round|stage|funding|money|capital)|\bventure\s+(capital|round)|\bround\s+of\s+funding|\brais(ed|e)\s+(a\s+|an\s+|\$|€|£|\d)|\brais(ed|e)\b[^.!?\n]{0,15}?\b(seed|series|round|capital|funding)\b)/i;
+/**
+ * A sales push — pitching the sender's product/price/demo. Each alternative has a
+ * LEADING `\b` only (no group-level trailing `\b`, which would kill the verb
+ * stems achet/souscri/abonn — they're never standalone words).
+ */
+const SALES_PUSH =
+  /(\bachet|\bsouscri|\babonn|\bnotre\s+(offre|produit|solution|plateforme|outil|service)|\bour\s+(product|offer|solution|platform|tool|service)|\btarif|\bpricing\b|\bessai\s+gratuit|\bfree\s+trial|\bd(é|e)mo\s+de\s+notre|\bbook\s+a\s+demo)/i;
 
 /**
  * Recipient-benefit guard (the Monaco rule the proven templates embody): a line
