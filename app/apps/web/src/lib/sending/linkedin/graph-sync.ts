@@ -78,21 +78,24 @@ export async function emitWarmConnectionSignals(
   matchedContactIds: string[],
   companyByContact: Map<string, string | null>,
 ): Promise<number> {
-  const companyIds = new Set<string>();
+  // First matched contact per company = the warm connection to write TO
+  // (Monaco signal→person: the relationship names the right recipient).
+  const contactByCompany = new Map<string, string>();
   for (const contactId of matchedContactIds) {
     const cid = companyByContact.get(contactId);
-    if (cid) companyIds.add(cid);
+    if (cid && !contactByCompany.has(cid)) contactByCompany.set(cid, contactId);
   }
   const detectedAt = new Date().toISOString();
-  for (const companyId of companyIds) {
+  for (const [companyId, contactId] of contactByCompany) {
     await recordCompanySignal(tenantId, companyId, {
       type: "warm_connection",
       detectedAt,
       strength: "high",
       source: "linkedin_graph",
+      person: { contactId },
     });
   }
-  return companyIds.size;
+  return contactByCompany.size;
 }
 
 /**

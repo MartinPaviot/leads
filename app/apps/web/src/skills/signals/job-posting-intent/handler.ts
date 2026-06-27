@@ -133,11 +133,23 @@ Is this company likely to be hiring for roles that indicate they need new tools/
     // AFTER the property update above; recordCompanySignal merges only the
     // signals key). 'hiring' maps to the 30-day TTL in lib/signals/freshness.ts.
     if (detectedStrength) {
+      // Monaco signal→person: route the outreach to the hiring manager Apollo
+      // surfaced, not the top-seniority default. Resolved against existing CRM
+      // contacts downstream (no enrichment); a no-match falls back to score.
+      const person =
+        hiringManager && (hiringManager.name || hiringManager.email)
+          ? {
+              name: hiringManager.name ?? undefined,
+              title: hiringManager.title ?? undefined,
+              email: hiringManager.email ?? undefined,
+            }
+          : undefined;
       await recordCompanySignal(options.tenantId, company.id, {
         type: "hiring",
         detectedAt: new Date().toISOString(),
         strength: detectedStrength,
         source: "apollo",
+        ...(person ? { person } : {}),
       });
     }
   }
