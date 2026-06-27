@@ -45,6 +45,7 @@ import { playbookCapturePostCall } from "@/inngest/playbook-capture-post-call";
 import { playbookExtractFromActivity } from "@/inngest/playbook-extract-from-activity";
 import { sequenceDraftToOutbound } from "@/inngest/sequence-draft-to-outbound";
 import { signalScoreDaily } from "@/inngest/signal-score-daily";
+import { engagementReplySignal } from "@/inngest/engagement-signal";
 import { dailyAutopilot } from "@/inngest/daily-autopilot";
 import { autopilotAutoPause } from "@/inngest/autopilot-auto-pause";
 import { visitorPhoneEnrichRequest } from "@/inngest/visitor-phone-enrich-request";
@@ -187,6 +188,10 @@ export const { GET, POST, PUT } = serve({
     // tenant, walks eligible companies and persists priority_score
     // (multiplier × fit × accessibility) used by the call queue.
     signalScoreDaily,
+    // Engagement → buying signal: a classified email reply (non-ooo/unsubscribe)
+    // records a positive_reply signal on the prospect's company so it lifts
+    // priority_score. Event-driven on `reply/classified` (no capture-core edit).
+    engagementReplySignal,
     // Daily autopilot (spec 37) — weekday 07:00 UTC. Per tenant: warmup-safe
     // budget over the managed pool → top signal-ranked targeted prospects →
     // grounded copy → auto-enroll or draft. Behind DAILY_AUTOPILOT_ENABLED (off).
