@@ -55,6 +55,22 @@ describe("generateMessage — AC1 grounded happy path", () => {
     expect(runAgent).toHaveBeenCalledOnce();
   });
 
+  it("flags `no-body` when there are no copy assets and no grounded line (empty body)", async () => {
+    // No assets + no usable evidence + no segment line → assembleBody yields "".
+    // This is the live-tenant reality (copy_asset_block empty) — must be flagged.
+    const msg = await generateMessage(baseDeps({ assets: {}, evidence: [], segmentLine: "" }));
+    expect(msg.body.trim()).toBe("");
+    expect(msg.flags).toContain("no-body");
+    expect(msg.flags).toContain("low-personalization");
+  });
+
+  it("does NOT flag `no-body` when assets produce a non-empty body", async () => {
+    // Assets present but no evidence → fallback assembles a (generic) body from assets.
+    const msg = await generateMessage(baseDeps({ evidence: [], segmentLine: "" }));
+    expect(msg.body.trim().length).toBeGreaterThan(0);
+    expect(msg.flags).not.toContain("no-body");
+  });
+
   it("normalizes an empty/whitespace model subject to undefined so the cutover falls back to the legacy subject (no blank-subject clobber)", async () => {
     // The cutover sites do `engine.subject ?? legacySubject`. `??` only catches
     // null/undefined, so a "" model subject would clobber a good legacy subject

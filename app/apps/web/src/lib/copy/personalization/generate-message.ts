@@ -184,14 +184,21 @@ export async function generateMessage(deps: GenerateMessageDeps): Promise<Messag
   const minConf = deps.minConfidence ?? DEFAULT_MIN_CONFIDENCE;
   const usable = deps.evidence.filter((c) => Number.isFinite(c.confidence) && c.confidence >= minConf);
 
-  const fallback = (flags: string[]): Message => ({
-    body: assembleBody(deps.assets, (deps.segmentLine ?? "").trim()),
-    evidence: [],
-    personalization_level: "low",
-    roleClass: deps.roleClass,
-    lang: deps.lang,
-    flags: ["low-personalization", ...flags],
-  });
+  // A message whose assembled body is empty/whitespace is NOT sendable copy — it
+  // means there are no copy assets (and no grounded line). Flag it `no-body` so the
+  // eval gate + the enroll/send path can refuse a blank instead of shipping it.
+  const withBodyGuard = (m: Message): Message =>
+    m.body.trim().length === 0 ? { ...m, flags: [...m.flags, "no-body"] } : m;
+
+  const fallback = (flags: string[]): Message =>
+    withBodyGuard({
+      body: assembleBody(deps.assets, (deps.segmentLine ?? "").trim()),
+      evidence: [],
+      personalization_level: "low",
+      roleClass: deps.roleClass,
+      lang: deps.lang,
+      flags: ["low-personalization", ...flags],
+    });
 
   // AC2 — no groundable evidence (or no agent) → segment fallback, never invent.
   if (usable.length === 0) return fallback(["no-evidence"]);
@@ -220,7 +227,7 @@ export async function generateMessage(deps: GenerateMessageDeps): Promise<Messag
 
   // Grounded + clean → high personalization. Evidence = exactly what was cited.
   const cited = new Set(result.value.citedIds);
-  return {
+  return withBodyGuard({
     body: assembleBody(deps.assets, result.value.line.trim()),
     // Normalize an empty/whitespace model subject to undefined so the cutover sites'
     // `message.subject ?? legacySubject` falls back to the legacy subject instead of
@@ -231,5 +238,5 @@ export async function generateMessage(deps: GenerateMessageDeps): Promise<Messag
     roleClass: deps.roleClass,
     lang: deps.lang,
     flags: [],
-  };
+  });
 }
