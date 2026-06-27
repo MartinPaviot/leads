@@ -10,8 +10,10 @@ import { useState, useEffect } from "react";
 import { StickyNote, X, Plus, Loader2 } from "lucide-react";
 import { timeAgo } from "./_time-ago";
 import type { ThreadNote } from "@/lib/inbox/notes";
+import { useT } from "@/lib/i18n/locale";
 
 export function ThreadNotes({ conversationKey }: { conversationKey: string }) {
+  const t = useT();
   const [notes, setNotes] = useState<ThreadNote[]>([]);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -67,7 +69,7 @@ export function ThreadNotes({ conversationKey }: { conversationKey: string }) {
         className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide"
         style={{ color: "var(--color-text-tertiary)" }}
       >
-        <StickyNote size={12} /> Private notes
+        <StickyNote size={12} /> {t("inbox.threadNotes.title")}
       </span>
 
       {notes.length > 0 && (
@@ -83,13 +85,13 @@ export function ThreadNotes({ conversationKey }: { conversationKey: string }) {
                   {n.content}
                 </p>
                 <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
-                  {timeAgo(n.createdAt)} · only you
+                  {timeAgo(n.createdAt)} · {t("inbox.threadNotes.onlyYou")}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => void remove(n.id)}
-                aria-label="Delete note"
+                aria-label={t("inbox.threadNotes.delete")}
                 className="mt-0.5 shrink-0 opacity-50 transition-opacity hover:opacity-100"
                 style={{ color: "var(--color-text-tertiary)" }}
               >
@@ -111,7 +113,7 @@ export function ThreadNotes({ conversationKey }: { conversationKey: string }) {
             }
           }}
           rows={1}
-          placeholder="Jot a private note (only you see it)…"
+          placeholder={t("inbox.threadNotes.placeholder")}
           className="min-h-[28px] flex-1 resize-none rounded-md border px-2 py-1 text-[12px] outline-none"
           style={{
             borderColor: "var(--color-border-default)",
@@ -127,7 +129,7 @@ export function ThreadNotes({ conversationKey }: { conversationKey: string }) {
           style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
         >
           {saving ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-          Add
+          {t("inbox.threadNotes.add")}
         </button>
       </div>
     </div>

@@ -11,6 +11,7 @@
  */
 import { useEffect, useState } from "react";
 import { Inbox, Check, X, Loader2, AlertCircle } from "lucide-react";
+import { useT } from "@/lib/i18n/locale";
 
 interface PendingCapture {
   id: string;
@@ -20,6 +21,7 @@ interface PendingCapture {
 }
 
 export function CaptureReviewDrawer() {
+  const t = useT();
   const [captures, setCaptures] = useState<PendingCapture[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -76,7 +78,7 @@ export function CaptureReviewDrawer() {
         >
           <span className="flex items-center gap-1.5">
             <AlertCircle size={13} className="shrink-0" style={{ color: "var(--color-error)" }} />
-            Couldn&apos;t load captures to review
+            {t("inbox.capture.loadError")}
           </span>
           <button
             type="button"
@@ -84,7 +86,7 @@ export function CaptureReviewDrawer() {
             className="rounded px-2 py-0.5 text-[11px] font-medium"
             style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
           >
-            Retry
+            {t("common.retry")}
           </button>
         </div>
       ) : (
@@ -96,7 +98,9 @@ export function CaptureReviewDrawer() {
         style={{ color: "var(--color-text-secondary)" }}
       >
         <Inbox size={13} className="shrink-0" style={{ color: "var(--color-accent)" }} />
-        {captures.length} {captures.length === 1 ? "capture" : "captures"} to review
+        {t(captures.length === 1 ? "inbox.capture.toReviewOne" : "inbox.capture.toReviewOther", {
+          count: captures.length,
+        })}
       </button>
 
       {open && (
@@ -108,7 +112,7 @@ export function CaptureReviewDrawer() {
               style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
             >
               <div className="font-medium" style={{ color: "var(--color-text-primary)" }}>
-                {c.summary || "(no subject)"}
+                {c.summary || t("inbox.capture.noSubject")}
               </div>
               {c.from && (
                 <div className="mt-0.5 truncate" style={{ color: "var(--color-text-secondary)" }}>
@@ -116,7 +120,7 @@ export function CaptureReviewDrawer() {
                 </div>
               )}
               <div className="mt-0.5 text-[10px]" style={{ color: "var(--color-text-muted)" }}>
-                Captured automatically · pending your review
+                {t("inbox.capture.provenance")}
               </div>
               <div className="mt-1.5 flex gap-1.5">
                 <button
@@ -127,7 +131,7 @@ export function CaptureReviewDrawer() {
                   style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
                 >
                   {busy === c.id ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
-                  Add to CRM
+                  {t("inbox.capture.addToCrm")}
                 </button>
                 <button
                   type="button"
@@ -137,7 +141,7 @@ export function CaptureReviewDrawer() {
                   style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
                 >
                   <X size={11} />
-                  Dismiss
+                  {t("inbox.capture.dismiss")}
                 </button>
               </div>
             </div>

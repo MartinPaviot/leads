@@ -11,16 +11,16 @@ describe("CaptureReviewDrawer (P1 03 inbox)", () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }) as never;
     render(<CaptureReviewDrawer />);
     await waitFor(() =>
-      expect(screen.getByText("Couldn't load captures to review")).toBeTruthy(),
+      expect(screen.getByText("Impossible de charger les captures à valider")).toBeTruthy(),
     );
-    expect(screen.getByText("Retry")).toBeTruthy();
+    expect(screen.getByText("Réessayer")).toBeTruthy();
   });
 
   it("renders nothing when the queue loads empty (self-hide preserved)", async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ captures: [] }) }) as never;
     const { container } = render(<CaptureReviewDrawer />);
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
-    expect(screen.queryByText("Couldn't load captures to review")).toBeNull();
+    expect(screen.queryByText("Impossible de charger les captures à valider")).toBeNull();
     expect(container.firstChild).toBeNull();
   });
 
@@ -29,6 +29,6 @@ describe("CaptureReviewDrawer (P1 03 inbox)", () => {
       .fn()
       .mockResolvedValue({ ok: true, json: async () => ({ captures: [{ id: "1", summary: "Hi", from: "a@b.com", at: "" }] }) }) as never;
     render(<CaptureReviewDrawer />);
-    await waitFor(() => expect(screen.getByText(/to review/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/à valider/)).toBeTruthy());
   });
 });

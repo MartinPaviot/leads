@@ -9,8 +9,10 @@
 import { useState, useEffect } from "react";
 import { UserCheck } from "lucide-react";
 import type { Member } from "@/lib/inbox/assignment";
+import { useT } from "@/lib/i18n/locale";
 
 export function ThreadAssignment({ conversationKey }: { conversationKey: string }) {
+  const t = useT();
   const [assignee, setAssignee] = useState<Member | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [busy, setBusy] = useState(false);
@@ -72,9 +74,9 @@ export function ThreadAssignment({ conversationKey }: { conversationKey: string 
           background: "var(--color-bg-page)",
           color: assignee ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
         }}
-        aria-label="Assign conversation"
+        aria-label={t("inbox.assignment.assignAria")}
       >
-        <option value="">Unassigned</option>
+        <option value="">{t("inbox.assignment.unassigned")}</option>
         {members.map((m) => (
           <option key={m.id} value={m.id}>
             {m.name}

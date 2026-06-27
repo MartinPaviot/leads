@@ -17,6 +17,7 @@ import type { EmailComposerDraft } from "@/components/email-composer-panel";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "./_time-ago";
+import { useT } from "@/lib/i18n/locale";
 
 interface OutboundEmail {
   id: string;
@@ -51,6 +52,7 @@ export interface OutboundTableApi {
 }
 
 export function OutboundTable({ apiRef }: { apiRef?: Ref<OutboundTableApi | null> }) {
+  const t = useT();
   const { toast } = useToast();
   const [emails, setEmails] = useState<OutboundEmail[]>([]);
   const [counts, setCounts] = useState({ total: 0, replied: 0, awaiting: 0, bounced: 0 });
@@ -113,7 +115,7 @@ export function OutboundTable({ apiRef }: { apiRef?: Ref<OutboundTableApi | null
         }),
       });
       if (!res.ok) {
-        toast("Couldn't draft a reply right now", "error");
+        toast(t("inbox.outbound.toastDraftFailed"), "error");
         return;
       }
       const data = (await res.json()) as { replies?: Array<{ tone: string; subject: string; body: string }> };
@@ -132,20 +134,20 @@ export function OutboundTable({ apiRef }: { apiRef?: Ref<OutboundTableApi | null
   }
 
   function statusBadge(email: OutboundEmail) {
-    if (email.repliedAt) return <Badge variant="success" size="sm">Replied</Badge>;
-    if (email.bouncedAt) return <Badge variant="error" size="sm">{email.bounceType === "complaint" ? "Spam" : "Bounced"}</Badge>;
-    if (email.clickedAt) return <Badge variant="info" size="sm">Clicked</Badge>;
-    if (email.openedAt) return <Badge variant="info" size="sm">Opened</Badge>;
-    if (email.status === "delivered") return <Badge variant="neutral" size="sm">Delivered</Badge>;
-    if (email.status === "sent") return <Badge variant="neutral" size="sm">Sent</Badge>;
+    if (email.repliedAt) return <Badge variant="success" size="sm">{t("inbox.outbound.status.replied")}</Badge>;
+    if (email.bouncedAt) return <Badge variant="error" size="sm">{email.bounceType === "complaint" ? t("inbox.outbound.status.spam") : t("inbox.outbound.status.bounced")}</Badge>;
+    if (email.clickedAt) return <Badge variant="info" size="sm">{t("inbox.outbound.status.clicked")}</Badge>;
+    if (email.openedAt) return <Badge variant="info" size="sm">{t("inbox.outbound.status.opened")}</Badge>;
+    if (email.status === "delivered") return <Badge variant="neutral" size="sm">{t("inbox.outbound.status.delivered")}</Badge>;
+    if (email.status === "sent") return <Badge variant="neutral" size="sm">{t("inbox.outbound.status.sent")}</Badge>;
     return <Badge variant="neutral" size="sm">{email.status}</Badge>;
   }
 
   const filters: Array<{ key: OutboundFilter; label: string; count: number }> = [
-    { key: "all", label: "Sent", count: counts.total },
-    { key: "replied", label: "Replied", count: counts.replied },
-    { key: "awaiting", label: "Awaiting", count: counts.awaiting },
-    { key: "bounced", label: "Bounced", count: counts.bounced },
+    { key: "all", label: t("inbox.outbound.filter.sent"), count: counts.total },
+    { key: "replied", label: t("inbox.outbound.filter.replied"), count: counts.replied },
+    { key: "awaiting", label: t("inbox.outbound.filter.awaiting"), count: counts.awaiting },
+    { key: "bounced", label: t("inbox.outbound.filter.bounced"), count: counts.bounced },
   ];
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -171,13 +173,13 @@ export function OutboundTable({ apiRef }: { apiRef?: Ref<OutboundTableApi | null
         {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Previous
+              {t("inbox.outbound.previous")}
             </Button>
             <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
               {page} / {totalPages}
             </span>
             <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-              Next
+              {t("inbox.outbound.next")}
             </Button>
           </div>
         )}
@@ -189,27 +191,27 @@ export function OutboundTable({ apiRef }: { apiRef?: Ref<OutboundTableApi | null
         ) : error ? (
           <EmptyState
             variant="error"
-            title="Couldn't load sent emails"
-            description="Something went wrong loading this lane. Your email isn't lost — try again."
-            actionLabel="Retry"
+            title={t("inbox.outbound.loadError.title")}
+            description={t("inbox.outbound.loadError.desc")}
+            actionLabel={t("common.retry")}
             onAction={() => setReloadKey((k) => k + 1)}
           />
         ) : emails.length === 0 ? (
           <EmptyState
             icon={<Inbox size={28} />}
-            title="No emails"
-            description={filter === "all" ? "Send your first sequence to see emails here." : `No ${filter} emails.`}
+            title={t("inbox.outbound.empty.title")}
+            description={filter === "all" ? t("inbox.outbound.empty.descAll") : t("inbox.outbound.empty.descFiltered", { filter })}
           />
         ) : (
           <table className="ls-table">
             <thead>
               <tr>
-                <th><span className="flex items-center gap-1.5"><Mail size={12} style={{ opacity: 0.5 }} /> To</span></th>
-                <th>Subject</th>
-                <th>Status</th>
-                <th><span className="flex items-center gap-1.5"><Clock size={12} style={{ opacity: 0.5 }} /> Sent</span></th>
-                <th><span className="flex items-center gap-1.5"><MailCheck size={12} style={{ opacity: 0.5 }} /> Reply</span></th>
-                <th>Step</th>
+                <th><span className="flex items-center gap-1.5"><Mail size={12} style={{ opacity: 0.5 }} /> {t("inbox.outbound.header.to")}</span></th>
+                <th>{t("inbox.outbound.header.subject")}</th>
+                <th>{t("inbox.outbound.header.status")}</th>
+                <th><span className="flex items-center gap-1.5"><Clock size={12} style={{ opacity: 0.5 }} /> {t("inbox.outbound.header.sent")}</span></th>
+                <th><span className="flex items-center gap-1.5"><MailCheck size={12} style={{ opacity: 0.5 }} /> {t("inbox.outbound.header.reply")}</span></th>
+                <th>{t("inbox.outbound.header.step")}</th>
               </tr>
             </thead>
             <tbody>
@@ -259,12 +261,12 @@ export function OutboundTable({ apiRef }: { apiRef?: Ref<OutboundTableApi | null
                               disabled={draftingFor === email.id}
                               className="inline-flex items-center gap-1 text-[11px] font-medium transition-opacity hover:underline disabled:opacity-60"
                               style={{ color: "var(--color-accent)" }}
-                              title="Draft an AI-suggested reply"
+                              title={t("inbox.outbound.draftReplyTitle")}
                             >
                               {draftingFor === email.id ? (
-                                <><Loader2 size={10} className="animate-spin" /> Drafting…</>
+                                <><Loader2 size={10} className="animate-spin" /> {t("inbox.outbound.drafting")}</>
                               ) : (
-                                <><Sparkles size={10} /> Draft AI reply</>
+                                <><Sparkles size={10} /> {t("inbox.outbound.draftAiReply")}</>
                               )}
                             </button>
                           )}
@@ -275,7 +277,7 @@ export function OutboundTable({ apiRef }: { apiRef?: Ref<OutboundTableApi | null
                     )}
                   </td>
                   <td className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
-                    {email.stepNumber ? `Step ${email.stepNumber}` : "—"}
+                    {email.stepNumber ? t("inbox.outbound.step", { stepNumber: email.stepNumber }) : "—"}
                   </td>
                 </tr>
               ))}

@@ -12,14 +12,15 @@ import { useState } from "react";
 import { CalendarClock, MapPin, Check, HelpCircle, X, Loader2 } from "lucide-react";
 import { parseIcs, eventStatusLabel, isEventCancelled, type IcsEvent } from "@/lib/inbox/parse-ics";
 import type { RsvpChoice } from "@/lib/inbox/rsvp";
+import { useT } from "@/lib/i18n/locale";
 
-function formatWhen(ev: IcsEvent): string {
+function formatWhen(ev: IcsEvent, t: ReturnType<typeof useT>): string {
   if (!ev.start) return "";
   const dateOpts: Intl.DateTimeFormatOptions = ev.allDay
     ? { weekday: "short", month: "short", day: "numeric" }
     : { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" };
   const start = ev.start.toLocaleString(undefined, dateOpts);
-  if (ev.allDay) return `${start} · all day`;
+  if (ev.allDay) return `${start} · ${t("inbox.event.allDay")}`;
   if (ev.end) {
     const sameDay = ev.start.toDateString() === ev.end.toDateString();
     const end = ev.end.toLocaleString(undefined, sameDay ? { hour: "numeric", minute: "2-digit" } : dateOpts);
@@ -28,18 +29,19 @@ function formatWhen(ev: IcsEvent): string {
   return start;
 }
 
-const RSVP: { label: string; choice: RsvpChoice; Icon: typeof Check }[] = [
-  { label: "Yes", choice: "yes", Icon: Check },
-  { label: "Maybe", choice: "maybe", Icon: HelpCircle },
-  { label: "No", choice: "no", Icon: X },
+const RSVP: { labelKey: string; choice: RsvpChoice; Icon: typeof Check }[] = [
+  { labelKey: "inbox.event.rsvpYes", choice: "yes", Icon: Check },
+  { labelKey: "inbox.event.rsvpMaybe", choice: "maybe", Icon: HelpCircle },
+  { labelKey: "inbox.event.rsvpNo", choice: "no", Icon: X },
 ];
 const DONE: Record<RsvpChoice, string> = {
-  yes: "You accepted",
-  maybe: "You replied Maybe",
-  no: "You declined",
+  yes: "inbox.event.accepted",
+  maybe: "inbox.event.repliedMaybe",
+  no: "inbox.event.declined",
 };
 
 export function EventCard({ ics, conversationKey }: { ics: string | null; conversationKey: string }) {
+  const t = useT();
   const [responded, setResponded] = useState<RsvpChoice | null>(null);
   const [pending, setPending] = useState<RsvpChoice | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function EventCard({ ics, conversationKey }: { ics: string | null; conver
   const ev = ics ? parseIcs(ics) : null;
   if (!ics || !ev) return null;
   const cancelled = isEventCancelled(ev);
-  const when = formatWhen(ev);
+  const when = formatWhen(ev, t);
   const repliable = Boolean(ev.organizer && ev.uid);
 
   async function rsvp(choice: RsvpChoice) {
@@ -64,10 +66,10 @@ export function EventCard({ ics, conversationKey }: { ics: string | null; conver
         setResponded(choice);
       } else {
         const d = (await r.json().catch(() => ({}))) as { error?: string };
-        setError(d.error || "Couldn't send your reply.");
+        setError(d.error || t("inbox.event.replyFailed"));
       }
     } catch {
-      setError("Couldn't send your reply.");
+      setError(t("inbox.event.replyFailed"));
     } finally {
       setPending(null);
     }
@@ -108,28 +110,31 @@ export function EventCard({ ics, conversationKey }: { ics: string | null; conver
       {!cancelled &&
         (responded ? (
           <div className="mt-2 flex items-center gap-1 text-[11px] font-medium" style={{ color: "var(--color-success)" }}>
-            <Check size={11} className="shrink-0" /> {DONE[responded]}
+            <Check size={11} className="shrink-0" /> {t(DONE[responded])}
           </div>
         ) : (
           <div className="mt-2 flex gap-1.5">
-            {RSVP.map(({ label, choice, Icon }) => (
-              <button
-                key={choice}
-                type="button"
-                disabled={!repliable || pending !== null}
-                onClick={() => void rsvp(choice)}
-                title={repliable ? `RSVP ${label}` : "This invitation can't be answered"}
-                className="flex items-center gap-1 rounded px-2 py-0.5 transition-colors hover:bg-[var(--color-bg-hover)] disabled:opacity-50 disabled:hover:bg-transparent"
-                style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
-              >
-                {pending === choice ? (
-                  <Loader2 size={11} className="shrink-0 animate-spin" />
-                ) : (
-                  <Icon size={11} className="shrink-0" />
-                )}
-                {label}
-              </button>
-            ))}
+            {RSVP.map(({ labelKey, choice, Icon }) => {
+              const label = t(labelKey);
+              return (
+                <button
+                  key={choice}
+                  type="button"
+                  disabled={!repliable || pending !== null}
+                  onClick={() => void rsvp(choice)}
+                  title={repliable ? t("inbox.event.rsvpTitle", { label }) : t("inbox.event.notRepliable")}
+                  className="flex items-center gap-1 rounded px-2 py-0.5 transition-colors hover:bg-[var(--color-bg-hover)] disabled:opacity-50 disabled:hover:bg-transparent"
+                  style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
+                >
+                  {pending === choice ? (
+                    <Loader2 size={11} className="shrink-0 animate-spin" />
+                  ) : (
+                    <Icon size={11} className="shrink-0" />
+                  )}
+                  {label}
+                </button>
+              );
+            })}
           </div>
         ))}
       {error && (

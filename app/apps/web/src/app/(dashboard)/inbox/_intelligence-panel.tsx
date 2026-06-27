@@ -16,6 +16,7 @@
 
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
+import { useT } from "@/lib/i18n/locale";
 
 export function IntelligencePanel({
   count,
@@ -25,6 +26,7 @@ export function IntelligencePanel({
   count: number;
   children: React.ReactNode;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <div
@@ -55,7 +57,7 @@ export function IntelligencePanel({
           </span>
         )}
         <span className="ml-auto text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-          {open ? "Hide" : "Show"}
+          {open ? t("inbox.intelligence.hide") : t("inbox.intelligence.show")}
         </span>
       </button>
       {open && (

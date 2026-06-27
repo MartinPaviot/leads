@@ -9,6 +9,7 @@
 import { useState, useEffect, useId } from "react";
 import { Tag, X, Plus } from "lucide-react";
 import { labelHue } from "@/lib/inbox/labels";
+import { useT } from "@/lib/i18n/locale";
 
 export function ThreadLabels({
   conversationKey,
@@ -19,6 +20,7 @@ export function ThreadLabels({
    * add-label input on the focused thread; `autoFocus` then focuses it. */
   openSignal?: number;
 }) {
+  const t = useT();
   const [labels, setLabels] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
@@ -94,7 +96,7 @@ export function ThreadLabels({
             }}
           >
             {l}
-            <button type="button" onClick={() => void remove(l)} aria-label={`Remove label ${l}`} className="opacity-60 hover:opacity-100">
+            <button type="button" onClick={() => void remove(l)} aria-label={t("inbox.labels.removeAria", { l })} className="opacity-60 hover:opacity-100">
               <X size={10} />
             </button>
           </span>
@@ -117,7 +119,7 @@ export function ThreadLabels({
             }
           }}
           onBlur={() => (draft.trim() ? void apply(draft) : setAdding(false))}
-          placeholder="Label…"
+          placeholder={t("inbox.labels.placeholder")}
           className="w-28 rounded-full border px-2 py-0.5 text-[11px] outline-none"
           style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)", color: "var(--color-text-primary)" }}
         />
@@ -128,7 +130,7 @@ export function ThreadLabels({
           className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px]"
           style={{ border: "1px dashed var(--color-border-default)", color: "var(--color-text-tertiary)" }}
         >
-          <Plus size={10} /> Label
+          <Plus size={10} /> {t("inbox.labels.add")}
         </button>
       )}
       <datalist id={listId}>

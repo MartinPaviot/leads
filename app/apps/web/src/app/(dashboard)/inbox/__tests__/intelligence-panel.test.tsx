@@ -17,7 +17,7 @@ describe("IntelligencePanel", () => {
     expect(screen.getByText("3")).toBeTruthy(); // count badge
     // ...but the children are NOT in the DOM while collapsed.
     expect(screen.queryByText("SECRET_SIGNAL")).toBeNull();
-    expect(screen.getByText("Show")).toBeTruthy();
+    expect(screen.getByText("Afficher")).toBeTruthy();
   });
 
   it("expands the children on click", () => {
@@ -28,7 +28,7 @@ describe("IntelligencePanel", () => {
     );
     fireEvent.click(screen.getByText("Intelligence"));
     expect(screen.getByText("SECRET_SIGNAL")).toBeTruthy();
-    expect(screen.getByText("Hide")).toBeTruthy();
+    expect(screen.getByText("Masquer")).toBeTruthy();
   });
 
   it("hides the count badge when count is 0", () => {

@@ -18,6 +18,7 @@ import {
   recentActivityUrl,
   type ProspectBriefPayload,
 } from "@/lib/call-mode/prospect-brief-core";
+import { useT } from "@/lib/i18n/locale";
 
 function HostLabel({ url }: { url: string | null }) {
   let host: string | null = null;
@@ -32,6 +33,7 @@ function HostLabel({ url }: { url: string | null }) {
 }
 
 export function ProspectBriefSection({ contactId }: { contactId: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<ProspectBriefPayload | null>(null);
   const [loading, setLoading] = useState(false);
@@ -75,11 +77,11 @@ export function ProspectBriefSection({ contactId }: { contactId: string }) {
           <ChevronRight size={14} style={{ color: "var(--color-text-tertiary)" }} />
         )}
         <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-tertiary)" }}>
-          Prospect brief
+          {t("inbox.brief.title")}
         </span>
         {!open && !fetched && (
           <span className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>
-            — career + company, built on open
+            {t("inbox.brief.caption")}
           </span>
         )}
         {loading && <Loader2 size={12} className="ml-auto animate-spin" style={{ color: "var(--color-text-tertiary)" }} />}
@@ -89,7 +91,7 @@ export function ProspectBriefSection({ contactId }: { contactId: string }) {
         <div className="space-y-2.5 border-t px-3 py-2.5" style={{ borderColor: "var(--color-border-default)" }}>
           {loading ? (
             <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-              Building the brief…
+              {t("inbox.brief.building")}
             </p>
           ) : (
             <>
@@ -97,17 +99,17 @@ export function ProspectBriefSection({ contactId }: { contactId: string }) {
               <div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
-                    <User size={12} /> Background
+                    <User size={12} /> {t("inbox.brief.background")}
                   </span>
                   <div className="flex items-center gap-2">
                     {liProfile && (
                       <a href={liProfile} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[11px]" style={{ color: "var(--color-accent)" }}>
-                        <ExternalLink size={10} /> Profile
+                        <ExternalLink size={10} /> {t("inbox.brief.profile")}
                       </a>
                     )}
                     {liPosts && (
                       <a href={liPosts} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[11px]" style={{ color: "var(--color-accent)" }}>
-                        <ExternalLink size={10} /> Recent posts
+                        <ExternalLink size={10} /> {t("inbox.brief.recentPosts")}
                       </a>
                     )}
                   </div>
@@ -128,26 +130,26 @@ export function ProspectBriefSection({ contactId }: { contactId: string }) {
                     )}
                   </div>
                 ) : (
-                  <p className="mt-1 text-[11px]" style={{ color: "var(--color-text-muted)" }}>No career match found.</p>
+                  <p className="mt-1 text-[11px]" style={{ color: "var(--color-text-muted)" }}>{t("inbox.brief.noCareer")}</p>
                 )}
               </div>
 
               {/* Company */}
               <div className="border-t pt-2.5" style={{ borderColor: "var(--color-border-default)" }}>
                 <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
-                  <Globe size={12} /> Company — from its website
+                  <Globe size={12} /> {t("inbox.brief.companyHeading")}
                 </span>
                 {companyText ? (
                   <div className="mt-1">
                     <p className="text-[12px] leading-snug" style={{ color: "var(--color-text-primary)" }}>{companyText}</p>
                     <p className="mt-1 text-[10px]" style={{ color: "var(--color-text-muted)" }}>
-                      {companyIsMetaOnly ? "Site meta description" : "Website summary"}
+                      {companyIsMetaOnly ? t("inbox.brief.metaDescription") : t("inbox.brief.websiteSummary")}
                       <HostLabel url={company?.url ?? null} />
                     </p>
                   </div>
                 ) : (
                   <p className="mt-1 text-[11px]" style={{ color: "var(--color-text-muted)" }}>
-                    {company?.url ? "Site unreachable or empty — no summary." : "No known website for this company."}
+                    {company?.url ? t("inbox.brief.siteEmpty") : t("inbox.brief.noWebsite")}
                   </p>
                 )}
               </div>

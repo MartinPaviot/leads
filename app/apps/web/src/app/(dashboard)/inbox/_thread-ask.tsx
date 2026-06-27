@@ -11,6 +11,7 @@ import { useState } from "react";
 import { Sparkles, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SourceLink } from "@/components/ai-ui";
+import { useT } from "@/lib/i18n/locale";
 
 interface ThreadAnswer {
   answer: string;
@@ -25,6 +26,7 @@ interface InboxAnswer {
 }
 
 export function ThreadAskSection({ conversationKey }: { conversationKey: string }) {
+  const t = useT();
   const [question, setQuestion] = useState("");
   const [data, setData] = useState<ThreadAnswer | null>(null);
   const [loading, setLoading] = useState(false);
@@ -78,7 +80,7 @@ export function ThreadAskSection({ conversationKey }: { conversationKey: string 
         className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide"
         style={{ color: "var(--color-text-tertiary)" }}
       >
-        <Sparkles size={12} /> Ask about this thread
+        <Sparkles size={12} /> {t("inbox.threadAsk.title")}
       </span>
       <div className="mt-1.5 flex items-center gap-1.5">
         <input
@@ -90,7 +92,7 @@ export function ThreadAskSection({ conversationKey }: { conversationKey: string 
               void run();
             }
           }}
-          placeholder="What are they actually asking for?"
+          placeholder={t("inbox.threadAsk.placeholder")}
           className="min-w-0 flex-1 rounded-md border px-2 py-1 text-[12px] outline-none"
           style={{
             borderColor: "var(--color-border-default)",
@@ -106,7 +108,7 @@ export function ThreadAskSection({ conversationKey }: { conversationKey: string 
           className="shrink-0 gap-1.5"
         >
           {loading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
-          {loading ? "Asking…" : "Ask"}
+          {loading ? t("inbox.threadAsk.asking") : t("inbox.threadAsk.ask")}
         </Button>
       </div>
 
@@ -129,7 +131,7 @@ export function ThreadAskSection({ conversationKey }: { conversationKey: string 
           {!data.answered && (
             <div className="mt-1.5">
               <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                Not answered by this thread.
+                {t("inbox.threadAsk.notAnswered")}
               </p>
               {!inboxData && (
                 <button
@@ -140,7 +142,7 @@ export function ThreadAskSection({ conversationKey }: { conversationKey: string 
                   style={{ color: "var(--color-accent)" }}
                 >
                   {inboxLoading ? <Loader2 size={11} className="animate-spin" /> : <Search size={11} />}
-                  {inboxLoading ? "Searching your inbox…" : "Search across your whole inbox"}
+                  {inboxLoading ? t("inbox.threadAsk.searchingInbox") : t("inbox.threadAsk.searchInbox")}
                 </button>
               )}
             </div>
@@ -155,12 +157,12 @@ export function ThreadAskSection({ conversationKey }: { conversationKey: string 
                 className="text-[10px] font-medium uppercase tracking-wide"
                 style={{ color: "var(--color-text-muted)" }}
               >
-                Across your inbox
+                {t("inbox.threadAsk.acrossInbox")}
               </span>
               <p className="mt-1 text-[12px] leading-snug" style={{ color: "var(--color-text-primary)" }}>
                 {inboxData.answered
                   ? inboxData.answer
-                  : "I couldn't find that anywhere in your inbox."}
+                  : t("inbox.threadAsk.inboxNotFound")}
               </p>
               {inboxData.answered && inboxData.citations.length > 0 && (
                 <div className="mt-1.5 flex flex-wrap items-center gap-1">
@@ -168,7 +170,7 @@ export function ThreadAskSection({ conversationKey }: { conversationKey: string 
                     <SourceLink
                       key={c.key}
                       kind="email"
-                      label={c.subject || "Thread"}
+                      label={c.subject || t("inbox.threadAsk.threadFallback")}
                       href={`/inbox?conversation=${encodeURIComponent(c.key)}`}
                     />
                   ))}

@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "./_time-ago";
 import type { BundleSource } from "@/lib/inbox/bundle";
+import { useT } from "@/lib/i18n/locale";
 
 export function BundlesView({
   bundles,
@@ -24,13 +25,14 @@ export function BundlesView({
   /** Sender currently being cleared, for the row's loading state. */
   clearing: string | null;
 }) {
+  const t = useT();
   if (bundles.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center p-6">
         <EmptyState
           icon={<Newspaper size={20} />}
-          title="No newsletters to bundle"
-          description="Bulk mailings — newsletters, promotions, digests — are grouped here by sender so you can clear them in one pass. Nothing's piled up yet."
+          title={t("inbox.bundles.empty.title")}
+          description={t("inbox.bundles.empty.desc")}
         />
       </div>
     );
@@ -70,7 +72,7 @@ export function BundlesView({
                 style={{ color: "var(--color-text-tertiary)" }}
                 title={b.whyBundled}
               >
-                Bundled: {b.whyBundled}
+                {t("inbox.bundles.bundledPrefix", { whyBundled: b.whyBundled })}
               </div>
             </div>
             <Button
@@ -80,7 +82,7 @@ export function BundlesView({
               disabled={clearing === b.sender}
               loading={clearing === b.sender}
             >
-              Mark all done
+              {t("inbox.bundles.markAllDone")}
             </Button>
           </div>
         ))}
