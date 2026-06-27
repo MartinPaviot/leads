@@ -24,6 +24,7 @@ import { decryptSecret } from "@/lib/crypto/settings-encryption";
 import { logger } from "@/lib/observability/logger";
 import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 import { evaluateSend } from "@/lib/guardrails/sending-gate";
+import { isSendableBody } from "@/lib/guardrails/empty-body";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { isWithinSendWindow } from "@/lib/emails/send-window";
 
@@ -118,6 +119,23 @@ export const dispatchOutboundSmtp = inngest.createFunction(
               status: "failed",
               failedAt: new Date(),
               errorMessage: smtpGate.reason,
+              updatedAt: new Date(),
+            })
+            .where(eq(outboundEmails.id, o.id));
+          return "failed";
+        }
+
+        // Empty-body backstop: never put a blank message on the wire. The copy
+        // engine can assemble an empty body when no copy assets exist (see
+        // _research/copy-quality-eval-2026-06-26.md); fail the row with a clear
+        // reason instead of sending whitespace.
+        if (!isSendableBody(o.bodyText, o.bodyHtml)) {
+          await db
+            .update(outboundEmails)
+            .set({
+              status: "failed",
+              failedAt: new Date(),
+              errorMessage: "empty_body: no copy to send (no assets / ungrounded)",
               updatedAt: new Date(),
             })
             .where(eq(outboundEmails.id, o.id));
