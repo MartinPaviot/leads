@@ -71,7 +71,7 @@ export function GuardrailMigrationBanner({ show }: GuardrailMigrationBannerProps
         </div>
         <div className="mt-0.5 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
           Your approval mode is now <strong>Auto (high-confidence actions only)</strong>.
-          Review in <a href="/settings/guardrails" style={{ color: "var(--color-accent)", textDecoration: "underline" }}>Settings → Guardrails</a>.
+          Review in <a href="/settings/autonomy" style={{ color: "var(--color-accent)", textDecoration: "underline" }}>Settings → Autonomy</a>.
         </div>
       </div>
       <button

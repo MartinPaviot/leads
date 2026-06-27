@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SettingsHeader } from "@/components/ui/settings-header";
-import { Gauge, Mail, PenLine, Target, BadgeCheck, ArrowRight } from "lucide-react";
+import { Gauge, Mail, PenLine, Target, BookOpen, ArrowRight } from "lucide-react";
 
 type AutonomyLevel = "copilot" | "guided" | "autonomous" | "strategic";
 const LEVEL_LABEL: Record<AutonomyLevel, string> = {
@@ -77,7 +77,7 @@ export default function SettingsOverviewPage() {
       <div className="space-y-2">
         <LinkRow href="/settings/writing-style" icon={<PenLine size={15} />} title="Voice & Writing" sub="How it sounds, your standing instructions, audiences" />
         <LinkRow href="/settings/icp" icon={<Target size={15} />} title="Targeting" sub="Your ICP — who the engine goes after" />
-        <LinkRow href="/settings/guardrails" icon={<BadgeCheck size={15} />} title="Approval mode" sub="When it must ask before acting" />
+        <LinkRow href="/settings/knowledge" icon={<BookOpen size={15} />} title="Knowledge" sub="Business context the AI uses everywhere" />
         <LinkRow href="/settings/profile" icon={<ArrowRight size={15} />} title="Profile & account" sub="Your name, language, security, notifications" />
       </div>
     </>

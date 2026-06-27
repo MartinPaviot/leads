@@ -67,7 +67,19 @@ export default function ProfileSettingsPage() {
     }
   }
 
-  if (!loaded) return null;
+  if (!loaded) {
+    // Skeleton (not a blank pane) while the profile loads, matching the form's shape.
+    return (
+      <>
+        <SettingsHeader title="Profile" subtitle="Manage settings for your personal profile." />
+        <div className="space-y-5">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-9 animate-pulse rounded-lg" style={{ background: "var(--color-bg-hover)" }} />
+          ))}
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

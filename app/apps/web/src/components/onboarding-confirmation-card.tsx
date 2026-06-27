@@ -556,7 +556,7 @@ export function OnboardingConfirmationCard({
             </div>
           </dl>
           <a
-            href="/settings/guardrails"
+            href="/settings/autonomy"
             className="mt-3 inline-block text-[12px]"
             style={{ color: "var(--color-accent)" }}
           >
