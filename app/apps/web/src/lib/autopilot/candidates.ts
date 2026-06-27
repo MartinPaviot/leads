@@ -59,35 +59,44 @@ export function pickBestContacts(rows: ContactRow[]): Map<string, ContactRow> {
   return best;
 }
 
+/** Highest-score contact of a NON-EMPTY list; tie → lowest id (deterministic). */
+function bestByScore(contacts: ContactRow[]): ContactRow {
+  return contacts.reduce((best, c) => {
+    const sc = c.score ?? Number.NEGATIVE_INFINITY;
+    const sb = best.score ?? Number.NEGATIVE_INFINITY;
+    return sc > sb || (sc === sb && c.id < best.id) ? c : best;
+  });
+}
+
 /**
  * Best contact per company, but PREFER the contact the freshest signal names
- * (Monaco signal→person) when it resolves to a reachable contact of that company;
- * otherwise the score-best (`pickBestContacts`). The hint only ever re-targets
- * WITHIN a company's own reachable contacts — it never reaches outside the CRM.
- * Pure.
+ * (Monaco signal→person) when it resolves. CRITICAL: both the hint AND the
+ * score-best fall-back pick only from ELIGIBLE contacts (reachable AND not
+ * opted-out AND not already enrolled — via `isEligible`). A hint to an
+ * ineligible contact must NOT win, else the company's single candidate becomes
+ * un-sendable and the whole (often top-priority) account is silently dropped
+ * instead of falling back to a viable alternate contact. The hint only ever
+ * re-targets WITHIN a company's own eligible contacts. Pure.
  */
 export function pickContactsForCompanies(
   rows: ContactRow[],
   hintByCompany: Map<string, SignalPerson>,
+  isEligible: (c: ContactRow) => boolean = isReachable,
 ): Map<string, ContactRow> {
-  const scoreBest = pickBestContacts(rows);
-  if (hintByCompany.size === 0) return scoreBest;
-
-  // Reachable contacts grouped by company (the only pool the hint may pick from).
-  const reachableByCompany = new Map<string, ContactRow[]>();
+  // Eligible contacts grouped by company — the only pool either path may pick.
+  const eligibleByCompany = new Map<string, ContactRow[]>();
   for (const c of rows) {
-    if (!c.companyId || !isReachable(c)) continue;
-    const arr = reachableByCompany.get(c.companyId);
+    if (!c.companyId || !isEligible(c)) continue;
+    const arr = eligibleByCompany.get(c.companyId);
     if (arr) arr.push(c);
-    else reachableByCompany.set(c.companyId, [c]);
+    else eligibleByCompany.set(c.companyId, [c]);
   }
 
-  const out = new Map<string, ContactRow>(scoreBest);
-  for (const [companyId, contactsForCo] of reachableByCompany) {
+  const out = new Map<string, ContactRow>();
+  for (const [companyId, contactsForCo] of eligibleByCompany) {
     const hint = hintByCompany.get(companyId);
-    if (!hint) continue;
-    const hinted = resolveHintedContact(contactsForCo, hint);
-    if (hinted) out.set(companyId, hinted);
+    const hinted = hint ? resolveHintedContact(contactsForCo, hint) : null;
+    out.set(companyId, hinted ?? bestByScore(contactsForCo));
   }
   return out;
 }
@@ -164,35 +173,53 @@ export async function loadCandidates(tenantId: string, limit: number, database: 
     .from(contacts)
     .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt), inArray(contacts.companyId, companyIds)))) as ContactRow[];
 
-  const bestByCompany = pickContactsForCompanies(conRows, hintByCompany);
-  const candidates = buildCandidates(bestByCompany, scoreByCompany);
-  if (candidates.length === 0) return EMPTY;
+  // 3. Eligibility over the FULL reachable pool (BEFORE picking): a contact is
+  //    eligible if reachable AND not opted-out AND not already in an active
+  //    sequence. Computing this up front lets the picker prefer the signal-hinted
+  //    contact ONLY when eligible, else fall back to the best eligible contact —
+  //    so a hint to an opted-out/enrolled person never strands the account.
+  const reachable = conRows.filter((c) => !!c.companyId && isReachable(c));
+  const reachableIds = reachable.map((c) => c.id);
+  const emailById = new Map<string, string>();
+  for (const c of reachable) if (c.email) emailById.set(c.id, c.email.toLowerCase().trim());
 
-  const contactIds = candidates.map((c) => c.contactId);
-  const emailByContact = new Map<string, string>();
-  for (const [, c] of bestByCompany) if (c.email) emailByContact.set(c.id, c.email.toLowerCase().trim());
+  // sequence_enrollments has no tenant_id column — reachableIds are already this
+  // tenant's (tenant-scoped contacts query), so contactId + active is sufficient.
+  const enrolled = reachableIds.length
+    ? await database
+        .select({ contactId: sequenceEnrollments.contactId })
+        .from(sequenceEnrollments)
+        .where(and(inArray(sequenceEnrollments.contactId, reachableIds), eq(sequenceEnrollments.status, "active")))
+    : [];
+  const enrolledIds = new Set(enrolled.map((e) => e.contactId).filter((x): x is string => !!x));
 
-  // 3. Already-enrolled (active) among the candidates.
-  // sequence_enrollments has no tenant_id column — the candidate contactIds are
-  // already this tenant's (from the tenant-scoped contacts query), so scoping by
-  // contactId + active status is sufficient.
-  const enrolled = await database
-    .select({ contactId: sequenceEnrollments.contactId })
-    .from(sequenceEnrollments)
-    .where(and(inArray(sequenceEnrollments.contactId, contactIds), eq(sequenceEnrollments.status, "active")));
-  const alreadyEnrolledContactIds = new Set(enrolled.map((e) => e.contactId).filter((x): x is string => !!x));
-
-  // 4. Suppressed (opt-out) among the candidate emails → back to contactIds.
-  const emails = [...new Set(emailByContact.values())];
-  const optouts = emails.length
+  const allEmails = [...new Set(emailById.values())];
+  const optouts = allEmails.length
     ? await database
         .select({ emailAddress: emailOptouts.emailAddress })
         .from(emailOptouts)
-        .where(and(eq(emailOptouts.tenantId, tenantId), inArray(sql`lower(${emailOptouts.emailAddress})`, emails)))
+        .where(and(eq(emailOptouts.tenantId, tenantId), inArray(sql`lower(${emailOptouts.emailAddress})`, allEmails)))
     : [];
   const suppressedEmails = new Set(optouts.map((o) => o.emailAddress.toLowerCase().trim()));
+
+  const isEligible = (c: ContactRow): boolean =>
+    isReachable(c) && !enrolledIds.has(c.id) && !(c.email ? suppressedEmails.has(c.email.toLowerCase().trim()) : false);
+
+  // 4. Pick the hinted-if-eligible, else best-eligible, contact per company.
+  const bestByCompany = pickContactsForCompanies(conRows, hintByCompany, isEligible);
+  const candidates = buildCandidates(bestByCompany, scoreByCompany);
+  if (candidates.length === 0) return EMPTY;
+
+  // The chosen are eligible by construction, so these exclusion sets (kept for
+  // selectProspects' defense-in-depth filter) are normally empty — surface any
+  // chosen id that is nonetheless flagged, restricted to the candidates.
+  const candidateIds = new Set(candidates.map((c) => c.contactId));
+  const alreadyEnrolledContactIds = new Set([...enrolledIds].filter((id) => candidateIds.has(id)));
   const suppressedContactIds = new Set<string>();
-  for (const [cid, email] of emailByContact) if (suppressedEmails.has(email)) suppressedContactIds.add(cid);
+  for (const c of candidates) {
+    const email = emailById.get(c.contactId);
+    if (email && suppressedEmails.has(email)) suppressedContactIds.add(c.contactId);
+  }
 
   return { candidates, alreadyEnrolledContactIds, suppressedContactIds };
 }

@@ -105,6 +105,23 @@ describe("pickContactsForCompanies — Monaco signal→person", () => {
     const hints = new Map<string, SignalPerson>([["co1", { contactId: "mgr" }]]);
     expect(pickContactsForCompanies(withUnreachable, hints).get("co1")?.id).toBe("ceo");
   });
+
+  it("a hint to an INELIGIBLE (opted-out/enrolled) contact falls back to the eligible alternate — does NOT strand the account", () => {
+    const rows: ContactRow[] = [
+      con({ id: "ceo", companyId: "co1", score: 90 }), // eligible alternate
+      con({ id: "mgr", companyId: "co1", score: 10 }), // reachable BUT ineligible (e.g. already enrolled)
+    ];
+    const hints = new Map<string, SignalPerson>([["co1", { contactId: "mgr" }]]);
+    const isEligible = (c: ContactRow) => c.id !== "mgr";
+    const out = pickContactsForCompanies(rows, hints, isEligible);
+    expect(out.get("co1")?.id).toBe("ceo"); // covered via the alternate, not dropped
+  });
+
+  it("a company whose ONLY contact is ineligible yields no pick (correctly dropped)", () => {
+    const rows: ContactRow[] = [con({ id: "only", companyId: "co1", score: 5 })];
+    const out = pickContactsForCompanies(rows, new Map(), () => false);
+    expect(out.has("co1")).toBe(false);
+  });
 });
 
 describe("buildCandidates", () => {
@@ -125,25 +142,28 @@ describe("loadCandidates (IO)", () => {
     expect((await loadCandidates("t1", 10, stubDb({ companies: [] }))).candidates).toEqual([]);
   });
 
-  it("builds candidates from best contacts + the enrolled/suppressed sets", async () => {
+  it("picks the eligible contact per company (skips enrolled/suppressed BEFORE choosing) — no stranding", async () => {
     const db = stubDb({
       companies: [
         { id: "co1", priorityScore: 90, computedAt: new Date(1000) },
         { id: "co2", priorityScore: 50, computedAt: new Date(2000) },
       ],
       contacts: [
-        { id: "k1", companyId: "co1", email: "K1@X.com", emailStatus: null, score: 1 },
-        { id: "k2", companyId: "co1", email: "k2@x.com", emailStatus: null, score: 9 }, // best for co1
-        { id: "k3", companyId: "co2", email: "k3@x.com", emailStatus: null, score: 3 },
+        { id: "k1", companyId: "co1", email: "K1@X.com", emailStatus: null, score: 1 }, // eligible alternate
+        { id: "k2", companyId: "co1", email: "k2@x.com", emailStatus: null, score: 9 }, // higher score BUT enrolled
+        { id: "k3", companyId: "co2", email: "k3@x.com", emailStatus: null, score: 3 }, // co2's only contact, suppressed
       ],
-      sequenceEnrollments: [{ contactId: "k2" }], // k2 already enrolled
-      emailOptouts: [{ emailAddress: "k3@x.com" }], // k3 suppressed
+      sequenceEnrollments: [{ contactId: "k2" }], // k2 already enrolled → ineligible
+      emailOptouts: [{ emailAddress: "k3@x.com" }], // k3 suppressed → ineligible
     });
     const pool = await loadCandidates("t1", 10, db);
-    expect(pool.candidates.map((c) => c.contactId).sort()).toEqual(["k2", "k3"]);
-    expect(pool.candidates.find((c) => c.contactId === "k2")?.priorityScore).toBe(90);
-    expect([...pool.alreadyEnrolledContactIds]).toEqual(["k2"]);
-    expect([...pool.suppressedContactIds]).toEqual(["k3"]);
+    // co1 falls back to the eligible k1 (NOT stranded on the enrolled k2);
+    // co2's only contact is suppressed → correctly dropped.
+    expect(pool.candidates.map((c) => c.contactId)).toEqual(["k1"]);
+    expect(pool.candidates[0].priorityScore).toBe(90); // still co1's priority
+    // Chosen contacts are eligible by construction → exclusion sets are empty.
+    expect([...pool.alreadyEnrolledContactIds]).toEqual([]);
+    expect([...pool.suppressedContactIds]).toEqual([]);
   });
 
   it("a company with only unreachable contacts yields no candidate", async () => {

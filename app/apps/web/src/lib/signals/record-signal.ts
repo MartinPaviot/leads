@@ -15,6 +15,7 @@
 import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
+import { filterFreshSignals } from "./freshness";
 
 export type SignalStrength = "high" | "medium" | "low";
 
@@ -57,12 +58,19 @@ export function hasAnyHint(p: SignalPerson | null | undefined): boolean {
  * one (a signal with no usable `person` is skipped). Pure. Returns null when no
  * signal carries a person → caller falls back to the score-best contact.
  */
-export function personFromSignals(signals: SignalEntry[] | null | undefined): SignalPerson | null {
+export function personFromSignals(
+  signals: SignalEntry[] | null | undefined,
+  now: Date = new Date(),
+): SignalPerson | null {
   if (!Array.isArray(signals)) return null;
-  const withPerson = signals.filter((s) => s && hasAnyHint(s.person));
-  if (withPerson.length === 0) return null;
-  withPerson.sort((a, b) => Date.parse(b.detectedAt) - Date.parse(a.detectedAt));
-  return withPerson[0].person ?? null;
+  // Only a FRESH signal may route — a stale hint (e.g. a >30-day hiring signal)
+  // must not hijack routing forever, and routing to a person from a signal the
+  // draft context would drop is the "stale signal proves automation" failure.
+  // Null-TTL structural signals (warm_connection) stay eligible (freshness keeps them).
+  const fresh = filterFreshSignals(signals.filter((s) => s && hasAnyHint(s.person)), now);
+  if (fresh.length === 0) return null;
+  fresh.sort((a, b) => Date.parse(b.detectedAt) - Date.parse(a.detectedAt));
+  return fresh[0].person ?? null;
 }
 
 /**
