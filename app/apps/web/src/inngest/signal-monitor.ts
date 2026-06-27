@@ -172,25 +172,22 @@ async function checkCompanySignals(
     const news = await fetchRecentNews(company.name, 7); // only last 7 days
     for (const item of news) {
       const lower = item.title.toLowerCase();
-      if ((lower.includes("raise") || lower.includes("funding") || lower.includes("series")) && !existingTypes.has("funding_recent_new")) {
-        detected.push({
-          companyId: company.id,
-          tenantId,
-          signalType: "funding_recent",
-          confidence: "high",
-          detail: item.title,
-          detectedAt: now,
-        });
+      // Dedup key is DERIVED from the pushed signalType (not a separate literal):
+      // the prior code checked `funding_recent_new` while pushing `funding_recent`,
+      // so the guard never matched → the same funding news was re-detected every
+      // 4h, re-triggering outreach + the kairos accelerator and appending a
+      // duplicate signal entry each pass.
+      if (lower.includes("raise") || lower.includes("funding") || lower.includes("series")) {
+        const signalType = "funding_recent";
+        if (!existingTypes.has(signalType)) {
+          detected.push({ companyId: company.id, tenantId, signalType, confidence: "high", detail: item.title, detectedAt: now });
+        }
       }
-      if ((lower.includes("acqui") || lower.includes("merger")) && !existingTypes.has("acquisition")) {
-        detected.push({
-          companyId: company.id,
-          tenantId,
-          signalType: "acquisition",
-          confidence: "medium",
-          detail: item.title,
-          detectedAt: now,
-        });
+      if (lower.includes("acqui") || lower.includes("merger")) {
+        const signalType = "acquisition";
+        if (!existingTypes.has(signalType)) {
+          detected.push({ companyId: company.id, tenantId, signalType, confidence: "medium", detail: item.title, detectedAt: now });
+        }
       }
     }
   } catch { /* non-blocking */ }
@@ -225,6 +222,20 @@ async function checkCompanySignals(
   return detected;
 }
 
+/**
+ * Pure: upsert a monitor signal into a company's signals[] by `type` — a
+ * re-fired type REPLACES its prior entry (freshest detail/detectedAt) instead of
+ * appending a duplicate, mirroring lib/signals/record-signal.ts upsertSignalEntry.
+ * Order-stable for the kept entries. Exported for unit tests.
+ */
+export function upsertMonitorSignal(
+  current: Array<Record<string, unknown>>,
+  entry: Record<string, unknown>,
+): Array<Record<string, unknown>> {
+  const kept = current.filter((s) => s.type !== entry.type);
+  return [...kept, entry];
+}
+
 async function persistSignal(signal: DetectedSignal): Promise<void> {
   const [company] = await db
     .select({ properties: companies.properties })
@@ -235,9 +246,10 @@ async function persistSignal(signal: DetectedSignal): Promise<void> {
   if (!company) return;
 
   const props = (company.properties || {}) as Record<string, unknown>;
-  const signals = (props.signals || []) as Array<Record<string, unknown>>;
-
-  signals.push({
+  const current = Array.isArray(props.signals)
+    ? (props.signals as Array<Record<string, unknown>>)
+    : [];
+  const next = upsertMonitorSignal(current, {
     type: signal.signalType,
     confidence: signal.confidence,
     detail: signal.detail,
@@ -245,9 +257,18 @@ async function persistSignal(signal: DetectedSignal): Promise<void> {
     isNew: true,
   });
 
+  // Merge ONLY the signals key (JSONB ||) so a concurrent property writer
+  // (lastKnownFunding, primaryIcpId, …) isn't clobbered by this stale-read write.
+  // The previous `{ ...props, signals }` overwrote the WHOLE properties object
+  // from a read that could be seconds old — a lost-update on anything written
+  // between the read and this set.
+  const patch = JSON.stringify({ signals: next });
   await db
     .update(companies)
-    .set({ properties: { ...props, signals } })
+    .set({
+      properties: sql`COALESCE(${companies.properties}, '{}'::jsonb) || ${patch}::jsonb`,
+      updatedAt: sql`now()`,
+    })
     .where(eq(companies.id, signal.companyId));
 }
 
