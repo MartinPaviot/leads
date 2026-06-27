@@ -105,17 +105,22 @@ describe("sequence-dispatch registry", () => {
     expect(res.pendingReason).toMatch(/legacy sendSequenceStep/);
   });
 
-  it("linkedin adapter is unavailable without LINKEDIN_OUTREACH_PROVIDER env", async () => {
+  it("linkedin adapter fails loudly when a provider is set but the live client is unbuilt", async () => {
+    // No provider → manual-task mode (covered with a mocked recorder in
+    // lib/sequence-dispatch/__tests__/dispatch.test.ts). Here we assert the
+    // remaining no-DB branch: a declared provider with no implementation must
+    // fail loudly rather than silently drop the step.
     const prior = process.env.LINKEDIN_OUTREACH_PROVIDER;
-    delete process.env.LINKEDIN_OUTREACH_PROVIDER;
+    process.env.LINKEDIN_OUTREACH_PROVIDER = "unipile";
     try {
       const { linkedinMessageAdapter } = await import("@/lib/sequence-dispatch/linkedin-adapter");
       registerAdapter(linkedinMessageAdapter);
       const res = await dispatchStep(stepInput({ stepType: "linkedin_message" }));
       expect(res.ok).toBe(false);
-      expect(res.error).toMatch(/not available/);
+      expect(res.error).toMatch(/not implemented/);
     } finally {
-      if (prior !== undefined) process.env.LINKEDIN_OUTREACH_PROVIDER = prior;
+      if (prior === undefined) delete process.env.LINKEDIN_OUTREACH_PROVIDER;
+      else process.env.LINKEDIN_OUTREACH_PROVIDER = prior;
     }
   });
 });

@@ -1,37 +1,41 @@
 import type { ChannelAdapter, DispatchInput, DispatchResult } from "./types";
+import { makeManualTaskAdapter } from "./task-adapter";
 
 /**
- * LinkedIn message adapter — stub. No live credentials yet (Expandi /
- * PhantomBuster / Unipile integration is a follow-up), so the adapter
- * reports `isAvailable() === false` whenever `LINKEDIN_OUTREACH_PROVIDER`
- * isn't explicitly enabled in env. This lets the rest of the
- * dispatcher ship now and start persisting linkedin_message steps
- * without risk of accidentally firing a request to an integration that
- * doesn't exist.
+ * LinkedIn message adapter.
+ *
+ * Two modes, chosen at dispatch time by `LINKEDIN_OUTREACH_PROVIDER`:
+ *   - UNSET (today): manual-task mode — record a "Needs you" task so the founder
+ *     sends the LinkedIn touch by hand. This makes the multi-channel cadence real
+ *     now, with no provider dependency (Unipile / Expandi / PhantomBuster).
+ *   - SET: the live send path — NOT implemented yet, so it fails loudly rather
+ *     than silently doing nothing, signalling the provider client must be wired
+ *     here before enabling real sends.
  *
  * Shape of channel_config expected once live:
- *   {
- *     provider: "expandi" | "phantombuster" | "unipile",
- *     connectionNoteTemplate: string,  // used when not yet connected
- *     messageTemplate: string,         // used when already connected
- *     campaignId?: string,             // optional provider-side grouping
- *   }
+ *   { provider, connectionNoteTemplate, messageTemplate, campaignId? }
  */
+const manualTask = makeManualTaskAdapter("linkedin_message");
+
 export const linkedinMessageAdapter: ChannelAdapter = {
   type: "linkedin_message",
+  // Always available: manual-task mode needs no credentials; live mode is gated
+  // inside dispatch by the provider env (and fails loudly until implemented).
   isAvailable(): boolean {
-    const provider = process.env.LINKEDIN_OUTREACH_PROVIDER;
-    return typeof provider === "string" && provider.trim().length > 0;
+    return true;
   },
   async dispatch(input: DispatchInput): Promise<DispatchResult> {
-    // Intentionally unimplemented — should never be called while
-    // `isAvailable()` is false. If someone wires credentials without
-    // finishing the integration, we fail loudly rather than silently.
-    const provider = process.env.LINKEDIN_OUTREACH_PROVIDER ?? "(unset)";
-    return {
-      ok: false,
-      channel: "linkedin_message",
-      error: `LinkedIn provider "${provider}" registered in env but adapter implementation is a stub — wire the provider client in lib/sequence-dispatch/linkedin-adapter.ts before enabling linkedin_message steps. input.step.id=${input.step.id}`,
-    };
+    const provider = process.env.LINKEDIN_OUTREACH_PROVIDER;
+    if (provider && provider.trim().length > 0) {
+      // Live provider declared but the client isn't built — fail loudly so a
+      // half-wired integration never silently drops a step.
+      return {
+        ok: false,
+        channel: "linkedin_message",
+        error: `LinkedIn provider "${provider}" set but the live send client is not implemented — wire it in lib/sequence-dispatch/linkedin-adapter.ts before enabling live linkedin_message sends. step.id=${input.step.id}`,
+      };
+    }
+    // No live provider → manual touch in the Needs-you lane.
+    return manualTask.dispatch(input);
   },
 };

@@ -6,6 +6,8 @@ import { companies, contacts, sequenceSteps, sequenceEnrollments, activities, ou
 import { eq, and, sql } from "drizzle-orm";
 import { addBusinessDays } from "@/lib/util/business-days";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
+import { dispatchStep } from "@/lib/sequence-dispatch/registry";
+import type { SequenceStepType } from "@/lib/sequence-dispatch/types";
 import { enqueueOutbound } from "@/lib/emails/outbound-hold";
 import { pauseEnrollment } from "@/lib/sequences/enrollment";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
@@ -494,6 +496,49 @@ const emailSchema = z.object({
   body: z.string().describe("Email body, professional and personalized"),
 });
 
+/**
+ * Advance an enrollment after a step is delivered (any channel): schedule the
+ * next step (weekend-aware) or complete the enrollment when none remain.
+ * Channel-agnostic — shared by the email path and the non-email dispatch path so
+ * the cadence logic stays in one place.
+ */
+async function advanceEnrollment(
+  enrollment: { sequenceId: string; currentStep: number },
+  tenantId: string,
+  enrollmentId: string,
+): Promise<void> {
+  const nextStep = enrollment.currentStep + 1;
+  const [nextStepTemplate] = await db
+    .select()
+    .from(sequenceSteps)
+    .where(and(eq(sequenceSteps.sequenceId, enrollment.sequenceId), eq(sequenceSteps.stepNumber, nextStep)))
+    .limit(1);
+
+  if (nextStepTemplate) {
+    // Skip weekends unless tenant explicitly opts out — recipients shouldn't get
+    // a Tuesday follow-up landing in their Saturday inbox.
+    const settings = await getTenantSettings(tenantId).catch(() => ({} as Record<string, unknown>));
+    const skipWeekends = (settings as { sequencesSkipWeekends?: boolean }).sequencesSkipWeekends !== false;
+    const delayDays = nextStepTemplate.delayDays || 2;
+    const nextStepAt = skipWeekends
+      ? addBusinessDays(new Date(), delayDays)
+      : (() => {
+          const d = new Date();
+          d.setDate(d.getDate() + delayDays);
+          return d;
+        })();
+    await db
+      .update(sequenceEnrollments)
+      .set({ currentStep: nextStep, lastStepAt: new Date(), nextStepAt })
+      .where(eq(sequenceEnrollments.id, enrollmentId));
+  } else {
+    await db
+      .update(sequenceEnrollments)
+      .set({ status: "completed", lastStepAt: new Date(), nextStepAt: null })
+      .where(eq(sequenceEnrollments.id, enrollmentId));
+  }
+}
+
 // Send sequence step email
 export const sendSequenceStep = inngest.createFunction(
   {
@@ -593,11 +638,48 @@ export const sendSequenceStep = inngest.createFunction(
       return c || null;
     });
 
-    if (!contact || !contact.email) {
-      return { enrollmentId, sent: false, reason: "No contact email" };
+    if (!contact) {
+      return { enrollmentId, sent: false, reason: "No contact" };
     }
 
     const tenantId = contact.tenantId;
+
+    // Multi-channel: a non-email step dispatches through the channel registry
+    // (manual "Needs you" task today; live send once the channel's provider is
+    // wired) — it must NOT be rendered + sent as an email. Email steps fall
+    // through to the unchanged pipeline below. Inngest memoizes the dispatch
+    // step, so a function retry never creates a duplicate task.
+    const stepType = ((stepTemplate.stepType as string) || "email") as SequenceStepType;
+    if (stepType !== "email") {
+      const dispatch = await step.run("dispatch-nonemail-step", async () =>
+        dispatchStep({
+          tenantId,
+          enrollmentId,
+          contactId: contact.id,
+          step: {
+            id: stepTemplate.id,
+            stepNumber: enrollment.currentStep,
+            stepType,
+            subjectTemplate: stepTemplate.subjectTemplate,
+            bodyTemplate: stepTemplate.bodyTemplate,
+            channelConfig: (stepTemplate.channelConfig ?? {}) as Record<string, unknown>,
+          },
+        }),
+      );
+      if (!dispatch.ok) {
+        // Don't advance — the step retries; never silently drop a touch.
+        return { enrollmentId, sent: false, channel: stepType, reason: dispatch.error ?? "dispatch failed" };
+      }
+      await step.run("advance-step-nonemail", async () => {
+        await advanceEnrollment(enrollment, tenantId, enrollmentId);
+      });
+      return { enrollmentId, sent: true, channel: stepType, step: enrollment.currentStep, artefactId: dispatch.artefactId };
+    }
+
+    // Email channel needs a deliverable address.
+    if (!contact.email) {
+      return { enrollmentId, sent: false, reason: "No contact email" };
+    }
 
     // Idempotency: if we've already created an outbound for this enrollment+step,
     // skip. Protects against duplicate `sequence/step-due` events from cron
@@ -804,54 +886,9 @@ export const sendSequenceStep = inngest.createFunction(
       });
     });
 
-    // Advance to next step
+    // Advance to next step (shared cadence logic).
     await step.run("advance-step", async () => {
-      const nextStep = enrollment.currentStep + 1;
-
-      // Check if next step exists
-      const [nextStepTemplate] = await db
-        .select()
-        .from(sequenceSteps)
-        .where(
-          and(
-            eq(sequenceSteps.sequenceId, enrollment.sequenceId),
-            eq(sequenceSteps.stepNumber, nextStep)
-          )
-        )
-        .limit(1);
-
-      if (nextStepTemplate) {
-        // Skip weekends unless tenant explicitly opts out — recipients
-        // shouldn't get a Tuesday follow-up landing in their Saturday inbox.
-        const settings = await getTenantSettings(tenantId).catch(() => ({} as Record<string, unknown>));
-        const skipWeekends = (settings as { sequencesSkipWeekends?: boolean }).sequencesSkipWeekends !== false;
-        const delayDays = nextStepTemplate.delayDays || 2;
-        const nextStepAt = skipWeekends
-          ? addBusinessDays(new Date(), delayDays)
-          : (() => {
-              const d = new Date();
-              d.setDate(d.getDate() + delayDays);
-              return d;
-            })();
-
-        await db
-          .update(sequenceEnrollments)
-          .set({
-            currentStep: nextStep,
-            lastStepAt: new Date(),
-            nextStepAt,
-          })
-          .where(eq(sequenceEnrollments.id, enrollmentId));
-      } else {
-        await db
-          .update(sequenceEnrollments)
-          .set({
-            status: "completed",
-            lastStepAt: new Date(),
-            nextStepAt: null,
-          })
-          .where(eq(sequenceEnrollments.id, enrollmentId));
-      }
+      await advanceEnrollment(enrollment, tenantId, enrollmentId);
     });
 
     return { enrollmentId, sent: true, step: enrollment.currentStep };
