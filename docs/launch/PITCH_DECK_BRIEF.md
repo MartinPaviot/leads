@@ -254,7 +254,7 @@ Stated conservatively; nothing here is revenue.
   10/10 mail-tester deliverability score (screenshot in repo root).
 - **Analytics wired, no usage data in repo**: PostHog (EU host, env-gated) + Sentry
   configured; no exported metrics/dashboards committed.
-- **Demo assets exist**: `DEMO_SCRIPT.md` (3-5 min, 5 flows) + `demo-qa/` screenshots.
+- **Demo assets exist**: `../demo/DEMO_SCRIPT.md` (3-5 min, 5 flows) + `../../demo-qa/` screenshots.
 - **Capital efficiency datum**: total documented external build spend ~$2
   (`_reports/spending.md`); everything runs on free tiers so far.
 - The GTM plan itself (`_research/elevay-strategy-v2.md`) concedes this: phase 1 is a

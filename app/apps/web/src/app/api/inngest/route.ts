@@ -157,7 +157,7 @@ export const { GET, POST, PUT } = serve({
     // CHAT-07: Memory auto-extraction from conversations
     memoryAutoExtract,
     // Enrichment: deep LLM signal extraction from emails
-    // (SOURCES_ANALYSIS.md §6.3 Module 1)
+    // (_research/SOURCES_ANALYSIS.md §6.3 Module 1)
     enrichmentEmailExtractFunction,
     enrichmentEmailExtractBatchFunction,
     // Deal briefing: on-demand + scheduled daily digest

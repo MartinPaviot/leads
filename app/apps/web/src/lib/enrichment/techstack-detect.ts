@@ -11,7 +11,7 @@
  *                        Squarespace, Wordpress
  *   - Auth / dev: Auth0, Clerk, Firebase, Supabase
  *
- * Coverage (cf. SOURCES_ANALYSIS.md §6.3 Module 4):
+ * Coverage (cf. _research/SOURCES_ANALYSIS.md §6.3 Module 4):
  *   - field 17 — company.techStack (complementary to Apollo, free)
  *
  * Accuracy: ~70 % on mainstream tech, lower for self-hosted or obfuscated

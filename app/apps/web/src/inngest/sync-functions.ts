@@ -564,7 +564,7 @@ export const syncEmails = inngest.createFunction(
     // Deep LLM signal extraction (fire-and-forget, runs in parallel function).
     // Existing `analyzeEmailBatch` above keeps simple sentiment + intent.
     // The extractor below adds objections, competitors, next steps, champion
-    // signals, extracted budget/timeframe — see SOURCES_ANALYSIS.md §6.3 Module 1.
+    // signals, extracted budget/timeframe — see _research/SOURCES_ANALYSIS.md §6.3 Module 1.
     if (createdActivities.length > 0) {
       const activityIds = createdActivities
         .filter((a) => a.body && a.body.length >= 40)
