@@ -219,7 +219,7 @@ export default function SendingInfrastructurePage() {
       toast(
         data.alreadyRequested
           ? "You already have an active request"
-          : "Request sent to Elevay ops",
+          : "Request sent to Orion ops",
         "success",
       );
       await load();

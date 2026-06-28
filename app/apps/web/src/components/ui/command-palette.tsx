@@ -72,7 +72,7 @@ const NAV_ITEMS: CommandItem[] = [
   { id: "nav-call-mode", label: "Call Mode", icon: <Phone size={16} />, href: "/call-mode", section: "Navigate to" },
   { id: "nav-campaigns", label: "Campaigns", icon: <Zap size={16} />, href: "/sequences", section: "Navigate to" },
   { id: "nav-meetings", label: "Meetings", icon: <Calendar size={16} />, href: "/meetings", section: "Navigate to" },
-  { id: "nav-chat", label: "Ask Elevay", icon: <MessageSquare size={16} />, href: "/chat", section: "Navigate to" },
+  { id: "nav-chat", label: "Ask Orion", icon: <MessageSquare size={16} />, href: "/chat", section: "Navigate to" },
   { id: "nav-settings", label: "Settings", icon: <Settings size={16} />, href: "/settings", section: "Navigate to" },
 ];
 

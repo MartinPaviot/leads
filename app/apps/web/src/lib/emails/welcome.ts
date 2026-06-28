@@ -46,14 +46,14 @@ export async function sendWelcomeEmail(
   const companyLine = p.companyName?.trim()
     ? `Your ${escapeHtml(p.companyName.trim())} workspace is live`
     : "Your Elevay workspace is live";
-  const subject = `Welcome to Elevay${p.companyName?.trim() ? ` — ${p.companyName.trim()} is set up` : ""}`;
+  const subject = `Welcome to Orion${p.companyName?.trim() ? ` — ${p.companyName.trim()} is set up` : ""}`;
 
   const links = [
     { href: `${APP_URL}/accounts?sort=score`, label: "Review your top accounts" },
     { href: `${APP_URL}/sequences`, label: "Launch your first sequence" },
     { href: `${APP_URL}/settings/mailboxes`, label: "Connect a sending mailbox" },
     { href: `${APP_URL}/settings/data-model`, label: "Customise your data model" },
-    { href: `${APP_URL}/chat`, label: "Ask Elevay anything in chat" },
+    { href: `${APP_URL}/chat`, label: "Ask Orion anything in chat" },
   ];
 
   const linksHtml = links

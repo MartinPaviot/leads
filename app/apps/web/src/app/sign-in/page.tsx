@@ -68,9 +68,9 @@ export default async function SignInPage({
         }}
       >
         <div className="flex flex-col items-center text-center">
-          <img src="/logo-Elevay.svg?v=2" alt="Elevay" className="mb-3 h-10 w-10" />
+          <img src="/orion-icon.svg" alt="Orion" className="mb-3 h-10 w-10" />
           <h1 className="gradient-text text-2xl font-bold tracking-tight">
-            Elevay
+            Orion
           </h1>
           <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
             Sign in to your sales engine

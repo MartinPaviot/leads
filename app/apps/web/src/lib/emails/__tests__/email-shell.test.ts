@@ -12,12 +12,12 @@ describe("renderBrandedEmail", () => {
       bodyHtml: "<p>body</p>",
     });
     // Logo is referenced inline (cid:), never a hosted URL.
-    expect(html).toContain('src="cid:elevay-logo"');
+    expect(html).toContain('src="cid:orion-logo"');
     expect(html).not.toMatch(/src="https?:\/\//);
     // Wordmark + gradient bar + footer.
-    expect(html).toContain(">Elevay</span>");
+    expect(html).toContain(">Orion</span>");
     expect(html).toContain("linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)");
-    expect(html).toContain("Elevay — the autonomous GTM engine");
+    expect(html).toContain("Orion — the autonomous GTM engine");
   });
 
   it("escapes the heading but inserts body HTML verbatim", () => {
@@ -99,7 +99,7 @@ describe("getBrandedEmailAttachments", () => {
     const atts = getBrandedEmailAttachments();
     expect(atts).toHaveLength(1);
     const [logo] = atts;
-    expect(logo.filename).toBe("elevay-logo.png");
+    expect(logo.filename).toBe("orion-logo.png");
     expect(logo.contentType).toBe("image/png");
     expect(typeof logo.content).toBe("string");
     expect(logo.content.length).toBeGreaterThan(100);

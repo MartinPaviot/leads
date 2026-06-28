@@ -41,7 +41,7 @@ const REASON_OPTIONS: Array<{ value: OptOutReason; labelKey: string }> = [
 export default function RecordingSettingsPage() {
   const t = useT();
   const [enabled, setEnabled] = useState(true);
-  const [botName, setBotName] = useState("Elevay Notetaker");
+  const [botName, setBotName] = useState("Orion Notetaker");
   const [policy, setPolicy] = useState<RecordingPolicy>("branded");
   const [optOutReason, setOptOutReason] = useState<OptOutReason | null>(null);
   const [primaryDomain, setPrimaryDomain] = useState("");
@@ -72,7 +72,7 @@ export default function RecordingSettingsPage() {
     }).then(({ data }) => {
       if (data?.settings) {
         setEnabled(data.settings.recordingEnabled !== false);
-        setBotName(data.settings.recordingBotName || "Elevay Notetaker");
+        setBotName(data.settings.recordingBotName || "Orion Notetaker");
         setPolicy(data.settings.recordingPolicy || "branded");
         setOptOutReason(data.settings.recordingOptOutReason ?? null);
         setPrimaryDomain(data.settings.primaryDomain || "");
@@ -163,7 +163,7 @@ export default function RecordingSettingsPage() {
             label={t("settings.recording.botNameLabel")}
             value={botName}
             onChange={(e) => setBotName(e.target.value)}
-            placeholder="Elevay Notetaker"
+            placeholder="Orion Notetaker"
             disabled={!enabled}
           />
           <p className="mt-1 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>

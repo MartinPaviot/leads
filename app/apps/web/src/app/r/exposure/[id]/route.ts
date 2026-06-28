@@ -84,7 +84,7 @@ function renderConsentHtml(exposureId: string, continueUrl: string): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Elevay — consentement</title>
+  <title>Orion — consentement</title>
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 10vh auto; padding: 24px; color: #111; }
     h1 { font-size: 20px; margin-bottom: 8px; }
@@ -97,7 +97,7 @@ function renderConsentHtml(exposureId: string, continueUrl: string): string {
 </head>
 <body>
   <h1>Un instant avant de continuer</h1>
-  <p>Elevay enregistre votre clic sur ce lien pour mesurer l'efficacité de notre produit. Ce tracking est strictement utilisé à des fins statistiques internes.</p>
+  <p>Orion enregistre votre clic sur ce lien pour mesurer l'efficacité de notre produit. Ce tracking est strictement utilisé à des fins statistiques internes.</p>
   <p>Souhaitez-vous continuer ?</p>
   <div class="actions">
     <a class="btn primary" href="${continueWithConsent}">Oui, continuer</a>

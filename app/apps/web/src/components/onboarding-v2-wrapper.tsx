@@ -343,7 +343,7 @@ export function OnboardingV2Wrapper({
             </button>
           </div>
         )}
-        <h1 className="gradient-text text-lg font-bold tracking-tight">Elevay</h1>
+        <h1 className="gradient-text text-lg font-bold tracking-tight">Orion</h1>
         <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
           One screen. Confirm what I picked up, or edit anything that doesn&apos;t match.
         </p>

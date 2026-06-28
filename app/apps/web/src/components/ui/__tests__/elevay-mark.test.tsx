@@ -11,8 +11,8 @@ describe("ElevayMark", () => {
     const { container } = render(<ElevayMark size={15} />);
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
-    expect(img!.getAttribute("src")).toBe("/logo-Elevay.svg?v=2");
-    // Decorative: it always sits next to a visible "Elevay" text or a
+    expect(img!.getAttribute("src")).toBe("/orion-icon.svg");
+    // Decorative: it always sits next to a visible "Orion" text or a
     // labeled control, so screen readers must not announce it twice.
     expect(img!.getAttribute("alt")).toBe("");
     expect(img!.getAttribute("aria-hidden")).toBe("true");

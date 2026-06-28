@@ -535,7 +535,7 @@ export default function WritingStylePage() {
             value={memory.aboutMe.companyLine ?? ""}
             maxLength={200}
             onChange={(e) => setCompanyLine(e.target.value)}
-            placeholder="Elevay — autonomous GTM for founder-led sales"
+            placeholder="Orion — autonomous GTM for founder-led sales"
             className="mt-1 w-full rounded-md border px-2 py-1 text-[12px] outline-none"
             style={inputStyle}
           />

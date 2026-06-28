@@ -175,13 +175,13 @@ function buildEmailParts(
     bodyHtml: body
       ? `<p style="margin: 0 0 12px; color:#3f3f46; font-size: 15px; line-height: 1.6;">${escapeHtml(body)}</p>`
       : "",
-    button: { label: "View in Elevay", url: ctaUrl },
+    button: { label: "View in Orion", url: ctaUrl },
     footnoteHtml: `You're receiving this because you have ${escapeHtml(
       type.replace(/_/g, " ")
     )} notifications enabled.`,
   });
 
-  const text = `${title}${body ? `\n\n${body}` : ""}\n\nView in Elevay: ${ctaUrl}`;
+  const text = `${title}${body ? `\n\n${body}` : ""}\n\nView in Orion: ${ctaUrl}`;
 
   return { html, text };
 }

@@ -120,8 +120,8 @@ function AcceptInviteInner() {
       >
         <div className="flex flex-col items-center text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-Elevay.svg?v=2" alt="Elevay" className="mb-3 h-10 w-10" />
-          <h1 className="gradient-text text-2xl font-bold tracking-tight">Elevay</h1>
+          <img src="/orion-icon.svg" alt="Orion" className="mb-3 h-10 w-10" />
+          <h1 className="gradient-text text-2xl font-bold tracking-tight">Orion</h1>
         </div>
 
         {state.kind === "loading" && <Centered>Verifying invitation…</Centered>}

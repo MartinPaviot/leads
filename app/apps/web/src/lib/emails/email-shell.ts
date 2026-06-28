@@ -1,7 +1,7 @@
-import { ELEVAY_LOGO_PNG_BASE64 } from "./elevay-logo";
+import { ORION_LOGO_PNG_BASE64 } from "./orion-logo";
 
 /** Content-ID for the inline logo; referenced as cid: in every branded email. */
-const LOGO_CID = "elevay-logo";
+const LOGO_CID = "orion-logo";
 
 export interface BrandedEmailButton {
   label: string;
@@ -27,7 +27,7 @@ export interface BrandedEmailOptions {
  * The shared branded shell for transactional emails — the same chrome the
  * workspace-invite email uses: an inline logo + wordmark header, a white card
  * with a gradient top bar, an Outlook-safe CTA button table, and the
- * "autonomous GTM engine" footer. Centralised so every email Elevay sends
+ * "autonomous GTM engine" footer. Centralised so every email Orion sends
  * (invite, verify, password reset, password changed) looks identical instead
  * of each template hand-rolling its own markup.
  *
@@ -83,8 +83,8 @@ export function renderBrandedEmail(opts: BrandedEmailOptions): string {
   ${preheader}
   <div style="max-width: 560px; margin: 0 auto;">
     <div style="padding: 4px 4px 18px;">
-      <img src="${logoSrc}" width="32" height="32" alt="Elevay" style="vertical-align: middle; border-radius: 8px; display: inline-block;" />
-      <span style="font-size: 20px; font-weight: 800; letter-spacing: -0.6px; color:#2C6BED; vertical-align: middle; margin-left: 9px;">Elevay</span>
+      <img src="${logoSrc}" width="32" height="32" alt="Orion" style="vertical-align: middle; border-radius: 8px; display: inline-block;" />
+      <span style="font-size: 20px; font-weight: 800; letter-spacing: -0.6px; color:#2C6BED; vertical-align: middle; margin-left: 9px;">Orion</span>
     </div>
     <div style="background:#ffffff; border-radius: 14px; border: 1px solid #e4e4e7; overflow: hidden;">
       <div style="height: 4px; background:#2C6BED; background: linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D);">&nbsp;</div>
@@ -99,7 +99,7 @@ export function renderBrandedEmail(opts: BrandedEmailOptions): string {
       </div>
     </div>
     <div style="text-align:center; padding: 16px 0 0; color:#a1a1aa; font-size: 12px;">
-      Elevay — the autonomous GTM engine
+      Orion — the autonomous GTM engine
     </div>
   </div>
 </body></html>`;
@@ -118,8 +118,8 @@ export function getBrandedEmailAttachments(): Array<{
 }> {
   return [
     {
-      filename: "elevay-logo.png",
-      content: ELEVAY_LOGO_PNG_BASE64,
+      filename: "orion-logo.png",
+      content: ORION_LOGO_PNG_BASE64,
       contentType: "image/png",
       contentId: LOGO_CID,
     },

@@ -343,8 +343,8 @@ export function ChatDock() {
     return (
       <button
         onClick={() => setOpen(true)}
-        aria-label="Open Elevay chat (Ctrl+J)"
-        title="Ask Elevay  ·  Ctrl+J"
+        aria-label="Open Orion chat (Ctrl+J)"
+        title="Ask Orion  ·  Ctrl+J"
         className="fixed bottom-5 right-5 flex h-11 w-11 items-center justify-center rounded-full transition-transform hover:scale-105 active:scale-95"
         style={{
           zIndex: 45,
@@ -382,7 +382,7 @@ export function ChatDock() {
         >
           <ElevayMark size={15} />
           <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-            Elevay
+            Orion
           </span>
           {/* Page-context chip */}
           <span
@@ -491,7 +491,7 @@ export function ChatDock() {
                   <div key={message.id} className="group/msg mb-4 min-w-0">
                     <div className="mb-1.5 flex items-center gap-1.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
                       <ElevayMark size={11} />
-                      <span style={{ fontWeight: 500 }}>Elevay</span>
+                      <span style={{ fontWeight: 500 }}>Orion</span>
                     </div>
 
                     {toolCalls.length > 0 && <ToolCallGroup calls={toolCalls} />}

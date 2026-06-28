@@ -378,7 +378,7 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
         {!collapsed ? (
           <>
             {/* Workspace identity — logo (or gradient initials) + name, the
-                slot Slack/Notion give the workspace. The Elevay brand keeps
+                slot Slack/Notion give the workspace. The Orion brand keeps
                 sign-in, marketing, emails and the chat surfaces; it only
                 renders here as a graceful fallback when the tenant is
                 unknown (DB hiccup). */}
@@ -394,9 +394,9 @@ export function Sidebar({ userName, userEmail, userInitials, userAvatarUrl, tena
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <img src="/logo-Elevay.svg?v=2" alt="Elevay" className="h-6 w-6" />
+                <img src="/orion-icon.svg" alt="Orion" className="h-6 w-6" />
                 <span className="gradient-text text-[16px] font-bold tracking-tight">
-                  Elevay
+                  Orion
                 </span>
               </div>
             )}

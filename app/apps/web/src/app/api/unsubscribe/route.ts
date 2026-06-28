@@ -63,7 +63,7 @@ function htmlResponse(title: string, message: string, status = 200) {
   <div class="card">
     <h1>${title}</h1>
     <p>${message}</p>
-    <p class="brand">Elevay</p>
+    <p class="brand">Orion</p>
   </div>
 </body>
 </html>`;

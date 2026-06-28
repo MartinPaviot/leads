@@ -63,7 +63,7 @@ export default function NotFound() {
             textDecoration: "none",
           }}
         >
-          Ask Elevay
+          Ask Orion
         </Link>
       </div>
     </main>

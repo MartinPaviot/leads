@@ -12,7 +12,7 @@ export function StreamingSkeleton() {
         style={{ color: "var(--color-text-tertiary)" }}
       >
         <ElevayMark size={13} className="animate-pulse" />
-        <span style={{ fontWeight: 500 }}>Elevay</span>
+        <span style={{ fontWeight: 500 }}>Orion</span>
       </div>
       <div className="space-y-2.5">
         <div

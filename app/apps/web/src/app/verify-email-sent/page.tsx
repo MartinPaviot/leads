@@ -51,7 +51,7 @@ export default async function VerifyEmailSentPage({
         }}
       >
         <div className="flex flex-col items-center">
-          <img src="/logo-Elevay.svg?v=2" alt="Elevay" className="mb-3 h-10 w-10" />
+          <img src="/orion-icon.svg" alt="Orion" className="mb-3 h-10 w-10" />
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
             Check your inbox
           </h1>
