@@ -29,7 +29,7 @@ Ces décisions **annulent** toute mention antérieure de « Supabase séparé »
    - `evaluateSend` — `lib/guardrails/sending-gate.ts:212`
    - `IntelligenceBrief` + `buildIntelligenceBrief` — `lib/campaign-engine/types.ts:50`,
      `build-intelligence-brief.ts:26`
-   - `recordCompanySignal` — `lib/signals/record-signal.ts:86`
+   - `recordCompanySignal` — `lib/signals/record-signal.ts:94`
    - waterfall — `lib/providers/company-enrichment/*`
    - identité — `db/canonical/identity.ts:67`, `upsert.ts:108`
    - serveur MCP — `app/api/mcp/route.ts`
@@ -120,9 +120,11 @@ SELECT id, name, settings->'mcpApiKeys' FROM tenants WHERE name ILIKE 'elevay';
    'elevay', '{"mcpApiKeys":[]}'::jsonb)` → noter l'`id` (= `elevayTenantId`).
 2. **User** : créer un `users` rattaché à ce tenant (rôle `admin`) — réutiliser le chemin
    `resolveUserTenant` (`auth.ts:80-196`) ou insert direct owner.
-3. **Clé `mcp_*`** : générer une clé `mcp_<random>`, en stocker le **sha256** dans
+3. **Clé `mcp_*`** : générer une clé `mcp_<random>`, en stocker le **hash bcrypt (cost 10)** dans
    `tenants.settings.mcpApiKeys[]` au format `McpApiKeyEntry` (`tenant-settings.ts:431` :
-   `{keyId, hashedKey, scopes, createdAt, lastUsedAt?}`). **Conserver la clé en clair UNE fois**
+   `{id, name, keyHash, keyPrefix, createdAt, keyOwnerId?}`). **PAS sha256** : `authenticateMcpRequest`
+   (`app/api/mcp/route.ts:230`) fait `bcryptjs.compare(token, keyHash)` → une clé sha256 ne matche
+   jamais (401). Recette exacte (mint + append jsonb) : `SETUP-RUNBOOK §4.2`. **Conserver la clé en clair UNE fois**
    (côté opérateur) — elle ne sera plus jamais lisible ; c'est le Bearer des appels MCP de démo.
 4. Vérifier : `curl -H "Authorization: Bearer mcp_…" .../api/mcp` (méthode `initialize`) → 200 et
    le `tenantId` résolu = `elevayTenantId`.

@@ -276,16 +276,18 @@ export interface TenantSettings {
   };
   sending?: SendingRules;                       // fenêtre 08-18, caps, cold policy, lawful basis
 }
-export interface McpApiKeyEntry {              // REUSE
-  id: string; hashedKey: string; label: string;
-  createdAt: string; lastUsedAt?: string; revokedAt?: string;
+export interface McpApiKeyEntry {              // REUSE (tenant-settings.ts:431)
+  id: string; name: string; keyHash: string;  // keyHash = bcrypt(rawKey, 10) — PAS sha256
+  keyPrefix: string; createdAt: string; keyOwnerId?: string;
 }
 ```
 
 > **Auth Bearer** : la clé en clair `mcp_<random>` n'est **jamais** stockée ; on stocke
-> `hashedKey` (sha256). `authenticateMcpRequest` (REUSE, `app/api/mcp/route.ts:230` ; lit
-> `settings.mcpApiKeys` à `:249`, met à jour `lastUsedAt` à `:264`) hashe le Bearer entrant et
-> matche → en déduit `tenantId`. **`tenantId` vient TOUJOURS du Bearer, jamais d'un argument.**
+> `keyHash` = **bcrypt(rawKey, 10)** (+ `keyPrefix` = `rawKey.slice(0,8)+"..."`). `authenticateMcpRequest`
+> (REUSE, `app/api/mcp/route.ts:230` ; lit `settings.mcpApiKeys` à `:249`, met à jour `lastUsedAt`
+> à `:264`) compare le Bearer entrant via **`bcryptjs.compare(token, keyHash)`** → en déduit `tenantId`.
+> **PAS sha256** : une clé stockée en sha256 ne matche jamais (401). Recette : `SETUP-RUNBOOK §4.2`.
+> **`tenantId` vient TOUJOURS du Bearer, jamais d'un argument.**
 
 ### 2.4 Runner de migration `scripts/apply-migrations.ts` (NET-NEW, calqué Elevay)
 
@@ -459,7 +461,8 @@ Ordre exact : (1) user app existant (`users.clerkId == authUserId`) → réutili
 ```ts
 // dans POST /api/mcp, AVANT tout dispatch :
 const authResult = await authenticateMcpRequest(req);   // route.ts:894
-//   → lit Authorization: Bearer mcp_… → sha256 → matche tenants.settings.mcpApiKeys[].hashedKey
+//   → lit Authorization: Bearer mcp_… → bcryptjs.compare(token, keyHash) sur tenants.settings.mcpApiKeys[]
+//     (match keyPrefix puis bcrypt.compare ; PAS sha256 — sinon 401 systématique ; cf. SETUP-RUNBOOK §4.2)
 //   → renvoie { tenantId } (+ bump lastUsedAt) ; 401 si absent/révoqué.
 // tenantId ainsi obtenu est passé à TOUS les handlers ; AUCUN outil ne l'accepte en argument.
 ```
@@ -500,7 +503,7 @@ Stages (chacun `step.run`, resume-safe par la dédup 3-niveaux §5/§2.6) :
    dédup `accountMatchPlan` (REUSE `identity.ts:67`/`:125`), `findAccountMatch` insert-ou-merge (`upsert.ts:60`).
 2. **COMPOSE** : `enrichCompany` waterfall (REUSE `providers/company-enrichment/waterfall.ts:148`,
    merge first-non-null `:77`) → `account_field_source` + précédence `pickWinner` (`precedence.ts:53`).
-3. **ACQUIRE SIGNALS** : `recordCompanySignal` (REUSE `lib/signals/record-signal.ts:86`) ←
+3. **ACQUIRE SIGNALS** : `recordCompanySignal` (REUSE `lib/signals/record-signal.ts:94`) ←
    `IngestItem.rawSignals` → `properties.signals[]`.
 4. **SCORE (ciblé)** : `scoreCompanyBatch` (REUSE `icp/fit-recompute-core.ts:140`) +
    `bestMultiplierForCompany` → `computePriorityScore` (REUSE `scoring/priority-score.ts:70`,
@@ -914,7 +917,7 @@ Fichiers `lib/ai/ai-provider.ts` (REUSE) + `lib/ai/traced-ai.ts` (REUSE). **AI S
   │  dédup 3 niv (job/item/sujet)                                                                    │
   │  [1] RÉSOUDRE identité   upsert.ts:108/:223 · identity.ts:67   → 1 seul companies.id            │
   │  [2] COMPOSER firmo      waterfall.ts:148 · precedence.ts:53   → account_field_source           │
-  │  [3] ACQUÉRIR signaux    record-signal.ts:86                   → properties.signals[]            │
+  │  [3] ACQUÉRIR signaux    record-signal.ts:94                   → properties.signals[]            │
   │  [4] SCORER (ciblé)      fit-recompute-core.ts:140 · priority-score.ts:70                        │
   │       cron velocity-snapshot:4 → signal_snapshots → diff → signal DÉRIVÉ (vélocité = le moat)   │
   └───────────────────────────────┬─────────────────────────────────────────────────────────────┘

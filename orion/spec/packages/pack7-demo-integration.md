@@ -116,8 +116,10 @@ exige une preuve : reproduire sur `main`.
   `tenants` `elevay` + ≥1 `users` + une clé `mcp_*`, **tout appel MCP → 401** et le seed n'a pas de
   tenant. Procédure : `INSERT tenants (id=gen_random_uuid(), name='elevay', settings='{"mcpApiKeys":[]}')`
   → noter l'`id` = `elevayTenantId` ; créer un `users` admin rattaché ; générer `mcp_<random>`, en
-  stocker le **sha256** dans `tenants.settings.mcpApiKeys[]` au format `McpApiKeyEntry`
-  (`lib/config/tenant-settings.ts:431` : `{keyId, hashedKey, scopes, createdAt, lastUsedAt?}`) ;
+  stocker le **hash bcrypt (cost 10)** dans `tenants.settings.mcpApiKeys[]` au format `McpApiKeyEntry`
+  (`lib/config/tenant-settings.ts:431` : `{id, name, keyHash, keyPrefix, createdAt, keyOwnerId?}`) —
+  **PAS sha256** : `authenticateMcpRequest` (`route.ts:230`) fait `bcryptjs.compare(token, keyHash)`,
+  une clé sha256 ne matche jamais (401) ; recette `SETUP-RUNBOOK §4.2` ;
   **conserver la clé en clair UNE fois** (opérateur). Vérifier : `curl -H "Authorization: Bearer
   mcp_…" .../api/mcp` (méthode `initialize`) → 200, `tenantId` résolu = `elevayTenantId`.
 - **§1.3 / G4 — GRANT `elevay_app` sur les tables net-new.** Après chaque `db:push`/migration, les
@@ -178,7 +180,7 @@ exige une preuve : reproduire sur `main`.
 | `scripts/offline-discovery.ts` | NET-NEW | **T-42b. THIN CALLER — ne réimplémente PAS le moteur 6-maillons.** Il **DÉLÈGUE** à `runOfflineDiscovery` (`lib/discovery/discover.ts`) / l'outil MCP `discover_from_history` **PRODUITS PAR pack2** : ce sont ces primitives pack2 qui enchaînent enrichir won+lost → reconstruire les événements datés → lift (dénom = LOST) → filtre non-évidence × acquérabilité-à-froid → prior cross-tenant `getAnonymizedBenchmark` (`anonymized-signals.ts:225`) → stratification confounder par `deal_source`. Ce script ne fait QUE charger l'historique, **appeler** `runOfflineDiscovery`/`discover_from_history`, et écrire le **rapport de discovery** consommé par la restitution. Aucune ré-implémentation du lift/prior ni du point-in-time (REUSE total via pack2). |
 | `e2e/offline-discovery-demo.spec.ts` | NET-NEW | **T-42b.** Parcours wedge day-one : upload CSV closed-won/lost (identité+label+J **seulement**) → offline-discovery tourne → assert les 5 beats de la restitution 90s (preuve 6/10 vs 1/7 ; confiance honnête ≈3,5× postérieur k=14 ; **reveal confounder `investor_overlap` → 0 sur le froid** ; action « je le guette via Fiber/LinkedIn/BODACC » ; 1 confirmation) → **cold-acquire** un prospect jamais touché via `leadership_change.vp_eng`. |
 | `src/__tests__/offline-discovery.test.ts` | NET-NEW | **T-42b.** Tripwire du moteur : (1) point-in-time — un événement hors `[J−90→J]` n'est PAS compté ; un état permanent (firmo) est rejeté ; (2) lift dénom = LOST (6/10 vs 1/7 ≈ 4,2×) ; (3) filtre : reformulation firmo « plus gros » pénalisée, signal non-ré-acquérable jeté ; (4) prior cross-tenant clamp `[0.5,2.5]` (`signal-outcomes.ts:39-40`), k≥10 (`:33`) → postérieur ≈3,5× ; (5) **modes d'échec** : confounder sourcing stratifié (`investor_overlap` s'effondre sur `deal_source=outbound`), pas-de-lost → confiance affichée baissée, signal non-ré-acquérable jeté. |
-| `scripts/ensure-elevay-tenant.ts` | NET-NEW | D6/§1.2. Crée la ligne `tenants` `elevay` + user admin + clé `mcp_*` (hash sha256) si absente. **Owner one-shot, hors-bande** (lit `DATABASE_URL_OWNER`, jamais importé par le runtime). Imprime la clé en clair UNE fois. |
+| `scripts/ensure-elevay-tenant.ts` | NET-NEW | D6/§1.2. Crée la ligne `tenants` `elevay` + user admin + clé `mcp_*` (hash **bcrypt cost 10**, shape `McpApiKeyEntry {id,name,keyHash,keyPrefix,createdAt}` — **PAS sha256**, le vérif fait `bcryptjs.compare`; cf. `SETUP-RUNBOOK §4.2`) si absente. **Owner one-shot, hors-bande** (lit `DATABASE_URL_OWNER`, jamais importé par le runtime). Imprime la clé en clair UNE fois. |
 | `.env.example` | NET-NEW | T-41. Inventaire env pertinent (voir §4 Étape 5). Clés sink **absentes** (per-tenant en DB). |
 | `_reports/orion-demo-hardening-<date>.md` | NET-NEW | §7 checklist hardening **exécutée** (logs/captures des 3 dép. bloquantes vérifiées live). |
 
@@ -222,7 +224,7 @@ fichiers REUSE à surveiller (file:line réels, **ne doivent pas voir leur logiq
 | Gate d'envoi | `lib/guardrails/sending-gate.ts:212-346` (catch `:339`, targeting `:301`/`:305`) |
 | Anti-fabrication | `lib/guardrails/fabrication-gate.ts:173` |
 | Brief | `lib/campaign-engine/build-intelligence-brief.ts:26,199,238`, `types.ts:50` |
-| Signaux | `lib/signals/record-signal.ts:86` |
+| Signaux | `lib/signals/record-signal.ts:94` |
 | Freshness | `lib/signals/freshness.ts:98` |
 | Identité/précédence | `db/canonical/upsert.ts:108`, `identity.ts:67`, `precedence.ts:53` |
 | Waterfall | `providers/company-enrichment/waterfall.ts:148`, `registry.ts` |
@@ -247,7 +249,7 @@ pack2). Logguer la sortie.
 `mcp_*` si absent (§1.2). Puis `seed-demo.ts` (rôle app, `withTenantTx(elevayTenantId)`), **idempotent** :
 1. **CSV de seed ≤30 lignes**, domaines réels résolvables (firmo déjà en base), passé par le pipeline
    **réel** de pack2 (`lib/ingest/sources/csv-source.ts` → résolution `upsertAccount upsert.ts:108` /
-   `identity.ts:67` → précédence `precedence.ts:53` → `recordCompanySignal record-signal.ts:86` →
+   `identity.ts:67` → précédence `precedence.ts:53` → `recordCompanySignal record-signal.ts:94` →
    score). **Pas** de `priorityScore` plaqué.
 2. **`computePriorityScore`** (`lib/scoring/priority-score.ts:70`) exécuté sur tous les comptes de
    démo + poser `priorityScoreComputedAt` (sinon `find_prospects` vide — P2).
@@ -388,7 +390,7 @@ DATABASE_URL_OWNER src` → **0** ; aucun `*_API_KEY` sink lu depuis `process.en
    point-in-time `detectActiveSignals` `signal-detectors.ts:144`) ; `deal_source` → `properties.dealSource` (`intro fonds Atlas/Borealis` |
    `outbound`) — colonne réelle absente, vit dans `properties` (`core.ts:269`).
 2. **Matérialiser les événements DATÉS** (pas un état permanent) en `properties.signals[]` via
-   `recordCompanySignal` (`lib/signals/record-signal.ts:86`) **+** `signal_snapshots` (table datée pack1/pack5) :
+   `recordCompanySignal` (`lib/signals/record-signal.ts:94`) **+** `signal_snapshots` (table datée pack1/pack5) :
    le `vp_eng_date` de chaque ligne (`:23-45`) + les autres vecteurs datés (funding, hiring,
    tech_stack_change, **investor_overlap**, GitHub-velocity) de `demo-hero-offers.md §1.2`. Chaque event
    porte sa **date** pour que `detectActiveSignals(props, J)` le compte **ssi `eventDate ∈ [J−90→J]`**.

@@ -61,7 +61,7 @@
   objets/arrays en silence).
 - `lib/campaign-engine/types.ts:50` → `IntelligenceBrief` ; `build-intelligence-brief.ts:26` →
   `buildIntelligenceBrief` (cache `intelligenceBriefs`, 14 j) — contexte d'entrée du brief.
-- `lib/signals/record-signal.ts:86` → `recordCompanySignal` (écrit `properties.signals[]`).
+- `lib/signals/record-signal.ts:94` → `recordCompanySignal` (écrit `properties.signals[]`).
 - `db/canonical/identity.ts:67` + `db/canonical/upsert.ts:108` → identité canonique (réconciliation).
 - `app/api/mcp/route.ts` (`MCP_TOOLS` `:19`) — squelette MCP JSON-RPC ; Bearer `mcp_*` →
   `tenants.settings.mcpApiKeys`. pack0 a extrait le dispatch ; pack4 ajoute **une** entrée au registre.

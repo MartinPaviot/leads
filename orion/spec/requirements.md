@@ -649,7 +649,7 @@ des seuls sujets touchés *afin de* doter chaque prospect d'un why-now sans reco
 
 - **GIVEN** des `rawSignals` sur un `IngestItem`
   **WHEN** le stage signaux s'exécute
-  **THEN** `recordCompanySignal` (REUSE `record-signal.ts:86`) écrit `properties.signals[]` ;
+  **THEN** `recordCompanySignal` (REUSE `record-signal.ts:94`) écrit `properties.signals[]` ;
   hookpoint signal post-import = NET-NEW (`agentic-executor.ts:~240`, gap #455,
   `signal-agent-mcp:278-285`).
 - **GIVEN** les sujets touchés
@@ -670,7 +670,7 @@ des seuls sujets touchés *afin de* doter chaque prospect d'un why-now sans reco
 **Acceptation testable.** Vitest : `rawSignals:[{type:'hiring'}]` → `properties.signals[]` non
 vide → `priorityScore > floor` ; un score ciblé ne touche que `touchedIds` (spy sur le batch).
 
-**Plug point.** NET-NEW (`lib/ingest/score-touched.ts`) sur REUSE (`record-signal.ts:86`,
+**Plug point.** NET-NEW (`lib/ingest/score-touched.ts`) sur REUSE (`record-signal.ts:94`,
 `fit-recompute-core.ts:140`, `priority-score.ts:70`). **Effort : 1,0 j-h.**
 
 ---

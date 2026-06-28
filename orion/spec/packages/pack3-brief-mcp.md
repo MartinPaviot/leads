@@ -418,7 +418,7 @@ porte un `whyNow` non-vide quand un signal frais existe, `suggestedNextTool:"get
 **Action — `lib/mcp/get-signals.ts`.** Input `{ subjectType:enum[contact,company], subjectId,
 mode:enum[cached,deep].default("cached") }`. **Mode `deep` → renvoyer une erreur explicite
 `"deep mode requires SSE (P2, not in this lot)"`** (ne l'implémente pas). Mode `cached` : lecture
-`properties.signals[]` (REUSE `record-signal.ts:86`), multiplier appris via la **taxonomie pack1**
+`properties.signals[]` (REUSE `record-signal.ts:94`), multiplier appris via la **taxonomie pack1**
 (`taxonomy.ts` — sinon plancher 1.0×), `suggestedAngle`. Sortie `{ subjectId, whyNow,
 compositeStrength, signals[]{type,polarity,strength,detectedAt,source,evidence{url,quote,verified}},
 multiplier, suggestedAngle }`. Annotation `{readOnlyHint:true, openWorldHint:false}`.

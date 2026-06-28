@@ -81,7 +81,7 @@ Orion **doit matcher** les tables partagées qu'utilisent les modules copiés :
 | `evaluateSend` (oracle d'éligibilité) | `lib/guardrails/sending-gate.ts:212` | gate fail-closed AVANT tout export |
 | `IntelligenceBrief` (type) | `lib/campaign-engine/types.ts:50` | la forme du brief |
 | `buildIntelligenceBrief` | `lib/campaign-engine/build-intelligence-brief.ts:26` | construit l'intelligence groundée |
-| `recordCompanySignal` | `lib/signals/record-signal.ts:86` | écrit `properties.signals[]` |
+| `recordCompanySignal` | `lib/signals/record-signal.ts:94` | écrit `properties.signals[]` |
 | waterfall d'enrichissement | `lib/providers/company-enrichment/*` (registry + precedence + `waterfall.ts`) | compose la firmo |
 | identité canonique | `db/canonical/identity.ts:67` (`accountMatchPlan`), `db/canonical/upsert.ts:108` (`upsertAccount`) | résolution/dédup |
 | RLS | `db/rls.ts` (`withTenantTx`) | cloisonnement tenant |
@@ -149,7 +149,10 @@ EXISTS` rend les ré-applications sûres et le split owner/app garde le runtime 
 - **Démo / live** : l'instance Supabase qui **porte le tenant `elevay`**.
 - **Pré-requis dur :** la ligne `tenants` du tenant `elevay` **doit exister**. Sinon, la créer
   one-shot (rôle owner) : insérer `tenants` (tenant `elevay`) + un `users` admin + une clé
-  `mcp_*` (stockée **hashée** `sha256` dans `tenants.settings.mcpApiKeys[]`, jamais en clair).
+  `mcp_*` (stockée **hachée bcrypt (cost 10)** dans `tenants.settings.mcpApiKeys[]`, jamais en
+  clair ; shape `McpApiKeyEntry {id,name,keyHash,keyPrefix,createdAt}`). **PAS sha256** : le
+  vérificateur fait `bcryptjs.compare(token, keyHash)` (`app/api/mcp/route.ts:230`
+  `authenticateMcpRequest`) → une clé sha256 ne matche jamais (401). Recette : `SETUP-RUNBOOK §4.2`.
 
 ### D7 — Clés partenaires per-tenant, chiffrées en DB, jamais en env.
 
@@ -208,7 +211,7 @@ contourner**. `send:false` → SKIP + `export_items.gate_code` ; **jamais** pous
        │                  │                │                                          │
        │                  │                ▼                                          ▼
        │                  │           recordCompanySignal              ╔═══════════════════════════╗
-       │                  │           (record-signal.ts:86)            ║ evaluateSend (ORACLE)     ║
+       │                  │           (record-signal.ts:94)            ║ evaluateSend (ORACLE)     ║
        │                  │           → properties.signals[]           ║ sending-gate.ts:212       ║
        │                  │                │                           ║ 8 gates fail-closed       ║
        │                  │                ▼                           ║ DANS le wrapper →         ║
@@ -229,7 +232,7 @@ contourner**. `send:false` → SKIP + `export_items.gate_code` ; **jamais** pous
        │           Inngest: ingest/run, signal-score-daily,                         ▼
        │           velocity-snapshot, export/run (id:"orion")                  export_jobs (additif)
        │
-       └── auth : Bearer mcp_* (sha256 → tenants.settings.mcpApiKeys) → tenantId = elevay TOUJOURS
+       └── auth : Bearer mcp_* (bcrypt.compare → tenants.settings.mcpApiKeys) → tenantId = elevay TOUJOURS
                   serveur MCP app/api/mcp/route.ts · tenantId JAMAIS un argument
 ```
 
@@ -341,8 +344,9 @@ attendre full-CI (gitleaks + tsc/vitest + Vercel) avant merge.
 ## 6. PRÉ-REQUIS D'AMORÇAGE (checklist)
 
 1. Confirmer que la ligne `tenants` du tenant **`elevay`** existe sur l'instance de démo. Sinon
-   créer one-shot (owner) : `tenants` (`elevay`) + `users` admin + clé `mcp_*` (hash `sha256`
-   dans `tenants.settings.mcpApiKeys[]`).
+   créer one-shot (owner) : `tenants` (`elevay`) + `users` admin + clé `mcp_*` (hash **bcrypt
+   cost 10**, shape `McpApiKeyEntry {id,name,keyHash,keyPrefix,createdAt}`, **pas sha256** — le
+   vérif fait `bcryptjs.compare`) dans `tenants.settings.mcpApiKeys[]`. Recette : `SETUP-RUNBOOK §4.2`.
 2. Confirmer le rôle runtime **`elevay_app`** (non-owner) et `DATABASE_URL` pointant Supavisor
    `:6543` (transaction-mode).
 3. Appliquer les migrations additives (`integration_credentials`, `ingest_*`, `export_*`,

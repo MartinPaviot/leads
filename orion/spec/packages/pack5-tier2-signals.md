@@ -84,7 +84,7 @@ snapshotté propriétaire. Concrètement, comme **`IngestSource`** alimentant l'
 | Symbole | Provenance (source Elevay à copier) | Usage pack5 |
 |---|---|---|
 | `withTenantTx`, `elevayTenantId` | `db/rls.ts` (pack0) | enrober chaque accès DB (cron + helpers) |
-| `recordCompanySignal(tenantId, companyId, entry)` | `lib/signals/record-signal.ts:86` | écrire le signal dérivé / interprété → `properties.signals[]` |
+| `recordCompanySignal(tenantId, companyId, entry)` | `lib/signals/record-signal.ts:94` | écrire le signal dérivé / interprété → `properties.signals[]` |
 | `SignalEntry` (`{type,detectedAt,strength?,detail?,source?,evidence?}`) | `lib/signals/record-signal.ts:39` | forme du signal |
 | `ttlDaysFor`, `SIGNAL_TTL_DAYS` | `lib/signals/freshness.ts:31/88` | demi-vie / fraîcheur des types canoniques |
 | `toCanonicalSignal` | `lib/signals/taxonomy.ts` (pack1) | canonicaliser AVANT `recordCompanySignal` |

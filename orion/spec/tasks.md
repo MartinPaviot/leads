@@ -138,8 +138,10 @@ sinon crée tenant+admin. e2e login.
 **j-h : 1,5.** **Dép : T-8 (schema auth), T-12 (`withTenantTx`).**
 
 ## T-7 — Auth MCP Bearer `mcp_*` scopé tenant
-**Impératif.** Copier `authenticateMcpRequest` : lit `Authorization: Bearer mcp_…` → sha256 → matche
-`tenants.settings.mcpApiKeys[].hashedKey` → renvoie `{tenantId, keyId, scopes}` + bump `lastUsedAt` ;
+**Impératif.** Copier `authenticateMcpRequest` : lit `Authorization: Bearer mcp_…` → match `keyPrefix`
+puis **`bcryptjs.compare(token, keyHash)`** sur `tenants.settings.mcpApiKeys[]` (shape `McpApiKeyEntry
+{id,name,keyHash,keyPrefix,createdAt}`) → renvoie `{tenantId, keyId, scopes}` + bump `lastUsedAt` ;
+**PAS sha256** (le vrai code fait `bcryptjs.compare` ; une clé sha256 ne matche jamais → 401 ; cf. `SETUP-RUNBOOK §4.2`) ;
 absent/révoqué → `401`, **aucun** dispatch. `tenantId` ainsi obtenu passé à **tous** les handlers ;
 aucun outil ne l'accepte en argument (invariant #1). Scope insuffisant → `403`.
 **Fichiers (REUSE).** `app/api/mcp/route.ts:230` (`authenticateMcpRequest`), `:249` (lecture
@@ -365,7 +367,7 @@ dans l'identité.
 **j-h : 2,0.** **Dép : T-10, T-12, T-16, T-21 (sources).**
 
 ## T-18 — `inngest` acquisition signaux + score ciblé (+ hookpoints provenance/signal post-import)
-**Impératif.** Stage signaux : `recordCompanySignal` (`record-signal.ts:86`) ← `IngestItem.rawSignals`
+**Impératif.** Stage signaux : `recordCompanySignal` (`record-signal.ts:94`) ← `IngestItem.rawSignals`
 → `properties.signals[]` (via alias-map T-14). Stage score (NET-NEW `lib/ingest/score-touched.ts`) :
 `scoreCompanyBatch(tenantId, touchedIds, icps, customFields)` (`fit-recompute-core.ts:140`) +
 `bestMultiplierForCompany` → `computePriorityScore` (`priority-score.ts:70`, floors `:54-55`) — **pas**
@@ -373,7 +375,7 @@ de recompute tenant entier. **NET-NEW (gap #455)** : hookpoint provenance `write
 (`functions.ts:~220`) + hookpoint signal post-import (`agentic-executor.ts:~240`) — **dans le MVP**,
 sinon tenant 100%-CSV → why-now vide.
 **Fichiers (NET-NEW sur REUSE).** `lib/ingest/score-touched.ts`, hookpoints `functions.ts:~220` +
-`agentic-executor.ts:~240` ; REUSE `record-signal.ts:86`, `fit-recompute-core.ts:140`,
+`agentic-executor.ts:~240` ; REUSE `record-signal.ts:94`, `fit-recompute-core.ts:140`,
 `priority-score.ts:70`, `freshness.ts:98`.
 **VERIFY.** `rawSignals:[{type:'hiring'}]` sur un CSV → `properties.signals[]` non vide →
 `priorityScore > floor`.

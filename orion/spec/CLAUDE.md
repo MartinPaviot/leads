@@ -66,7 +66,7 @@ Run from the root of the Orion repo unless noted; CI filters **`@orion/web`**.
 - MCP server: copy from Elevay `app/api/mcp/route.ts` → `src/app/api/mcp/route.ts` (JSON-RPC; `MCP_TOOLS` at :19, `handleTool` at :293; Bearer `mcp_*` auth via `tenants.settings.mcpApiKeys`).
 - Send guardrails: copy `evaluateSend` from Elevay `lib/guardrails/sending-gate.ts:212` — 8 gates, fail-closed. Everything outbound passes through it.
 - Intelligence brief: copy `IntelligenceBrief` from Elevay `lib/campaign-engine/types.ts:50` + `buildIntelligenceBrief` from `build-intelligence-brief.ts:26` (cache `intelligenceBriefs`, 14 days).
-- Signals: copy `recordCompanySignal` from Elevay `lib/signals/record-signal.ts:86` (writes `properties.signals[]`).
+- Signals: copy `recordCompanySignal` from Elevay `lib/signals/record-signal.ts:94` (writes `properties.signals[]`).
 - Enrichment waterfall: copy from Elevay `lib/providers/company-enrichment/registry.ts` + `precedence.ts`.
 - Identity: copy from Elevay `db/canonical/identity.ts:67` + `upsert.ts:108`.
 - CSV import: copy from Elevay `app/api/import/smart/route.ts`.
