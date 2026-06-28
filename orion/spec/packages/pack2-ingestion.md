@@ -436,7 +436,7 @@ immédiate). Diff **additif/wrapper uniquement** (invariant T-38 `reuse-untouche
   MODIF route — séparés). Trailer obligatoire sur chaque commit :
   ```
   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-  Claude-Session: https://claude.ai/code/session_017cpMyY7RNVYTQmqzYp8Qz4
+  Claude-Session: <URL de ta propre session Claude Code>
   ```
 - Re-vérifier branche+HEAD juste avant chaque commit/push (tree partagé, sessions parallèles).
 - PR ouverte sur `feat/orion-pack2` ; **full CI verte** (gitleaks + tsc/vitest + Vercel) avant merge ;

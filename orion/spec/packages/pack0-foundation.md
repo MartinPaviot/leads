@@ -411,7 +411,7 @@ contient les outils Elevay ; POST `tools/call` d'un nom inconnu → erreur propr
 - Trailer de commit obligatoire :
   ```
   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-  Claude-Session: https://claude.ai/code/session_017cpMyY7RNVYTQmqzYp8Qz4
+  Claude-Session: <URL de ta propre session Claude Code>
   ```
 - PR `feat/orion-pack0` → attendre **full CI** (gitleaks + tsc/vitest + Vercel) verte → `/evaluate`
   hostile PASS → squash-merge + delete-branch → surveiller le push CI de `main`.

@@ -142,9 +142,9 @@ cd app && pnpm install --frozen-lockfile && pnpm --filter @orion/web tsc
 
 ## 3. FICHIERS POSSÉDÉS PAR pack6 (création + édition exclusives)
 
-> `packages/ui/*` est à la racine du repo Orion (`packages/ui/`). Le reste sous `src/` (repo Orion
-> séparé). **NET-NEW** sauf mention. Zéro chevauchement (vérifié
-> contre `00-EXECUTION-GUIDE §3.1`).
+> `packages/ui/*` vit à la racine du monorepo (`app/packages/ui/`). Le reste sous
+> `app/apps/web/src/` (repo Orion séparé reproduisant le layout monorepo d'Elevay).
+> **NET-NEW** sauf mention. Zéro chevauchement (vérifié contre `00-EXECUTION-GUIDE §3.1`).
 
 | Fichier | Type | Rôle |
 |---|---|---|
@@ -346,7 +346,7 @@ skill **`/design-review`** (audit senior-designer + AI-slop) sur l'UI rendue liv
 - Commits atomiques, un changement logique chacun, trailer :
   ```
   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-  Claude-Session: https://claude.ai/code/session_017cpMyY7RNVYTQmqzYp8Qz4
+  Claude-Session: <URL de ta propre session Claude Code>
   ```
 - PR `feat/orion-pack6` ouverte ; CI pleine verte (gitleaks + tsc/vitest + Vercel) ; `/evaluate` PASS ;
   merge squash + delete-branch ; surveiller le push CI de `main`.

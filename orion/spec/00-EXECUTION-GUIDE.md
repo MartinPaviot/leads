@@ -29,8 +29,9 @@ provenance)"**. La **DB reste partagée** (tenant `elevay`).
 | **DB8** | **Brief ZÉRO prose** (`citableFacts[]` / `doNotClaim[]`). Sorties RÉELLES → **Instantly** (natif) + **Orange Slice** (webhook colonne) + **Lopus** (webhook générique) + **webhook générique HMAC**, **TOUTES** passées par `evaluateSend` (oracle d'éligibilité) **avant** export. **Fiber = ENTRÉE** (reveal + signaux Tracker), PAS une destination — **pas de `FiberAdapter`/`LopusAdapter` REST**. Gate **non-contournable** depuis JSON-RPC (dans le wrapper). Mapping brief→champs : `research/partner-apis-2026-06-27.md §6`. | T-36/T-37 tripwires. Aucun POST sink avant `evaluateSend`. |
 
 > **Note repo :** Orion est un **repo SÉPARÉ** (sa propre app Next/pnpm, package `@orion/web`),
-> **PAS** un sous-projet du monorepo Elevay. Le code Orion vit sous **`src/...`** à la racine du
-> repo Orion. Les chemins `file:line` préfixés `C:/Users/ombel/leads/app/apps/web/src/` (ou
+> **PAS** un sous-projet du monorepo Elevay. Le code Orion vit sous **`app/apps/web/src/...`**
+> (Orion reproduit le layout monorepo d'Elevay : racine `app/` = monorepo root, `app/apps/web/` =
+> `@orion/web`). Les chemins `file:line` préfixés `C:/Users/ombel/leads/app/apps/web/src/` (ou
 > `orion/app/...`) désignent la **SOURCE Elevay à COPIER** (provenance vérifiée), **pas** un
 > emplacement dans le repo Orion : le fichier copié atterrit sous `src/...`. Le CI filtre
 > **`@orion/web`** (le package du repo Orion). Les `file:line` REUSE pointent la source Elevay à
@@ -167,7 +168,7 @@ signal frais), création du tenant `elevay` + clé `mcp_*` si absent (DB7).
 fichier d'un autre pack. Les rares fichiers **structurellement partagés** (route MCP, route Inngest,
 barrel schéma, `globals.css`) utilisent le **pattern registre append-only** (§3.2).
 
-### 3.1 Fichiers/dossiers propres par pack (chemins relatifs à la **racine du repo Orion** ; le code vit sous `src/`)
+### 3.1 Fichiers/dossiers propres par pack (le code vit sous **`app/apps/web/src/`** ; les `src/...` de la table sont relatifs au package `@orion/web` = `app/apps/web/`, les fichiers de config à la racine du repo/monorepo)
 
 | Pack | Possède (création + édition exclusives) |
 |---|---|
@@ -329,7 +330,7 @@ git fetch origin && git checkout main && git pull
 # pack0/pack1 doivent être mergés avant un pack parallèle :
 git checkout -b feat/orion-packN            # ou: git checkout feat/orion-packN
 git rebase origin/main                       # récupérer pack0/pack1
-pnpm install --frozen-lockfile && pnpm --filter @orion/web tsc   # à la racine du repo Orion
+pnpm install --frozen-lockfile && pnpm --filter @orion/web tsc   # depuis app/ (racine du monorepo dans le repo Orion)
 ```
 Puis : lire `tasks.md` des T-* du lot + ce guide §3 (ownership). Coder **uniquement** ses fichiers.
 
@@ -344,7 +345,7 @@ Puis : lire `tasks.md` des T-* du lot + ce guide §3 (ownership). Coder **unique
 Trailer obligatoire :
 ```
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_017cpMyY7RNVYTQmqzYp8Qz4
+Claude-Session: <URL de ta propre session Claude Code>
 ```
 
 ---

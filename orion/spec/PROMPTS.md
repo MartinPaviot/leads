@@ -138,7 +138,7 @@ qu'il ne reste AUCUN défaut, committe. NE CONSTRUIS RIEN (pas de pack0/pack1).
    git commit -m "docs(spec): sync corpus corrigé (audit de cohérence) + CLAUDE.md racine Orion-first
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_017cpMyY7RNVYTQmqzYp8Qz4"
+Claude-Session: <URL de ta propre session Claude Code>"
    git push
 
 5) Rapport : fichiers re-synchronisés, artefacts réalignés, résultat des vérifs, et l'ÉTAPE SUIVANTE :

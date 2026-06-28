@@ -158,7 +158,7 @@ exige une preuve : reproduire sur `main`.
 
 ## 3. FICHIERS POSSÉDÉS PAR pack7 (création + édition exclusives)
 
-> Tous à la racine du repo Orion séparé (préfixe `src/` sauf `e2e/` et `scripts/`).
+> Tous dans le repo Orion séparé, sous le package `@orion/web` (préfixe `src/` = `app/apps/web/src/`, sauf `e2e/` et `scripts/`).
 > **Dossier e2e : aligné sur `testDir: "./e2e"` + `globalSetup: "./e2e/global-setup.ts"`** (posés par
 > pack0, CONFIG-TOOLING §1-2 / pack0-foundation.md:162-165). Les specs pack7 vivent en `e2e/*.spec.ts`
 > et l'auth-fixture en `e2e/global-setup.ts` — **JAMAIS `tests/e2e/`** (l'ancien `testDir` Elevay).
@@ -538,7 +538,7 @@ aussi asserté unitairement dans `offline-discovery.test.ts` (filtre 4b).
 - Commits atomiques, un changement logique chacun, trailer :
   ```
   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-  Claude-Session: https://claude.ai/code/session_017cpMyY7RNVYTQmqzYp8Qz4
+  Claude-Session: <URL de ta propre session Claude Code>
   ```
 - PR `feat/orion-pack7` ouverte ; CI pleine verte (gitleaks + tsc/vitest + Vercel) ; `/evaluate`
   PASS ; merge squash + delete-branch ; surveiller le push CI de `main`.

@@ -102,7 +102,7 @@ snapshotté propriétaire. Concrètement, comme **`IngestSource`** alimentant l'
 
 ## 3. FICHIERS POSSÉDÉS PAR CE LOT (création/édition exclusives — zéro chevauchement)
 
-Tous à la racine du repo Orion séparé (préfixe `src/`) :
+Tous dans le repo Orion séparé, sous le package `@orion/web` (préfixe `src/` = `app/apps/web/src/`) :
 
 | Fichier | Type | Tâche |
 |---|---|---|

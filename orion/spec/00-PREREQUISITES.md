@@ -284,8 +284,10 @@ Next/pnpm, package **`@orion/web`**, son propre lockfile/CI/`id:"orion"` Inngest
 la **même `DATABASE_URL`** (DB Supabase `leads` partagée, scope tenant `elevay` via RLS) et dont
 les modules métier sont **COPIÉS (vendorés)** depuis la source Elevay (le `file:line` Elevay =
 provenance à copier), **pas** importés via un workspace. Conséquences fermes :
-- Le code net-new + les modules copiés vivent sous **`src/...`** à la racine du **repo Orion**
-  (pas dans `app/apps/web/` d'Elevay, qui n'est plus que la **source à copier**).
+- Le code net-new + les modules copiés vivent sous **`app/apps/web/src/...`** dans le repo Orion
+  (qui reproduit le layout monorepo d'Elevay : racine `app/` = monorepo root, `app/apps/web/` =
+  package `@orion/web`) ; les chemins `app/apps/web/...` d'**Elevay** ne sont plus que la
+  **source à copier**.
 - Le schéma Drizzle **copié** dans Orion doit matcher les tables partagées des modules copiés ;
   les tables net-new Orion (`ingest_jobs/items`, `export_jobs`, `outbound_destinations`,
   `integration_credentials`, `signal_snapshots`) sont **additives** sur la DB partagée.

@@ -441,7 +441,7 @@ Webhook — schéma de signature accepté (HMAC vs Bearer vs `x-api-key`) conven
 - Commits atomiques, un changement logique chacun, trailer :
   ```
   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-  Claude-Session: https://claude.ai/code/session_017cpMyY7RNVYTQmqzYp8Qz4
+  Claude-Session: <URL de ta propre session Claude Code>
   ```
 - PR `feat/orion-pack4` ouverte ; CI pleine verte (gitleaks + tsc/vitest + Vercel) ; `/evaluate` PASS ;
   merge squash + delete-branch ; surveiller le push CI de `main`.
