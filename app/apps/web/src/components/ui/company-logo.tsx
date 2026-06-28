@@ -108,7 +108,16 @@ function CompanyLogoV2({
 }: CompanyLogoProps) {
   const [resolved, setResolved] = useState<CoalescerResult | null>(null);
   const [imgError, setImgError] = useState(false);
+  const [directError, setDirectError] = useState(false);
   const mountedRef = useRef(true);
+
+  // A logo URL the page already holds (e.g. `companies.properties.logo_url`
+  // from the Apollo backfill) is authoritative — render it immediately and
+  // skip the async resolver. This kills the round-trip AND avoids the resolver
+  // serving a stale lower-tier favicon from cache over a known real logo.
+  const directUrl =
+    typeof logoUrl === "string" && /^https?:\/\//.test(logoUrl) ? logoUrl : null;
+  const useDirect = !!directUrl && !directError;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -118,7 +127,9 @@ function CompanyLogoV2({
   }, []);
 
   useEffect(() => {
-    if (!domain) return;
+    // Only hit the resolver when there's no usable direct URL (or it errored)
+    // and we have a domain to resolve.
+    if (!domain || useDirect) return;
 
     const { promise, cancel } = enqueueLogoResolve({
       domain,
@@ -135,10 +146,12 @@ function CompanyLogoV2({
       });
 
     return cancel;
-  }, [domain, name, logoUrl]);
+  }, [domain, name, logoUrl, useDirect]);
 
   const resolvedUrl = resolved?.url;
-  const showImg = resolvedUrl && !imgError && resolved.tier <= 5;
+  const showResolvedImg =
+    !useDirect && resolvedUrl && !imgError && resolved.tier <= 5;
+  const imgSrc = useDirect ? directUrl : showResolvedImg ? resolvedUrl : null;
 
   return (
     // `isolate` keeps the logo img's z-10 inside this component's own stacking
@@ -153,13 +166,13 @@ function CompanyLogoV2({
     // a clean surface, not the old initials. On image error we fall back to the
     // avatar again.
     <div className={`relative isolate shrink-0 ${className}`} style={{ width: size, height: size }}>
-      {showImg ? (
+      {imgSrc ? (
         <img
-          src={resolvedUrl}
+          src={imgSrc}
           alt=""
           className="absolute inset-0 rounded object-contain z-10"
           style={{ width: size, height: size, background: "var(--color-bg-card)" }}
-          onError={() => setImgError(true)}
+          onError={() => (useDirect ? setDirectError(true) : setImgError(true))}
         />
       ) : (
         <GeneratedCompanyAvatar companyName={name} size={size} />

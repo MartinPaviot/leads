@@ -25,9 +25,11 @@ type CoalescerResult = {
 
 let coalescerResolve: ((r: CoalescerResult) => void) | null = null;
 let coalescerCancel = vi.fn();
+let enqueueCallCount = 0;
 
 vi.mock("@/lib/logo/client-coalescer", () => ({
   enqueueLogoResolve: vi.fn(() => {
+    enqueueCallCount++;
     const promise = new Promise<CoalescerResult>((resolve) => {
       coalescerResolve = resolve;
     });
@@ -47,6 +49,7 @@ beforeEach(() => {
   flagValue = false;
   coalescerResolve = null;
   coalescerCancel = vi.fn();
+  enqueueCallCount = 0;
 });
 
 describe("CompanyLogo — flag off (V1 path)", () => {
@@ -197,6 +200,70 @@ describe("CompanyLogo — flag on (V2 path)", () => {
     );
     expect(getByTestId("generated-avatar")).not.toBeNull();
     expect(container.querySelector("img")).toBeNull();
+  });
+
+  it("renders a provided logoUrl immediately and skips the resolver", () => {
+    const { container, queryByTestId } = render(
+      <CompanyLogo
+        domain="stripe.com"
+        name="Stripe"
+        size={24}
+        logoUrl="https://cdn.example.com/stripe.png"
+      />,
+    );
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img!.src).toContain("cdn.example.com/stripe.png");
+    expect(queryByTestId("generated-avatar")).toBeNull();
+    // The page already had the URL — no coalescer round-trip.
+    expect(enqueueCallCount).toBe(0);
+  });
+
+  it("ignores a non-http logoUrl and falls through to the resolver", () => {
+    render(
+      <CompanyLogo
+        domain="stripe.com"
+        name="Stripe"
+        size={24}
+        logoUrl="not-a-url"
+      />,
+    );
+    expect(enqueueCallCount).toBe(1);
+  });
+
+  it("falls back to the resolver when the direct logoUrl errors", async () => {
+    const { container } = render(
+      <CompanyLogo
+        domain="stripe.com"
+        name="Stripe"
+        size={24}
+        logoUrl="https://cdn.example.com/broken.png"
+      />,
+    );
+    const img = container.querySelector("img")!;
+    expect(img.src).toContain("broken.png");
+    expect(enqueueCallCount).toBe(0);
+
+    // Direct image 404s → component must now consult the resolver.
+    act(() => {
+      img.dispatchEvent(new Event("error"));
+    });
+    await waitFor(() => expect(enqueueCallCount).toBe(1));
+
+    await act(async () => {
+      coalescerResolve!({
+        url: "https://logo.example.com/stripe.png",
+        tier: 3,
+        fromCache: false,
+        resolvedAt: new Date().toISOString(),
+      });
+    });
+
+    await waitFor(() => {
+      const im = container.querySelector("img");
+      expect(im).not.toBeNull();
+      expect(im!.src).toContain("logo.example.com/stripe.png");
+    });
   });
 });
 
