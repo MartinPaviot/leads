@@ -1,0 +1,33 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Orion">
+  <defs>
+    <linearGradient id="belt" x1="16" y1="48" x2="48" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#17C3B2"/>
+      <stop offset="0.5" stop-color="#2C6BED"/>
+      <stop offset="1" stop-color="#FF7A3D"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#FFFFFF"/>
+  <rect x="0.5" y="0.5" width="63" height="63" rx="13.5" fill="none" stroke="#1A1A2E" stroke-opacity="0.08"/>
+  <g stroke="url(#belt)" stroke-width="1.3" stroke-linejoin="round" stroke-opacity="0.75" fill="none">
+    <polygon points="32,15 41.99,17.87 47.27,26.37 47.27,37.63 41.99,46.13 32,49 22.01,46.13 16.73,37.63 16.73,26.37 22.01,17.87"/>
+  </g>
+  <g fill="url(#belt)">
+    <circle cx="41.99" cy="17.87" r="1.9"/>
+    <circle cx="47.27" cy="26.37" r="1.9"/>
+    <circle cx="47.27" cy="37.63" r="1.9"/>
+    <circle cx="41.99" cy="46.13" r="1.9"/>
+    <circle cx="32" cy="49" r="1.9"/>
+    <circle cx="22.01" cy="46.13" r="1.9"/>
+    <circle cx="16.73" cy="37.63" r="1.9"/>
+    <circle cx="16.73" cy="26.37" r="1.9"/>
+    <circle cx="22.01" cy="17.87" r="1.9"/>
+  </g>
+  <circle cx="32" cy="15" r="3" fill="url(#belt)"/>
+  <!-- Orion's Belt inside the O (ink, faint) -->
+  <g fill="#1A1A2E" fill-opacity="0.55">
+    <circle cx="26" cy="38" r="1.4"/>
+    <circle cx="32" cy="33.5" r="1.7"/>
+    <circle cx="38" cy="29" r="1.4"/>
+  </g>
+  <path d="M26 38 L38 29" stroke="#1A1A2E" stroke-opacity="0.2" stroke-width="1"/>
+</svg>
