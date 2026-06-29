@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Shield, Loader2, Save, Plug, Phone } from "lucide-react";
+import { Shield, Loader2, Save } from "lucide-react";
 import { SettingsHeader } from "@/components/ui/settings-header";
+import { ProviderLogo } from "@/components/ui/provider-logo";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -309,7 +310,7 @@ export default function SendingInfrastructurePage() {
         <Card>
           <CardBody>
             <div className="flex items-start gap-2">
-              <Plug size={16} style={{ color: "var(--color-accent)", marginTop: 2 }} />
+              <ProviderLogo name="instantly" size={18} style={{ marginTop: 1 }} />
               <div className="flex-1">
                 <h2 className="text-[14px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
                   Connect Instantly
@@ -527,7 +528,7 @@ function VoiceSection() {
     <Card>
       <CardBody>
         <div className="flex items-center gap-2">
-          <Phone size={16} style={{ color: "var(--color-text-tertiary)" }} />
+          <ProviderLogo name="twilio" size={16} />
           <h2
             className="text-[14px] font-semibold"
             style={{ color: "var(--color-text-primary)" }}

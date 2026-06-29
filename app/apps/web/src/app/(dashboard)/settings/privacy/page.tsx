@@ -8,7 +8,6 @@ import {
   Eye,
   EyeOff,
   Globe,
-  Server,
   Clock,
   CheckCircle,
   AlertTriangle,
@@ -20,6 +19,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DestructiveConfirm } from "@/components/ui/destructive-confirm";
+import { ProviderLogo } from "@/components/ui/provider-logo";
 
 type DpaStatus = "not_started" | "requested" | "signed";
 
@@ -397,7 +397,7 @@ export default function PrivacyPage() {
                                 color: "var(--color-text-muted)",
                               }}
                             >
-                              <Server size={14} />
+                              <ProviderLogo name={key} size={20} title={`${name} logo`} />
                             </div>
                             <div>
                               <span

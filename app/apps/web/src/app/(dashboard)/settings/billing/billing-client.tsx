@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ProviderLogo } from "@/components/ui/provider-logo";
 
 interface SubscriptionData {
   status: string | null;
@@ -207,6 +208,7 @@ export default function BillingClient() {
                   className="mt-0.5 text-[12px]"
                   style={{ color: "var(--color-text-secondary)" }}
                 >
+                  <ProviderLogo name="stripe" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />
                   Stripe API keys are not set. Add{" "}
                   <code
                     className="rounded px-1 py-0.5 text-[11px]"

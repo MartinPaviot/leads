@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Network } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+import { ProviderLogo } from "@/components/ui/provider-logo";
 
 /**
  * Spec 36 (T6) — connect a LinkedIn / Sales-Navigator seat from WITHIN Elevay.
@@ -158,7 +158,7 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
     <Card>
       <CardBody>
         <div className="flex items-start gap-2">
-          <Network size={16} style={{ color: "var(--color-accent)", marginTop: 2 }} />
+          <ProviderLogo name="linkedin" size={18} style={{ marginTop: 1 }} />
           <div className="flex-1">
             <h2 className="text-[14px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
               Connect LinkedIn (Sales Navigator)
@@ -285,7 +285,7 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
                 </span>
               )}
               <Button size="sm" onClick={() => void connect()} disabled={busy}>
-                <Network size={13} /> Connect LinkedIn
+                <ProviderLogo name="linkedin" size={14} /> Connect LinkedIn
               </Button>
             </div>
           )}
