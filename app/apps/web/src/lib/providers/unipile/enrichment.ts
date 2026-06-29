@@ -13,12 +13,15 @@ import {
   getUnipileCompanyProfile,
   getUnipileFullProfile,
   mapHeadcountGrowth,
+  searchLinkedIn,
   type FullProfileOptions,
   type HeadcountGrowthSignal,
   type UnipileCompanyProfile,
   type UnipileConfig,
   type UnipileFullProfile,
 } from "./http";
+import { bareDomain } from "@/db/canonical/identity";
+import { normalizeCompanyName } from "@/lib/companies/identity";
 
 // ── Account / company enrichment ────────────────────────────────────────────
 
@@ -129,6 +132,107 @@ export async function enrichAccountFromLinkedIn(
     growth: mapHeadcountGrowth(raw.insights),
     raw,
   };
+}
+
+// ── Confidence-gated resolution (caveat 1: a name search must not bind the wrong
+// company). Confirm a candidate by DOMAIN (strong) or normalized NAME before we
+// trust it; never write an unconfirmed match.
+
+/** How a candidate LinkedIn company was confirmed to be the expected one. */
+export type MatchConfidence = "domain" | "name" | "none";
+
+/** Pure: is this LinkedIn company profile the same company we expected? */
+export function confirmCompanyMatch(
+  profile: UnipileCompanyProfile,
+  known: { name?: string | null; domain?: string | null },
+): MatchConfidence {
+  const knownDomain = known.domain ? bareDomain(known.domain) : null;
+  const profileDomain = domainFromWebsite(profile.website);
+  if (knownDomain && profileDomain && knownDomain === profileDomain) return "domain";
+  if (known.name && profile.name && normalizeCompanyName(known.name) === normalizeCompanyName(profile.name)) {
+    return "name";
+  }
+  return "none";
+}
+
+/**
+ * Pure (caveat 2): the coarse label to preserve as the ICP segment when the
+ * precise LinkedIn industry takes over the canonical column. Keep the OLD value
+ * iff it exists and differs from the new precise industry — otherwise there is
+ * nothing meaningful to preserve (and we never preserve when we have no better
+ * value to replace it with).
+ */
+export function icpSegmentToPreserve(oldIndustry: string | null | undefined, newIndustry: string | null | undefined): string | null {
+  const old = (oldIndustry ?? "").trim();
+  if (!old || !newIndustry) return null;
+  return old !== newIndustry.trim() ? old : null;
+}
+
+export interface ResolvedCompany {
+  /** LinkedIn company id — persist it so we never name-search this account again. */
+  linkedinCompanyId: string;
+  confidence: MatchConfidence;
+  enrichment: AccountEnrichment;
+}
+
+export interface KnownCompany {
+  name?: string | null;
+  domain?: string | null;
+  /** A previously-resolved LinkedIn company id — the idempotent fast path. */
+  linkedinCompanyId?: string | null;
+}
+
+/**
+ * Resolve an EXISTING account to its LinkedIn company and enrich it, gated so a
+ * name search can't bind the wrong company:
+ *  1. Known LinkedIn id → fetch directly (no search, fully idempotent).
+ *  2. Else search by DOMAIN then NAME; accept a candidate ONLY if its profile
+ *     domain-matches, or a candidate's name normalizes equal (cheap, pre-fetch).
+ *  3. No confident candidate → return null (caller skips — never writes a guess).
+ * Bounded: ≤1 profile fetch per query term (name-match is read off the search item).
+ */
+export async function resolveAndEnrichCompany(
+  cfg: UnipileConfig,
+  accountId: string,
+  known: KnownCompany,
+): Promise<ResolvedCompany | null> {
+  if (known.linkedinCompanyId) {
+    return {
+      linkedinCompanyId: known.linkedinCompanyId,
+      confidence: "domain",
+      enrichment: await enrichAccountFromLinkedIn(cfg, accountId, known.linkedinCompanyId),
+    };
+  }
+
+  const terms = [known.domain, known.name].filter((q): q is string => !!q && q.trim().length > 0);
+  const wantName = known.name ? normalizeCompanyName(known.name) : null;
+
+  for (const term of terms) {
+    const page = await searchLinkedIn(
+      cfg,
+      accountId,
+      { api: "sales_navigator", category: "companies", keywords: term },
+      { limit: 3 },
+    );
+
+    // (a) Cheap name-confirm on the search item — no profile fetch unless it matches.
+    const named = wantName ? page.items.find((h) => h.id && h.name && normalizeCompanyName(h.name) === wantName) : undefined;
+    if (named?.id) {
+      return { linkedinCompanyId: String(named.id), confidence: "name", enrichment: await enrichAccountFromLinkedIn(cfg, accountId, String(named.id)) };
+    }
+
+    // (b) Domain-confirm: fetch the top candidate's profile and compare websites.
+    if (known.domain) {
+      const top = page.items.find((h) => h.id);
+      if (top?.id) {
+        const enrichment = await enrichAccountFromLinkedIn(cfg, accountId, String(top.id));
+        if (confirmCompanyMatch(enrichment.raw, known) !== "none") {
+          return { linkedinCompanyId: String(top.id), confidence: "domain", enrichment };
+        }
+      }
+    }
+  }
+  return null;
 }
 
 // ── Contact / lead enrichment ───────────────────────────────────────────────

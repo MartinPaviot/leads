@@ -9,6 +9,8 @@ import {
   fullProfileToContact,
   currentRole,
   seniorityFromTitle,
+  confirmCompanyMatch,
+  icpSegmentToPreserve,
 } from "../enrichment";
 
 // Trimmed from the LIVE GET /linkedin/company/{id} response (2026-06-29, Testbytes).
@@ -97,6 +99,33 @@ describe("companyProfileToAccount", () => {
       size: "51-200",
       description: "Welcome to Testbytes…",
     });
+  });
+});
+
+describe("confirmCompanyMatch — gate a name search against a false bind", () => {
+  it("confirms by domain, scheme/www-insensitive (wins over a name mismatch)", () => {
+    expect(confirmCompanyMatch({ website: "https://www.ramp.com/", name: "Ramp" }, { domain: "ramp.com", name: "Totally Different" })).toBe("domain");
+  });
+  it("confirms by normalized name when no domain match", () => {
+    expect(confirmCompanyMatch({ name: "Testbytes", website: "https://other.com" }, { name: "Testbytes", domain: "acme.io" })).toBe("name");
+  });
+  it("rejects an unrelated company (the Camouflet→Restaurants trap)", () => {
+    expect(confirmCompanyMatch({ name: "Some Restaurant Group", website: "https://resto.fr" }, { name: "Camouflet", domain: "camouflet.io" })).toBe("none");
+  });
+  it("returns none when neither side has a comparable signal", () => {
+    expect(confirmCompanyMatch({ name: "Acme" }, { domain: "acme.io" })).toBe("none");
+  });
+});
+
+describe("icpSegmentToPreserve — keep the coarse ICP label off the industry column", () => {
+  it("preserves the old label when the new precise industry differs", () => {
+    expect(icpSegmentToPreserve("B2B SaaS", "Financial Services")).toBe("B2B SaaS");
+  });
+  it("returns null when nothing is worth preserving", () => {
+    expect(icpSegmentToPreserve(null, "Financial Services")).toBeNull();
+    expect(icpSegmentToPreserve("   ", "X")).toBeNull();
+    expect(icpSegmentToPreserve("Financial Services", "Financial Services")).toBeNull();
+    expect(icpSegmentToPreserve("B2B SaaS", null)).toBeNull();
   });
 });
 
