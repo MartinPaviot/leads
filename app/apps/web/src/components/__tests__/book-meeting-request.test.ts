@@ -13,6 +13,9 @@ let fetchMock: ReturnType<typeof vi.fn>;
 function ok(data: unknown) {
   return { ok: true, status: 200, json: async () => data } as Response;
 }
+function err(data: unknown, status = 400) {
+  return { ok: false, status, json: async () => data } as Response;
+}
 function bodyOfLastCall(): Record<string, unknown> {
   const call = fetchMock.mock.calls.at(-1)!;
   return JSON.parse((call[1] as RequestInit).body as string);
@@ -51,10 +54,23 @@ describe("bookMeetingRequest", () => {
     expect(body.contactId).toBe("ct-1");
   });
 
-  it("surfaces a server error message on a non-booked response", async () => {
-    fetchMock.mockResolvedValueOnce(ok({ booked: false, error: "Aucune boîte connectée." }));
+  it("surfaces the apiError MESSAGE string (not the {code,message} object) so the toast never gets an object", async () => {
+    // The real /api/meetings/book returns apiError(...) = { error: { code, message } }
+    // with a 4xx status (e.g. the no-calendar VALIDATION_ERROR). bookMeetingRequest
+    // must unwrap .message — passing the object straight to toast() throws in React.
+    fetchMock.mockResolvedValueOnce(
+      err({ error: { code: "VALIDATION_ERROR", message: "Aucune boîte connectée." } }, 400),
+    );
     const r = await bookMeetingRequest({ contactEmail: "paul@hexa.io", startTime: "2026-07-01T09:00:00.000Z" });
     expect(r.ok).toBe(false);
     expect(r.error).toBe("Aucune boîte connectée.");
+    expect(typeof r.error).toBe("string");
+  });
+
+  it("still surfaces a bare-string error (the 409/500 paths)", async () => {
+    fetchMock.mockResolvedValueOnce(err({ booked: false, error: "Deep-dive weekly cap reached." }, 409));
+    const r = await bookMeetingRequest({ contactId: "ct-1", startTime: "2026-07-01T09:00:00.000Z" });
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe("Deep-dive weekly cap reached.");
   });
 });

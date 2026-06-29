@@ -107,10 +107,16 @@ export async function bookMeetingRequest(slot: BookMeetingSlot): Promise<BookMee
       joinUrl?: string;
       meetLink?: string;
       conferencing?: string;
-      error?: string;
+      // apiError(...) returns { error: { code, message } } (an OBJECT) for the
+      // NOT_FOUND / VALIDATION_ERROR paths — incl. "Aucune boîte connectée…", the
+      // most likely first failure. The 409/500 paths return a bare string. Accept
+      // both and ALWAYS surface a string, else the toast renders an object child
+      // and React throws.
+      error?: string | { code?: string; message?: string };
     };
     if (!res.ok || !data.booked) {
-      return { ok: false, error: data.error ?? undefined };
+      const error = typeof data.error === "string" ? data.error : data.error?.message;
+      return { ok: false, error };
     }
     return {
       ok: true,
