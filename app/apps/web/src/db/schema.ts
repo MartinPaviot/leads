@@ -25,4 +25,5 @@ export * from "./schema/icp-versions";
 export * from "./schema/proposals";
 export * from "./schema/tam";
 export * from "./schema/segments";
+export * from "./schema/account-lists";
 export * from "./schema/linkedin";
