@@ -273,6 +273,11 @@ export const connectedMailboxes = pgTable(
     smtpPort: integer("smtp_port"),
     secretEncrypted: text("secret_encrypted"),
     imapLastUid: integer("imap_last_uid"),
+    // Stamped on EVERY successful IMAP poll (not only when new mail arrives, so
+    // it's a true "last synced" heartbeat — distinct from imap_last_uid which
+    // only moves on new mail, and from updated_at which moves on any write). The
+    // Mail & Calendar settings card surfaces it as "Email sync {timeAgo}".
+    imapLastSyncAt: timestamp("imap_last_sync_at", { withTimezone: true }),
     // CalDAV calendar for "smtp_custom" mailboxes (the IMAP/SMTP path has no
     // OAuth calendar). The collection URL is discovered on connect (or supplied
     // by the user); the same encrypted password (secret_encrypted) authenticates

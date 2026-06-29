@@ -148,13 +148,18 @@ export const syncEmails = inngest.createFunction(
             { emailAddress: mb.emailAddress, imapHost: mb.imapHost, imapPort: mb.imapPort, password, imapLastUid: mb.imapLastUid },
             daysBack,
           );
-          // Persist the high-water UID so the next poll only fetches new mail.
-          if (maxUid != null && maxUid !== mb.imapLastUid) {
-            await db
-              .update(connectedMailboxes)
-              .set({ imapLastUid: maxUid, updatedAt: new Date() })
-              .where(eq(connectedMailboxes.id, mailboxId));
-          }
+          // Stamp the sync heartbeat on EVERY successful poll so the settings
+          // "Email sync {timeAgo}" KPI actually moves; advance the high-water UID
+          // only when new mail moved it (next poll then fetches only new mail).
+          const set: { imapLastSyncAt: Date; updatedAt: Date; imapLastUid?: number } = {
+            imapLastSyncAt: new Date(),
+            updatedAt: new Date(),
+          };
+          if (maxUid != null && maxUid !== mb.imapLastUid) set.imapLastUid = maxUid;
+          await db
+            .update(connectedMailboxes)
+            .set(set)
+            .where(eq(connectedMailboxes.id, mailboxId));
           return imapEmails;
         }
         if (provider === "microsoft") {
