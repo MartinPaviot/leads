@@ -118,6 +118,25 @@ describe("buildKpis", () => {
     expect(k.find((x) => x.key === "winrate")!.value).toBe("—");
     expect(k.find((x) => x.key === "calls")!.delta).toBeNull();
   });
+  it("frames every card with a zero-state sub for an empty tenant (no bare numerals)", () => {
+    const zero: KpiMetrics = {
+      pipelineValue: 0, activeDeals: 0, callsBookedWeek: 0, callsBookedPrevWeek: 0,
+      replies7d: 0, replyRate: null, outreach7d: 0, winRate: null,
+    };
+    const k = buildKpis(zero);
+    // Regression: a wall of context-free "0"/"€0"/"—" read as a broken dashboard.
+    // Every card must carry framing copy under its value.
+    for (const card of k) {
+      expect(card.sub, `${card.key} should have zero-state framing`).toBeTruthy();
+    }
+    const by = (key: string) => k.find((x) => x.key === key)!.sub;
+    expect(by("pipeline")).toBe("no open deals yet");
+    expect(by("deals")).toBe("none open yet");
+    expect(by("calls")).toBe("none this week");
+    expect(by("replies")).toBe("none yet · 7d");
+    expect(by("outreach")).toBe("none sent yet · 7d");
+    expect(by("winrate")).toBe("no closed deals yet");
+  });
 });
 
 describe("buildActualites", () => {

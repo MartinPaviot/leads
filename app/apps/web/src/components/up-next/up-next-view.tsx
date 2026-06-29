@@ -16,11 +16,12 @@ import type { Ref } from "react";
 import { useRouter } from "next/navigation";
 import {
   Mail, MailOpen, AlertTriangle, Calendar, CheckSquare, CheckCircle2, CalendarPlus,
-  Building2, UserPlus, TrendingUp, ArrowRight, ArrowUpRight, Loader2, Send,
+  Building2, UserPlus, TrendingUp, ArrowRight, ArrowUpRight, Send,
   Inbox, Phone, BadgeCheck, XCircle,
 } from "lucide-react";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import type { EmailComposerDraft } from "@/components/email-composer-panel";
+import { UpNextSkeleton } from "@/components/up-next/up-next-skeleton";
 
 interface Kpi { key: string; label: string; value: string; sub: string | null; delta: number | null; }
 type ActualiteKind =
@@ -146,13 +147,11 @@ export function UpNextView({ apiRef }: { apiRef?: Ref<UpNextApi | null> } = {}) 
     [data],
   );
 
-  if (loading) {
-    return (
-      <div className="mx-auto flex max-w-[1120px] items-center justify-center py-20">
-        <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--color-text-tertiary)" }} />
-      </div>
-    );
-  }
+  // Render a skeleton that matches the resolved layout (greeting + KPI grid +
+  // two columns) rather than a bare centered spinner. The route fallback
+  // (home/loading.tsx) shows the SAME skeleton, so the load path never morphs
+  // or collapses to a spinner before content arrives.
+  if (loading) return <UpNextSkeleton />;
 
   const greeting = `${data?.greeting ?? "Welcome"}${data?.firstName ? `, ${data.firstName}` : ""}`;
   const kpis = data?.kpis ?? [];

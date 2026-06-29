@@ -81,24 +81,53 @@ export interface Kpi {
 export function buildKpis(m: KpiMetrics): Kpi[] {
   const callsDelta =
     m.callsBookedPrevWeek == null ? null : m.callsBookedWeek - m.callsBookedPrevWeek;
+  // Every card carries a sub-line that frames its value — including the zero
+  // state. A brand-new tenant has no pipeline, deals, calls, replies or sends
+  // yet, so without this the strip directly under the greeting is six
+  // context-free "0" / "€0" / "—" numerals that read as a broken dashboard
+  // rather than an empty one. The zero copy mirrors the win-rate card's
+  // existing "no … yet" framing so the whole strip reads as intentional.
   return [
-    { key: "pipeline", label: "Pipeline", value: money(m.pipelineValue), sub: null, delta: null },
-    { key: "deals", label: "Active deals", value: `${m.activeDeals}`, sub: null, delta: null },
+    {
+      key: "pipeline",
+      label: "Pipeline",
+      value: money(m.pipelineValue),
+      sub: m.pipelineValue === 0 ? "no open deals yet" : null,
+      delta: null,
+    },
+    {
+      key: "deals",
+      label: "Active deals",
+      value: `${m.activeDeals}`,
+      sub: m.activeDeals === 0 ? "none open yet" : null,
+      delta: null,
+    },
     {
       key: "calls",
       label: "Calls booked",
       value: `${m.callsBookedWeek}`,
-      sub: "this week",
+      sub: m.callsBookedWeek === 0 ? "none this week" : "this week",
       delta: callsDelta,
     },
     {
       key: "replies",
       label: "Replies",
       value: `${m.replies7d}`,
-      sub: m.replyRate != null ? `${m.replyRate}% · 7d` : "7d",
+      sub:
+        m.replies7d === 0
+          ? "none yet · 7d"
+          : m.replyRate != null
+            ? `${m.replyRate}% · 7d`
+            : "7d",
       delta: null,
     },
-    { key: "outreach", label: "Outreach", value: `${m.outreach7d}`, sub: "sent · 7d", delta: null },
+    {
+      key: "outreach",
+      label: "Outreach",
+      value: `${m.outreach7d}`,
+      sub: m.outreach7d === 0 ? "none sent yet · 7d" : "sent · 7d",
+      delta: null,
+    },
     {
       key: "winrate",
       label: "Win rate",

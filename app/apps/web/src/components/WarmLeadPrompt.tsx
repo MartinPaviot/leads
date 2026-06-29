@@ -138,20 +138,16 @@ export function WarmLeadPrompt() {
     [toast],
   );
 
-  if (loading) {
-    return (
-      <Card>
-        <CardBody>
-          <div className="flex items-center gap-2 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-            <Loader2 size={12} className="animate-spin" /> Scanning your inbox for warm leads…
-          </div>
-        </CardBody>
-      </Card>
-    );
-  }
+  // Render nothing until we KNOW there are warm leads to show. This prompt sits
+  // above the dashboard greeting and self-hides when empty (the common case), so
+  // a visible "Scanning…" card would just flash a placeholder above "Good
+  // morning <name>" on every load and then collapse to nothing — the same
+  // empty-state flash we removed from the hot-* widgets. The real card pops in
+  // when the scan returns leads. (brief §4.4 Severity 1 — empty state is silent.)
+  if (loading) return null;
 
   if (leads.length === 0) {
-    return null; // brief §4.4 Severity 1 — empty state is silent
+    return null;
   }
 
   return (
