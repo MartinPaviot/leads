@@ -13,32 +13,42 @@ import {
 } from "@/lib/calendar/capacity";
 import { z } from "zod";
 
-const bookMeetingSchema = z.object({
-  contactId: z.string().min(1, "contactId is required"),
-  startTime: z.string().min(1, "startTime is required"),
-  durationMinutes: z.number().int().min(5).max(480).optional().default(30),
-  title: z.string().max(500).optional(),
-  // B7 — tag the meeting type for capacity tracking. When 'deep_dive',
-  // the route enforces the per-tenant weekly cap unless override=true.
-  // Other types pass through unchecked. The metadata is also written
-  // to activities so the weekly cron (meeting-capacity-check) can
-  // recount.
-  meetingType: z
-    .enum(["intro", "qualification", "deep_dive", "follow_up"])
-    .optional()
-    .default("intro"),
-  // Founder force-book past the cap when a critical deal demands it.
-  // The dashboard badge will surface the saturation regardless, so the
-  // goulot stays visible after override.
-  override: z.boolean().optional().default(false),
-  // Default sovereign Jitsi. "google_meet"/"teams" use the calendar's native
-  // conference; "zoom" uses Zoom (if configured). Unavailable choices fall
-  // back to sovereign.
-  conferencing: z
-    .enum(["sovereign", "google_meet", "teams", "zoom"])
-    .optional()
-    .default("sovereign"),
-});
+const bookMeetingSchema = z
+  .object({
+    // Either an existing CRM contact id, OR a sender email to resolve-or-create
+    // (booking from a thread whose sender isn't a contact yet).
+    contactId: z.string().min(1).optional(),
+    contactEmail: z.string().email().optional(),
+    contactName: z.string().max(200).optional(),
+    startTime: z.string().min(1, "startTime is required"),
+    durationMinutes: z.number().int().min(5).max(480).optional().default(30),
+    title: z.string().max(500).optional(),
+    // B7 — tag the meeting type for capacity tracking. When 'deep_dive',
+    // the route enforces the per-tenant weekly cap unless override=true.
+    // Other types pass through unchecked. The metadata is also written
+    // to activities so the weekly cron (meeting-capacity-check) can
+    // recount.
+    meetingType: z
+      .enum(["intro", "qualification", "deep_dive", "follow_up"])
+      .optional()
+      .default("intro"),
+    // Founder force-book past the cap when a critical deal demands it.
+    // The dashboard badge will surface the saturation regardless, so the
+    // goulot stays visible after override.
+    override: z.boolean().optional().default(false),
+    // Default sovereign Jitsi. "google_meet"/"teams" use the calendar's native
+    // conference; "zoom" uses Zoom (if configured). Unavailable choices fall
+    // back to sovereign.
+    conferencing: z
+      .enum(["sovereign", "google_meet", "teams", "zoom"])
+      .optional()
+      .default("sovereign"),
+  })
+  // One of the two identity inputs must be present.
+  .refine((d) => Boolean(d.contactId || d.contactEmail), {
+    message: "contactId or contactEmail is required",
+    path: ["contactId"],
+  });
 
 export async function POST(req: Request) {
   const authCtx = await getAuthContext();
@@ -54,20 +64,77 @@ export async function POST(req: Request) {
         issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
       });
     }
-    const { contactId, startTime, durationMinutes, title, meetingType, override, conferencing } = parsed.data;
+    const {
+      contactId,
+      contactEmail,
+      contactName: inputName,
+      startTime,
+      durationMinutes,
+      title,
+      meetingType,
+      override,
+      conferencing,
+    } = parsed.data;
 
-    // Fetch contact (exclude soft-deleted)
-    const [contact] = await db
-      .select()
-      .from(contacts)
-      .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
-      .limit(1);
+    // Resolve the contact (always tenant-scoped, soft-deleted excluded). Three
+    // paths: an existing id; an existing contact matched by sender email; or a
+    // freshly-created contact. Creating a contact here is deliberate — booking a
+    // meeting is an explicit, high-intent action, distinct from the passive
+    // inbound-capture rule that never auto-promotes a stranger (email-capture.ts).
+    let contact:
+      | { id: string; email: string | null; firstName: string | null; lastName: string | null }
+      | undefined;
+
+    if (contactId) {
+      [contact] = await db
+        .select({ id: contacts.id, email: contacts.email, firstName: contacts.firstName, lastName: contacts.lastName })
+        .from(contacts)
+        .where(and(eq(contacts.id, contactId), eq(contacts.tenantId, authCtx.tenantId), isNull(contacts.deletedAt)))
+        .limit(1);
+      if (!contact || !contact.email) {
+        return apiError("NOT_FOUND", "Contact not found or has no email");
+      }
+    } else if (contactEmail) {
+      const email = contactEmail.trim().toLowerCase();
+      [contact] = await db
+        .select({ id: contacts.id, email: contacts.email, firstName: contacts.firstName, lastName: contacts.lastName })
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.tenantId, authCtx.tenantId),
+            sql`lower(${contacts.email}) = ${email}`,
+            isNull(contacts.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!contact) {
+        // No contact yet for this sender → create one (mirrors email-capture's
+        // minimal insert shape). Strip any "<addr>" and ignore a name that's
+        // just the email so we never store an email as a first name.
+        const cleaned = (inputName ?? "").replace(/<[^>]*>/g, "").trim();
+        const usable = cleaned && !cleaned.includes("@") ? cleaned : "";
+        const parts = usable ? usable.split(/\s+/) : [];
+        [contact] = await db
+          .insert(contacts)
+          .values({
+            tenantId: authCtx.tenantId,
+            firstName: parts[0] ?? null,
+            lastName: parts.length > 1 ? parts.slice(1).join(" ") : null,
+            email,
+          })
+          .returning({ id: contacts.id, email: contacts.email, firstName: contacts.firstName, lastName: contacts.lastName });
+      }
+    }
 
     if (!contact || !contact.email) {
       return apiError("NOT_FOUND", "Contact not found or has no email");
     }
+    const resolvedContactId = contact.id;
 
-    const contactName = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Prospect";
+    const contactName =
+      [contact.firstName, contact.lastName].filter(Boolean).join(" ") ||
+      (inputName ?? "").replace(/<[^>]*>/g, "").trim() ||
+      "Prospect";
 
     // B7 — deep-dive capacity gate. Only enforced when meetingType is
     // explicitly 'deep_dive'. Other types pass through. Inline COUNT
@@ -152,7 +219,7 @@ export async function POST(req: Request) {
       actorType: "user",
       actorId: authCtx.appUserId,
       entityType: "contact",
-      entityId: contactId,
+      entityId: resolvedContactId,
       activityType: "meeting_scheduled",
       channel: "meeting",
       direction: "outbound",
