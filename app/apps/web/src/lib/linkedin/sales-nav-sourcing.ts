@@ -12,8 +12,8 @@
  */
 
 import { db } from "@/db";
-import { contacts } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { contacts, companies } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { upsertAccount, upsertContact } from "@/db/canonical/upsert";
 import { setCustomFieldValue } from "@/lib/context/custom-fields";
 import {
@@ -22,10 +22,19 @@ import {
   type LinkedInSearchApi,
   type LinkedInSearchCategory,
   type LinkedInSearchResult,
+  type UnipileConfig,
 } from "@/lib/providers/unipile/http";
+import { enrichAccountFromLinkedIn, type LinkedInAccountFields } from "@/lib/providers/unipile/enrichment";
 import { salesNavToContact, salesNavToAccount, linkedinCustomFieldValues } from "./sales-nav-mapping";
 
 const UNIPILE = "unipile";
+
+/** Per-run hydration context — dedups company fetches so we spend 1 call/company. */
+interface HydrateCtx {
+  cfg: UnipileConfig;
+  unipileAccountId: string;
+  seen: Set<string>;
+}
 
 export interface SalesNavSourcingParams {
   tenantId: string;
@@ -36,6 +45,12 @@ export interface SalesNavSourcingParams {
   enabledLinkedInCategories?: string[];
   /** Cap a single run. */
   maxResults?: number;
+  /**
+   * Hydrate each employer with its LinkedIn company profile (domain, industry,
+   * size, description + the headcount-growth signal). OFF by default: it spends
+   * ~1 LinkedIn profile-view/company against the seat's ~100/day quota.
+   */
+  hydrateAccounts?: boolean;
 }
 
 export interface SalesNavSourcingResult {
@@ -62,6 +77,9 @@ export async function sourceFromSalesNav(params: SalesNavSourcingParams): Promis
   let contactsUpserted = 0;
   let skippedNoIdentity = 0;
   let cursor: string | null = null;
+  const hydrate: HydrateCtx | null = params.hydrateAccounts
+    ? { cfg, unipileAccountId: params.unipileAccountId, seen: new Set() }
+    : null;
 
   while (searched < max) {
     const page = await searchLinkedIn(cfg, params.unipileAccountId, params.query, { cursor, limit: Math.min(50, max - searched) });
@@ -69,7 +87,7 @@ export async function sourceFromSalesNav(params: SalesNavSourcingParams): Promis
 
     for (const result of page.items) {
       searched++;
-      await sourceOne(params.tenantId, result, enabled).then((r) => {
+      await sourceOne(params.tenantId, result, enabled, hydrate).then((r) => {
         if (r.account) accountsUpserted++;
         if (r.contact) contactsUpserted++;
         else if (r.skipped) skippedNoIdentity++;
@@ -84,21 +102,68 @@ export async function sourceFromSalesNav(params: SalesNavSourcingParams): Promis
   return { searched, accountsUpserted, contactsUpserted, skippedNoIdentity };
 }
 
+/** Company id from the search result's current role (the LinkedIn numeric id). */
+function companyIdOf(result: LinkedInSearchResult): string | null {
+  const cid = (result.current_positions ?? []).map((p) => p.company_id).find((v) => v != null);
+  return cid != null ? String(cid) : null;
+}
+
 async function sourceOne(
   tenantId: string,
   result: LinkedInSearchResult,
   enabledCategories: string[],
+  hydrate: HydrateCtx | null,
 ): Promise<{ account: boolean; contact: boolean; skipped: boolean }> {
   const observedAt = new Date();
 
-  // Employer account (by name; domain/funding come from Apollo later).
+  // Employer account — by name, optionally hydrated with the LinkedIn company
+  // profile (domain/industry/size + headcount-growth signal). Hydration is
+  // deduped per company across the run so we spend at most 1 fetch/company.
   const acct = salesNavToAccount(result);
+  let enriched: LinkedInAccountFields | null = null;
+  let linkedinProps: Record<string, unknown> | null = null;
+  const cid = companyIdOf(result);
+  if (hydrate && cid && !hydrate.seen.has(cid)) {
+    hydrate.seen.add(cid);
+    try {
+      const e = await enrichAccountFromLinkedIn(hydrate.cfg, hydrate.unipileAccountId, cid);
+      enriched = e.fields;
+      // Keep the FULL industry list + specialties (not just the single column),
+      // the HQ, and the headcount-growth signal — the multi-industry fidelity.
+      const li: Record<string, unknown> = {
+        industries: e.extras.industries,
+        specialties: e.extras.specialties,
+        hq: { city: e.extras.hqCity, country: e.extras.hqCountry },
+        foundationDate: e.extras.foundationDate,
+      };
+      if (e.growth.totalCount != null) li.headcountGrowth = e.growth;
+      linkedinProps = { linkedin: li };
+    } catch {
+      /* hydration is best-effort — fall back to name-only */
+    }
+  }
+
   let companyId: string | null = null;
   let account = false;
-  if (acct.name) {
-    const row = await upsertAccount(tenantId, { name: acct.name, provider: UNIPILE, observedAt });
+  const name = enriched?.name ?? acct.name;
+  if (name) {
+    const row = await upsertAccount(tenantId, {
+      name,
+      domain: enriched?.domain ?? undefined,
+      industry: enriched?.industry ?? undefined,
+      size: enriched?.size ?? undefined,
+      description: enriched?.description ?? undefined,
+      provider: UNIPILE,
+      observedAt,
+    });
     companyId = row?.id ?? null;
     account = true;
+    if (companyId && linkedinProps) {
+      await db
+        .update(companies)
+        .set({ properties: sql`coalesce(${companies.properties}, '{}'::jsonb) || ${JSON.stringify(linkedinProps)}::jsonb` })
+        .where(eq(companies.id, companyId));
+    }
   }
 
   // Contact — keyed on the normalized linkedin_url (the shared dedup key).

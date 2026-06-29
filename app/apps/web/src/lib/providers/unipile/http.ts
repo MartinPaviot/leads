@@ -378,6 +378,310 @@ export async function listUnipileRelations(
   return { items: j.items ?? [], cursor: j.cursor ?? null };
 }
 
+// ── Sales-Navigator RETRIEVAL primitives — every shape below was verified LIVE
+// (2026-06-29) against the connected sales_navigator seat. These are read-only
+// (no send, no notify) and feed enrichment/scoring, NOT the send path.
+
+/** GET /users/me — the connected seat's own profile (its SN/Recruiter identity). */
+export interface UnipileOwnProfile {
+  object?: string;
+  provider_id?: string;
+  public_identifier?: string;
+  public_profile_url?: string;
+  first_name?: string;
+  last_name?: string;
+  occupation?: string;
+  headline?: string;
+  premium?: boolean;
+  open_profile?: boolean;
+  location?: string;
+  email?: string;
+  organizations?: unknown[];
+  /** Present iff the seat holds a Sales Navigator contract. */
+  sales_navigator?: { contract_id?: string; owner_seat_id?: string } | null;
+  recruiter?: unknown | null;
+  [k: string]: unknown;
+}
+
+export function getUnipileOwnProfile(cfg: UnipileConfig, accountId: string): Promise<UnipileOwnProfile> {
+  return unipileFetch<UnipileOwnProfile>(cfg, "GET", `/users/me?account_id=${encodeURIComponent(accountId)}`);
+}
+
+/** A single role in a profile's experience history (GET /users/{id} sections). */
+export interface UnipileWorkExperience {
+  company?: string;
+  company_id?: string | null;
+  position?: string;
+  description?: string;
+  status?: string;
+  location?: string;
+  company_picture_url?: string;
+  skills?: string[] | null;
+  start?: string;
+  end?: string | null;
+}
+export interface UnipileEducation {
+  school?: string;
+  school_id?: string;
+  degree?: string;
+  school_picture_url?: string;
+  start?: string;
+  end?: string | null;
+}
+export interface UnipileLanguage {
+  name?: string;
+  proficiency?: string;
+}
+
+/**
+ * The FULL lead profile — what the Sales Navigator lead card shows. Superset of
+ * UnipileUserProfile; only present when fetched with `linkedin_sections`.
+ */
+export interface UnipileFullProfile extends UnipileUserProfile {
+  public_profile_url?: string;
+  first_name?: string;
+  last_name?: string;
+  headline?: string;
+  summary?: string;
+  location?: string;
+  member_urn?: string;
+  primary_locale?: { country?: string; language?: string };
+  follower_count?: number;
+  connections_count?: number;
+  shared_connections_count?: number;
+  is_open_profile?: boolean;
+  /** SN-surface only: the lead is open-to-work / InMail-reachable. */
+  is_open_to_work?: boolean;
+  can_send_inmail?: boolean;
+  is_premium?: boolean;
+  is_creator?: boolean;
+  is_influencer?: boolean;
+  birthdate?: { month?: number; day?: number; year?: number } | null;
+  connected_at?: number;
+  websites?: string[];
+  hashtags?: string[];
+  work_experience?: UnipileWorkExperience[];
+  work_experience_total_count?: number;
+  education?: UnipileEducation[];
+  education_total_count?: number;
+  languages?: UnipileLanguage[];
+  skills?: Array<string | { name?: string }>;
+  certifications?: unknown[];
+  projects?: unknown[];
+  volunteering_experience?: unknown[];
+  profile_picture_url?: string;
+}
+
+export interface FullProfileOptions {
+  /** LinkedIn sections to hydrate; "*" = all. Heavy requests are throttled. */
+  sections?: string;
+  /** Query a premium surface — REQUIRED (with the SN id) to unlock out-of-network leads. */
+  linkedinApi?: LinkedInSearchApi;
+}
+
+/**
+ * GET /users/{identifier}?linkedin_sections=… — the full profile (experience,
+ * education, skills, languages, summary). RESOLUTION RULE (verified live):
+ *  - 1st-degree relation: pass the public_identifier on the default (classic) surface.
+ *  - out-of-network lead: pass the SN id (ACwAA…) + linkedinApi:"sales_navigator"
+ *    — that unlocks work_experience/education/skills + can_send_inmail/is_open_to_work
+ *    that classic locks (a public handle + SN surface 422s `invalid_recipient`).
+ */
+export function getUnipileFullProfile(
+  cfg: UnipileConfig,
+  identifier: string,
+  accountId: string,
+  opts: FullProfileOptions = {},
+): Promise<UnipileFullProfile> {
+  const q = new URLSearchParams({ account_id: accountId, linkedin_sections: opts.sections ?? "*" });
+  if (opts.linkedinApi) q.set("linkedin_api", opts.linkedinApi);
+  return unipileFetch<UnipileFullProfile>(cfg, "GET", `/users/${encodeURIComponent(identifier)}?${q.toString()}`);
+}
+
+/** A company location (verified shape; `street` is an array of free-text lines). */
+export interface UnipileCompanyLocation {
+  is_headquarter?: boolean;
+  city?: string;
+  country?: string;
+  area?: string;
+  postalCode?: string;
+  street?: string[];
+}
+
+/** Headcount-growth insight — the Sales Navigator "company growth" signal. */
+export interface UnipileCompanyInsights {
+  employeesCount?: {
+    totalCount?: number;
+    averageTenure?: string;
+    growthGraph?: Array<{ monthRange?: number; growthPercentage?: number }>;
+    employeesCountGraph?: Array<{ count?: number; date?: string }>;
+  };
+}
+
+/** GET /linkedin/company/{id} — the full account/company profile (firmographics + insights). */
+export interface UnipileCompanyProfile {
+  object?: string;
+  id?: string;
+  entity_urn?: string;
+  public_identifier?: string;
+  name?: string;
+  description?: string;
+  tagline?: string;
+  website?: string;
+  phone?: string;
+  industry?: string[];
+  employee_count?: number;
+  employee_count_range?: { from?: number; to?: number };
+  followers_count?: number;
+  foundation_date?: string;
+  locations?: UnipileCompanyLocation[];
+  activities?: string[];
+  hashtags?: Array<{ title?: string }>;
+  logo?: string;
+  logo_large?: string;
+  profile_url?: string;
+  claimed?: boolean;
+  insights?: UnipileCompanyInsights;
+  [k: string]: unknown;
+}
+
+export function getUnipileCompanyProfile(
+  cfg: UnipileConfig,
+  identifier: string,
+  accountId: string,
+): Promise<UnipileCompanyProfile> {
+  return unipileFetch<UnipileCompanyProfile>(
+    cfg,
+    "GET",
+    `/linkedin/company/${encodeURIComponent(identifier)}?account_id=${encodeURIComponent(accountId)}`,
+  );
+}
+
+/** A normalized, scoring-ready headcount-growth signal (pure derivation). */
+export interface HeadcountGrowthSignal {
+  totalCount: number | null;
+  averageTenure: string | null;
+  growth6moPct: number | null;
+  growth12moPct: number | null;
+  growth24moPct: number | null;
+  /** Newest-last monthly headcount series. */
+  series: Array<{ date: string; count: number }>;
+}
+
+/** Pure: distil company insights into the headcount-growth signal. */
+export function mapHeadcountGrowth(insights: UnipileCompanyInsights | undefined): HeadcountGrowthSignal {
+  const e = insights?.employeesCount;
+  const byRange = (m: number) => e?.growthGraph?.find((g) => g.monthRange === m)?.growthPercentage ?? null;
+  return {
+    totalCount: e?.totalCount ?? null,
+    averageTenure: e?.averageTenure ?? null,
+    growth6moPct: byRange(6),
+    growth12moPct: byRange(12),
+    growth24moPct: byRange(24),
+    series: (e?.employeesCountGraph ?? [])
+      .filter((p) => p.date && typeof p.count === "number")
+      .map((p) => ({ date: p.date as string, count: p.count as number })),
+  };
+}
+
+/** GET /linkedin/inmail_balance — remaining InMail credits per premium surface. */
+export interface UnipileInMailBalance {
+  object?: string;
+  premium?: number | null;
+  recruiter?: number | null;
+  sales_navigator?: number | null;
+}
+export function getUnipileInMailBalance(cfg: UnipileConfig, accountId: string): Promise<UnipileInMailBalance> {
+  return unipileFetch<UnipileInMailBalance>(cfg, "GET", `/linkedin/inmail_balance?account_id=${encodeURIComponent(accountId)}`);
+}
+
+/** GET /linkedin/contracts — the SN/Recruiter contracts available on the seat. */
+export interface UnipileContract {
+  id: string;
+  name?: string;
+  product?: string;
+  selected?: boolean;
+}
+export async function listUnipileContracts(cfg: UnipileConfig, accountId: string): Promise<UnipileContract[]> {
+  const j = await unipileFetch<{ items?: UnipileContract[] }>(
+    cfg,
+    "GET",
+    `/linkedin/contracts?account_id=${encodeURIComponent(accountId)}`,
+  );
+  return j.items ?? [];
+}
+
+/** A post with its engagement counters (recent-activity buying signal). */
+export interface UnipilePost {
+  id?: string;
+  text?: string;
+  date?: string;
+  parsed_datetime?: string;
+  is_repost?: boolean;
+  impressions_counter?: number;
+  reaction_counter?: number;
+  comment_counter?: number;
+  repost_counter?: number;
+  share_url?: string;
+  social_id?: string;
+  [k: string]: unknown;
+}
+
+/**
+ * GET /users/{provider_id}/posts — a person's recent posts. NOTE (verified live):
+ * the identifier MUST be the provider_id (ACoAA…); a public handle 422s
+ * `invalid_recipient`. `recent_posts_count` on a search result tells you whether
+ * it is worth a call.
+ */
+export async function listUnipileUserPosts(
+  cfg: UnipileConfig,
+  providerId: string,
+  accountId: string,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<UnipileList<UnipilePost>> {
+  const q = new URLSearchParams({ account_id: accountId, limit: String(opts.limit ?? 10) });
+  if (opts.cursor) q.set("cursor", opts.cursor);
+  return unipileFetch<UnipileList<UnipilePost>>(cfg, "GET", `/users/${encodeURIComponent(providerId)}/posts?${q.toString()}`);
+}
+
+/** A pending invitation (sent or received). */
+export interface UnipileInvitation {
+  id?: string;
+  invitation_text?: string;
+  invited_user?: string;
+  invited_user_id?: string;
+  invited_user_public_id?: string;
+  invited_user_description?: string;
+  invited_user_profile_picture_url?: string;
+  /** Received-only: the person who sent us the request. */
+  inviter?: string;
+  date?: string;
+  parsed_datetime?: string;
+  [k: string]: unknown;
+}
+
+/** GET /users/invite/sent — our pending OUTBOUND invitations (diff to detect accepts). */
+export async function listUnipileInvitationsSent(
+  cfg: UnipileConfig,
+  accountId: string,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<UnipileList<UnipileInvitation>> {
+  const q = new URLSearchParams({ account_id: accountId, limit: String(opts.limit ?? 50) });
+  if (opts.cursor) q.set("cursor", opts.cursor);
+  return unipileFetch<UnipileList<UnipileInvitation>>(cfg, "GET", `/users/invite/sent?${q.toString()}`);
+}
+
+/** GET /users/invite/received — pending INBOUND connection requests. */
+export async function listUnipileInvitationsReceived(
+  cfg: UnipileConfig,
+  accountId: string,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<UnipileList<UnipileInvitation>> {
+  const q = new URLSearchParams({ account_id: accountId, limit: String(opts.limit ?? 50) });
+  if (opts.cursor) q.set("cursor", opts.cursor);
+  return unipileFetch<UnipileList<UnipileInvitation>>(cfg, "GET", `/users/invite/received?${q.toString()}`);
+}
+
 /**
  * Constant-time check that the inbound webhook/notify request carries our
  * shared secret in `?token=`. Fail-closed: no secret configured → reject.
