@@ -122,6 +122,15 @@ export async function GET(req: Request) {
       refineConds.push(sql`(COALESCE(${companies.properties}->>'linkedinUrl','') = '' AND COALESCE(${companies.properties}->>'linkedin_url','') = '')`);
     if (f.name) refineConds.push(ilike(companies.name, `%${f.name}%`));
     if (f.domain) refineConds.push(ilike(companies.domain, `%${f.domain}%`));
+    // Account-list membership (fList) — scope to one curated list. Narrows the
+    // working set like a column filter (so the All/Sourced/Added + enrichment
+    // badges reflect the list). Tenant-safe by construction: the subquery joins
+    // back to THIS tenant's companies, so a foreign list id matches no rows.
+    if (f.listId) {
+      refineConds.push(
+        sql`${companies.id} IN (SELECT company_id FROM account_list_members WHERE list_id = ${f.listId})`,
+      );
+    }
     if (f.scoreMin != null) refineConds.push(gte(companies.score, f.scoreMin));
     if (f.scoreMax != null) refineConds.push(lte(companies.score, f.scoreMax));
     // Sector family → resolve to the tenant's industries via the LLM classifier

@@ -24,7 +24,7 @@ describe("parseAccountListFilters", () => {
     expect(f).toEqual({
       industries: [], geographies: [], regions: [], sizes: [], revenues: [], stages: [], grades: [],
       contactReach: [], recency: [], families: [],
-      enriched: null, linkedin: null, name: null, domain: null, tab: "all", scoreMin: null, scoreMax: null,
+      enriched: null, linkedin: null, name: null, domain: null, listId: null, tab: "all", scoreMin: null, scoreMax: null,
     });
     expect(hasActiveAccountFilters(f)).toBe(false);
   });
@@ -69,12 +69,19 @@ describe("parseAccountListFilters", () => {
     expect(f.domain).toBe("acme.com");
   });
 
+  it("parses the account-list membership filter (fList)", () => {
+    expect(parseAccountListFilters(P("fList=%20list-123%20")).listId).toBe("list-123");
+    expect(parseAccountListFilters(P("fList=")).listId).toBe(null);
+    expect(parseAccountListFilters(P("")).listId).toBe(null);
+  });
+
   it("hasActiveAccountFilters reacts to each field", () => {
     expect(hasActiveAccountFilters(parseAccountListFilters(P("fGeography=Switzerland")))).toBe(true);
     expect(hasActiveAccountFilters(parseAccountListFilters(P("fScoreMin=70")))).toBe(true);
     expect(hasActiveAccountFilters(parseAccountListFilters(P("tab=tam")))).toBe(true);
     expect(hasActiveAccountFilters(parseAccountListFilters(P("fLinkedin=has")))).toBe(true);
     expect(hasActiveAccountFilters(parseAccountListFilters(P("fEnriched=no")))).toBe(true);
+    expect(hasActiveAccountFilters(parseAccountListFilters(P("fList=list-123")))).toBe(true);
   });
 });
 

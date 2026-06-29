@@ -359,11 +359,16 @@ export const messages: Record<Locale, Messages> = {
     "meeting.sovereignNotice":
       "Visio souveraine — enregistrée et transcrite sur votre infrastructure.",
     // List filters — Accounts / Contacts filter panels
+    "filters.section.enrichment": "Enrichissement",
     "filters.section.sector": "Secteur",
     "filters.section.geography": "Géographie",
     "filters.section.reachability": "Joignabilité",
     "filters.section.engagement": "Engagement",
     "filters.section.persona": "Persona",
+    "filters.enrichment.label": "État d'enrichissement",
+    "filters.enrichment.unenriched": "À enrichir",
+    "filters.enrichment.enriched": "Enrichis",
+    "filters.enrichment.hint": "Isole les comptes encore sans firmographics — ce qu'un enrichissement groupé remplirait réellement",
     "filters.family.label": "Famille sectorielle",
     "filters.family.hintLoading": "Classement des secteurs…",
     "filters.family.hint": "Regroupe les industries en familles (santé, public, non-profit…)",
@@ -834,11 +839,16 @@ export const messages: Record<Locale, Messages> = {
     "meeting.sovereignNotice":
       "Sovereign video — recorded and transcribed on your own infrastructure.",
     // List filters — Accounts / Contacts filter panels
+    "filters.section.enrichment": "Enrichment",
     "filters.section.sector": "Sector",
     "filters.section.geography": "Geography",
     "filters.section.reachability": "Reachability",
     "filters.section.engagement": "Engagement",
     "filters.section.persona": "Persona",
+    "filters.enrichment.label": "Enrichment state",
+    "filters.enrichment.unenriched": "To enrich",
+    "filters.enrichment.enriched": "Enriched",
+    "filters.enrichment.hint": "Isolate accounts still missing their base firmographics — what a bulk enrich would actually fill",
     "filters.family.label": "Sector family",
     "filters.family.hintLoading": "Classifying sectors…",
     "filters.family.hint": "Groups industries into families (health, public, non-profit…)",

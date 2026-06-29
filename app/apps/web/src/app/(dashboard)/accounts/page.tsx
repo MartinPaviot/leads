@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { z } from "zod";
-import { Building2, Search, Filter, Plus, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, Archive, SlidersHorizontal, Layers, type LucideIcon } from "lucide-react";
+import { Building2, Search, Filter, Plus, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, Archive, SlidersHorizontal, Layers, ListPlus, type LucideIcon } from "lucide-react";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
 import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
 import type { EntityLocator } from "@/lib/chat/page-actions/registry";
@@ -28,6 +28,7 @@ import { getCustomFieldValue, formatFieldValue } from "@/lib/context/custom-fiel
 import type { CustomFieldDef } from "@/lib/context/custom-fields";
 import { PageHeader, FilterBar } from "@/components/ui/page-header";
 import { PersonaSearch } from "./_persona-search";
+import { AddToListModal, type AccountList } from "./_add-to-list-modal";
 import { Button } from "@/components/ui/button";
 import { IndustryBadge, PropertyBadge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -212,8 +213,18 @@ export default function AccountsPage() {
   const [filter, setFilter] = useState<"all" | "tam" | "manual">("all");
   // Enrichment partition — independent of the source tab. "unenriched" isolates
   // the accounts still missing their base firmographics so the user can bulk-
-  // enrich just those (and not pay to re-enrich the ones already enriched).
-  const [enrichmentFilter, setEnrichmentFilter] = useState<"all" | "unenriched" | "enriched">("all");
+  // enrich just those (and not pay to re-enrich the ones already enriched). It
+  // lives inside `columnFilters` under the `enrichment` key (selecting exactly
+  // one of unenriched/enriched narrows; both/neither = no narrowing) so the
+  // shared Filtres panel + serializer + active-count handle it like any cut.
+  // ── Account lists ──
+  // User-curated static collections of accounts. Rendered as selectable chips
+  // beside the source tabs; `activeListId` scopes the list to one list's members
+  // (server-side via fList). Built from the bulk-actions bar on a selection.
+  const [lists, setLists] = useState<AccountList[]>([]);
+  const [activeListId, setActiveListId] = useState<string | null>(null);
+  const [showAddToList, setShowAddToList] = useState(false);
+  const [listBusy, setListBusy] = useState(false);
   // Per-column header filters (Notion / Excel style). Keyed by the
   // column's filterKey → its filter state. An entry only exists while
   // the column constrains the list; clearing it deletes the key.
@@ -621,8 +632,14 @@ export default function AccountsPage() {
   const serializeAccountFilters = useCallback((): URLSearchParams => {
     const p = new URLSearchParams();
     if (filter !== "all") p.set("tab", filter);
-    if (enrichmentFilter === "unenriched") p.set("fEnriched", "no");
-    else if (enrichmentFilter === "enriched") p.set("fEnriched", "yes");
+    if (activeListId) p.set("fList", activeListId);
+    // Enrichment partition now lives in columnFilters.enrichment. Exactly one of
+    // unenriched/enriched narrows; both (= the full set) or neither = no param.
+    const enrichVals = debouncedColumnFilters.enrichment?.values ?? [];
+    const wantUnenriched = enrichVals.includes("unenriched");
+    const wantEnriched = enrichVals.includes("enriched");
+    if (wantUnenriched && !wantEnriched) p.set("fEnriched", "no");
+    else if (wantEnriched && !wantUnenriched) p.set("fEnriched", "yes");
     const ENUM_PARAM: Record<string, string> = {
       industry: "fIndustry", geography: "fGeography", size: "fSize",
       revenue: "fRevenue", stage: "fStage", score: "fGrade",
@@ -635,6 +652,7 @@ export default function AccountsPage() {
       if (TEXT_PARAM[key] && fst.text && fst.text.trim()) p.set(TEXT_PARAM[key], fst.text.trim());
       else if (ENUM_PARAM[key] && fst.values && fst.values.length > 0) p.set(ENUM_PARAM[key], fst.values.join(","));
       else if (key === "linkedin" && fst.presence) p.set("fLinkedin", fst.presence);
+      // `enrichment` is handled above (maps to fEnriched, not a 1:1 enum param).
     }
     // Smart-filter score threshold (e.g. "high fit" -> score >= 70).
     for (const c of smartFilters) {
@@ -646,7 +664,7 @@ export default function AccountsPage() {
       else if (c.operator === "eq") { p.set("fScoreMin", String(n)); p.set("fScoreMax", String(n)); }
     }
     return p;
-  }, [filter, enrichmentFilter, debouncedColumnFilters, smartFilters]);
+  }, [filter, activeListId, debouncedColumnFilters, smartFilters]);
 
   /** The COMPLETE filter state /api/accounts understands — view toggles
    *  (excluded/deleted) + search + tab/column/score filters. Single source
@@ -681,7 +699,23 @@ export default function AccountsPage() {
     const famList = familyFacet ?? [];
     const familyOpts = famList.map((f) => ({ value: f.key, label: f.label }));
     const familyCountsObj = Object.fromEntries(famList.map((f) => [f.key, f.count]));
+    const enrichedTotal = serverCounts ? Math.max(0, serverCounts.total - serverCounts.unenriched) : 0;
     return [
+      {
+        title: t("filters.section.enrichment"),
+        filters: [
+          {
+            key: "enrichment",
+            label: t("filters.enrichment.label"),
+            options: [
+              { value: "unenriched", label: t("filters.enrichment.unenriched") },
+              { value: "enriched", label: t("filters.enrichment.enriched") },
+            ],
+            counts: serverCounts ? { unenriched: serverCounts.unenriched, enriched: enrichedTotal } : {},
+            hint: t("filters.enrichment.hint"),
+          },
+        ],
+      },
       {
         title: t("filters.section.sector"),
         filters: [
@@ -707,7 +741,7 @@ export default function AccountsPage() {
         ],
       },
     ];
-  }, [serverFacetCounts, familyFacet, familyLoading, t, locale]);
+  }, [serverFacetCounts, serverCounts, familyFacet, familyLoading, t, locale]);
   const panelActive = panelActiveCount(filterSections, columnFilters);
 
   // Lazy-load the sector-family facet the first time the Filtres panel opens.
@@ -802,6 +836,98 @@ export default function AccountsPage() {
   }, [fetchAccounts, loadingMore, currentPage, totalPages]);
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+
+  // ── Account lists: load + curate ──
+  // Pull the tenant's lists (id + name + live member count) for the chips.
+  // Re-run after any create/add/delete so the counts stay honest. If the
+  // active list disappears (deleted elsewhere) drop the selection so the view
+  // can't get stuck on a list that no longer exists.
+  const fetchLists = useCallback(async () => {
+    try {
+      const res = await fetch("/api/account-lists");
+      if (!res.ok) return;
+      const data = (await res.json()) as { lists?: AccountList[] };
+      const next = data.lists ?? [];
+      setLists(next);
+      setActiveListId((cur) => (cur && !next.some((l) => l.id === cur) ? null : cur));
+    } catch (e) {
+      console.warn("accounts: lists fetch failed", e);
+    }
+  }, []);
+  useEffect(() => { fetchLists(); }, [fetchLists]);
+
+  // Create a new list from the current selection. On success, switch the view
+  // to it so the user immediately sees what they just grouped.
+  const createListFromSelection = useCallback(async (name: string) => {
+    const ids = Array.from(selectedRows);
+    setListBusy(true);
+    try {
+      const res = await fetch("/api/account-lists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, companyIds: ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(data?.error?.message ?? "Couldn't create the list.", res.status === 409 ? "warning" : "error");
+        return;
+      }
+      const created = data.list as AccountList;
+      toast(`Created "${created.name}" with ${created.count} account${created.count === 1 ? "" : "s"}.`, "success");
+      setShowAddToList(false);
+      setSelectedRows(new Set());
+      await fetchLists();
+      setActiveListId(created.id);
+    } catch (e) {
+      toast("Couldn't create the list.", "error");
+      console.warn("accounts: create list failed", e);
+    } finally {
+      setListBusy(false);
+    }
+  }, [selectedRows, toast, fetchLists]);
+
+  // Drop the current selection into an existing list (deduped server-side).
+  const addSelectionToList = useCallback(async (listId: string) => {
+    const ids = Array.from(selectedRows);
+    setListBusy(true);
+    try {
+      const res = await fetch(`/api/account-lists/${listId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ addCompanyIds: ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(data?.error?.message ?? "Couldn't add to the list.", "error");
+        return;
+      }
+      const updated = data.list as AccountList;
+      toast(`"${updated.name}" now holds ${updated.count} account${updated.count === 1 ? "" : "s"}.`, "success");
+      setShowAddToList(false);
+      setSelectedRows(new Set());
+      await fetchLists();
+    } catch (e) {
+      toast("Couldn't add to the list.", "error");
+      console.warn("accounts: add to list failed", e);
+    } finally {
+      setListBusy(false);
+    }
+  }, [selectedRows, toast, fetchLists]);
+
+  // Delete a list (its membership rows cascade; the accounts are untouched).
+  const deleteList = useCallback(async (listId: string, name: string) => {
+    if (typeof window !== "undefined" && !window.confirm(`Delete the list "${name}"? The accounts in it are kept.`)) return;
+    try {
+      const res = await fetch(`/api/account-lists/${listId}`, { method: "DELETE" });
+      if (!res.ok) { toast("Couldn't delete the list.", "error"); return; }
+      if (activeListId === listId) setActiveListId(null);
+      toast(`Deleted "${name}".`, "success");
+      await fetchLists();
+    } catch (e) {
+      toast("Couldn't delete the list.", "error");
+      console.warn("accounts: delete list failed", e);
+    }
+  }, [activeListId, toast, fetchLists]);
 
   // Pending TAM-proposal count for the header entry point.
   useEffect(() => {
@@ -1797,11 +1923,10 @@ export default function AccountsPage() {
         run: async (p): Promise<PageActionResult> => {
           if (p.clear) {
             setColumnFilters({}); setSmartFilters([]); setSmartMeta(null);
-            setFilter("all"); setEnrichmentFilter("all"); setSearchQuery("");
+            setFilter("all"); setSearchQuery(""); setActiveListId(null);
             return okResult("Cleared all filters.");
           }
           if (p.sourceTab) setFilter(p.sourceTab);
-          if (p.enrichmentPartition) setEnrichmentFilter(p.enrichmentPartition);
           const next: Record<string, ColumnFilterState> = {};
           if (p.name) next.name = { text: p.name };
           if (p.domain) next.domain = { text: p.domain };
@@ -1809,6 +1934,11 @@ export default function AccountsPage() {
             const vals = p[k]; if (vals?.length) next[k] = { values: vals };
           }
           if (p.linkedin) next.linkedin = { presence: p.linkedin === "present" ? "has" : "empty" };
+          // Enrichment partition now rides in columnFilters.enrichment (the
+          // shared Filtres-panel key): "all" leaves it unset (= no narrowing).
+          if (p.enrichmentPartition && p.enrichmentPartition !== "all") {
+            next.enrichment = { values: [p.enrichmentPartition] };
+          }
           if (Object.keys(next).length > 0) setColumnFilters(next);
           return okResult("Filtered accounts by " + describeAccountFilters(p) + ".");
         },
@@ -2192,6 +2322,11 @@ export default function AccountsPage() {
               window.location.href = `/call-mode?accounts=${encodeURIComponent(ids.join(","))}`;
             },
           },
+          {
+            label: "Add to list",
+            icon: <ListPlus size={13} />,
+            onClick: () => { if (selectedRows.size > 0) setShowAddToList(true); },
+          },
           ...(viewDeleted
             ? [
                 {
@@ -2344,6 +2479,16 @@ export default function AccountsPage() {
 
       {showPersona && <PersonaSearch onClose={() => setShowPersona(false)} />}
 
+      <AddToListModal
+        open={showAddToList}
+        onClose={() => setShowAddToList(false)}
+        selectedCount={selectedRows.size}
+        lists={lists}
+        busy={listBusy}
+        onCreate={createListFromSelection}
+        onAddToExisting={addSelectionToList}
+      />
+
       {/* TAM stream progress banner — sticky above the filter bar
           during a build, collapses to a completion / error state
           after `done`. */}
@@ -2382,6 +2527,49 @@ export default function AccountsPage() {
           ))}
         </div>
 
+        {/* Account lists — selectable chips beside the source tabs. Click to
+            scope the view to one list's members; click the active one again to
+            leave it. The × on the active chip deletes the list (its accounts are
+            kept). Lists are created from a selection via the bulk-actions bar. */}
+        {lists.length > 0 && (
+          <div className="flex items-center gap-1 border-l pl-2" style={{ borderColor: "var(--color-border-default)" }}>
+            {lists.map((l) => {
+              const isActive = activeListId === l.id;
+              return (
+                <div
+                  key={l.id}
+                  className="inline-flex items-center rounded-md"
+                  style={{ background: isActive ? "var(--color-accent-soft)" : "transparent" }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setActiveListId(isActive ? null : l.id)}
+                    title={isActive ? "Click to leave this list" : `Show only "${l.name}"`}
+                    className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+                    style={{ color: isActive ? "var(--color-accent)" : "var(--color-text-tertiary)" }}
+                  >
+                    <ListPlus size={12} style={{ opacity: 0.7 }} />
+                    <span className="max-w-[160px] truncate">{l.name}</span>
+                    <span className="tabular-nums" style={{ opacity: 0.7 }}>{l.count}</span>
+                  </button>
+                  {isActive && (
+                    <button
+                      type="button"
+                      aria-label={`Delete list ${l.name}`}
+                      title="Delete this list (the accounts are kept)"
+                      onClick={() => deleteList(l.id, l.name)}
+                      className="mr-1 flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+                      style={{ color: "var(--color-accent)" }}
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <button
           type="button"
           onClick={() => setShowFilters(true)}
@@ -2400,41 +2588,6 @@ export default function AccountsPage() {
             </span>
           )}
         </button>
-
-        {/* Enrichment partition — independent of the source tab. Lets the user
-            isolate the not-yet-enriched accounts so a bulk enrich doesn't pay to
-            re-enrich the ones already enriched. Counts come from the tenant-wide
-            working set (serverCounts), independent of this selection so each
-            segment shows a stable total. */}
-        <div className="flex items-center gap-0.5 border-l pl-2" style={{ borderColor: "var(--color-border-default)" }}>
-          <Sparkles size={12} style={{ color: "var(--color-text-tertiary)", opacity: 0.7 }} aria-hidden="true" />
-          {([
-            { key: "all", label: "All", title: "Every account regardless of enrichment" },
-            {
-              key: "unenriched",
-              label: serverCounts ? `To enrich (${serverCounts.unenriched})` : "To enrich",
-              title: "Accounts still missing their base firmographics — what a bulk enrich would actually fill",
-            },
-            {
-              key: "enriched",
-              label: serverCounts ? `Enriched (${Math.max(0, serverCounts.total - serverCounts.unenriched)})` : "Enriched",
-              title: "Accounts already enriched — skip these to avoid enriching twice",
-            },
-          ] as const).map((seg) => (
-            <button
-              key={seg.key}
-              onClick={() => setEnrichmentFilter(seg.key)}
-              title={seg.title}
-              className="rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
-              style={{
-                background: enrichmentFilter === seg.key ? "var(--color-accent-soft)" : "transparent",
-                color: enrichmentFilter === seg.key ? "var(--color-accent)" : "var(--color-text-tertiary)",
-              }}
-            >
-              {seg.label}
-            </button>
-          ))}
-        </div>
 
         {/* Per-column filters now live in the table headers (click the
             filter icon on Industry / Geography / Size / etc.). When any

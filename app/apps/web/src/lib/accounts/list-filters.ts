@@ -42,6 +42,7 @@ export interface AccountListFilters {
   linkedin: "has" | "empty" | null;
   name: string | null; // substring match
   domain: string | null; // substring match
+  listId: string | null; // account-list membership (fList) — scopes to one curated list
   tab: "all" | "tam" | "manual";
   scoreMin: number | null; // smart-filter score >= (e.g. "high fit" -> 70)
   scoreMax: number | null; // smart-filter score <=
@@ -93,6 +94,7 @@ export function parseAccountListFilters(params: URLSearchParams): AccountListFil
     linkedin,
     name: params.get("fName")?.trim() || null,
     domain: params.get("fDomain")?.trim() || null,
+    listId: params.get("fList")?.trim() || null,
     tab,
     scoreMin: num(params.get("fScoreMin")),
     scoreMax: num(params.get("fScoreMax")),
@@ -117,6 +119,7 @@ export function hasActiveAccountFilters(f: AccountListFilters): boolean {
     f.linkedin !== null ||
     !!f.name ||
     !!f.domain ||
+    !!f.listId ||
     f.tab !== "all" ||
     f.scoreMin !== null ||
     f.scoreMax !== null
