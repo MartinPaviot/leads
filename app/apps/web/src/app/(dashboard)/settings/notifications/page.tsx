@@ -6,6 +6,7 @@ import { SettingsHeader } from "@/components/ui/settings-header";
 import { Input, Toggle } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ProviderLogo } from "@/components/ui/provider-logo";
 import { useSafeFetch } from "@/lib/infra/use-safe-fetch";
 import { z } from "zod";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
@@ -215,7 +216,9 @@ export default function NotificationsSettingsPage() {
         <CardBody>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>Slack Integration</p>
+              <p className="flex items-center gap-1.5 text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+                <ProviderLogo name="slack" size={15} /> Slack Integration
+              </p>
               <p className="mt-0.5 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
                 {slackConnected
                   ? "Connected. Notifications will be sent to your Slack channel."

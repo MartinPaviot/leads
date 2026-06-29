@@ -142,12 +142,14 @@ export async function GET() {
         status: isNeedsReauth(settings, authCtx.userId, oa.provider)
           ? "needs_reauth"
           : (mailbox?.status as string || "syncing"),
-        lastEmailSyncAt: null, // TODO: track in connectedAccounts table in Phase B
+        lastEmailSyncAt: null, // OAuth sync timestamps land in Phase B (no per-account column yet)
         lastCalSyncAt: null,
         dailyLimit: mailbox?.dailyLimit || 0,
         sentToday: mailbox?.sentToday || 0,
         sentTotal: mailbox?.sentTotal || 0,
-        healthScore: mailbox?.healthScore || 100,
+        // `?? 100` not `|| 100`: a real health of 0 (critical deliverability) must
+        // NOT be masked as 100%. Only a missing score falls back to 100.
+        healthScore: mailbox?.healthScore ?? 100,
         warmupStartedAt: mailbox?.warmupStartedAt?.toISOString() || null,
         warmupDailyTarget: mailbox?.warmupDailyTarget || 0,
         warmupCompletedAt: mailbox?.warmupCompletedAt?.toISOString() || null,
@@ -168,12 +170,14 @@ export async function GET() {
         // was discovered/configured on connect.
         calendarConnected: !!mb.caldavUrl,
         status: mb.status as string,
-        lastEmailSyncAt: null,
-        lastCalSyncAt: null,
+        lastEmailSyncAt: mb.imapLastSyncAt?.toISOString() ?? null,
+        // Real CalDAV sync time — caldav-sync.ts stamps caldavLastSyncAt on every
+        // successful read, so this KPI actually moves instead of sitting at null.
+        lastCalSyncAt: mb.caldavLastSyncAt?.toISOString() ?? null,
         dailyLimit: mb.dailyLimit || 0,
         sentToday: mb.sentToday || 0,
         sentTotal: mb.sentTotal || 0,
-        healthScore: mb.healthScore || 100,
+        healthScore: mb.healthScore ?? 100,
         warmupStartedAt: mb.warmupStartedAt?.toISOString() || null,
         warmupDailyTarget: mb.warmupDailyTarget || 0,
         warmupCompletedAt: mb.warmupCompletedAt?.toISOString() || null,
