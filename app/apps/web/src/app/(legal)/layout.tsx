@@ -33,7 +33,7 @@ export default function LegalLayout({
           >
             <path d="m15 18-6-6 6-6" />
           </svg>
-          Back to Orion
+          Back to Elevay
         </Link>
 
         {/* Page content */}

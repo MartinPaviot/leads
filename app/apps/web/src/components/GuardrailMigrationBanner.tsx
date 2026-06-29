@@ -67,7 +67,7 @@ export function GuardrailMigrationBanner({ show }: GuardrailMigrationBannerProps
       />
       <div className="flex-1">
         <div className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-          We&apos;ve added sending protections to Orion
+          We&apos;ve added sending protections to Elevay
         </div>
         <div className="mt-0.5 text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
           Your approval mode is now <strong>Auto (high-confidence actions only)</strong>.

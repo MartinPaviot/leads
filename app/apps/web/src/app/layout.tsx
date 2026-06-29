@@ -19,8 +19,8 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Orion — The Autonomous GTM Engine for Founders",
-    template: "%s | Orion",
+    default: "Elevay — The Autonomous GTM Engine for Founders",
+    template: "%s | Elevay",
   },
   description:
     "AI-powered CRM for founder-led sales. Auto-built TAM, ML scoring, outbound sequences, deal coaching — zero manual data entry. Start free.",
@@ -28,17 +28,17 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_APP_URL || "https://app.elevay.dev"
   ),
   openGraph: {
-    title: "Orion — The Autonomous GTM Engine for Founders",
+    title: "Elevay — The Autonomous GTM Engine for Founders",
     description:
       "AI-powered CRM for founder-led sales. Auto-built TAM, ML scoring, outbound sequences, deal coaching — zero manual data entry.",
     url: "/",
-    siteName: "Orion",
+    siteName: "Elevay",
     locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Orion — The Autonomous GTM Engine for Founders",
+    title: "Elevay — The Autonomous GTM Engine for Founders",
     description:
       "AI-powered CRM for founder-led sales. Auto-built TAM, ML scoring, outbound sequences, deal coaching.",
   },

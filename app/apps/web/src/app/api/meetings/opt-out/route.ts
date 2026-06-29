@@ -94,7 +94,7 @@ function renderHtml(title: string, message: string): string {
 </head>
 <body>
   <div class="card">
-    <div class="logo">Orion</div>
+    <div class="logo">Elevay</div>
     <h1>${escapeHtml(title)}</h1>
     <p>${escapeHtml(message)}</p>
   </div>

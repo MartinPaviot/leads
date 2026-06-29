@@ -400,7 +400,7 @@ export default function ChatPage() {
                 e.currentTarget.form?.requestSubmit();
               }
             }}
-            placeholder="Ask Orion..."
+            placeholder="Ask Elevay..."
             autoFocus
             rows={1}
             className={`block w-full resize-none rounded-xl pl-10 pr-20 outline-none transition-all ${big ? "py-3.5 text-[15px]" : "py-2.5 text-[14px]"}`}
@@ -586,7 +586,7 @@ export default function ChatPage() {
                     ))}
                 </div>
               ) : (
-                /* AI message — left-aligned, NO background, with "Orion" sparkle label */
+                /* AI message — left-aligned, NO background, with "Elevay" sparkle label */
                 <div className="group/msg min-w-0 max-w-full">
                   {/* AI label */}
                   <div
@@ -594,7 +594,7 @@ export default function ChatPage() {
                     style={{ color: "var(--color-text-tertiary)" }}
                   >
                     <ElevayMark size={13} />
-                    <span style={{ fontWeight: 500 }}>Orion</span>
+                    <span style={{ fontWeight: 500 }}>Elevay</span>
                   </div>
 
                   {/* Tool call transparency panels — show both in-progress and completed */}
