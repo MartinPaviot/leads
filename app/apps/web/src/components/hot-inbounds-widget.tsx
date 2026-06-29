@@ -83,28 +83,10 @@ export function HotInboundsWidget() {
     }
   };
 
-  if (loading) {
-    return (
-      <div
-        className="rounded-xl p-4"
-        style={{
-          background: "var(--color-bg-card)",
-          border: "1px solid var(--color-border-default)",
-        }}
-      >
-        <div className="h-4 w-32 animate-pulse rounded" style={{ background: "var(--color-bg-hover)" }} />
-        <div className="mt-3 space-y-2">
-          {[0, 1].map((i) => (
-            <div
-              key={i}
-              className="h-12 animate-pulse rounded-lg"
-              style={{ background: "var(--color-bg-hover)" }}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  // Render nothing until we KNOW there's something to show — same reasoning as
+  // HotVisitorsWidget: a self-hiding widget that resolves to empty for most
+  // tenants must not flash a placeholder card above the greeting on every load.
+  if (loading) return null;
 
   if (!items || items.length === 0) return null;
 

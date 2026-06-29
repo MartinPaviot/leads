@@ -72,28 +72,13 @@ export function HotVisitorsWidget() {
     };
   }, []);
 
-  if (loading) {
-    return (
-      <div
-        className="rounded-xl p-4"
-        style={{
-          background: "var(--color-bg-card)",
-          border: "1px solid var(--color-border-default)",
-        }}
-      >
-        <div className="h-4 w-32 animate-pulse rounded" style={{ background: "var(--color-bg-hover)" }} />
-        <div className="mt-3 space-y-2">
-          {[0, 1].map((i) => (
-            <div
-              key={i}
-              className="h-12 animate-pulse rounded-lg"
-              style={{ background: "var(--color-bg-hover)" }}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  // Render nothing until we KNOW there's something to show. This widget
+  // resolves to empty for any tenant without the visitor pixel installed
+  // (the steady state), so a loading skeleton would flash a placeholder card
+  // above the dashboard greeting on every load and then collapse to nothing —
+  // empty-state padding the docstring above promises never to carry. A real
+  // hot-visitor card just pops in when the fetch lands.
+  if (loading) return null;
 
   if (!items || items.length === 0) return null;
 
