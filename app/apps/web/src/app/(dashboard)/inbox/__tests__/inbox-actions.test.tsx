@@ -364,6 +364,25 @@ describe("CLE-14 /inbox — bookMeeting + stopSequence (lifted pane handlers)", 
   });
 });
 
+describe("Fix A /inbox — book a meeting without a linked contact", () => {
+  it("shows 'Planifier un RDV' even when the sender is not a CRM contact yet", async () => {
+    detailResponse = () => jsonRes({ ...FIXTURE_DETAIL, contact: null, enrollment: null });
+    await mountLoaded();
+    // The calendar action books against the sender email; the server
+    // resolves-or-creates the contact at confirm time, so it must appear
+    // even though detail.contact is null.
+    expect(screen.getByLabelText("Planifier un RDV")).toBeTruthy();
+  });
+
+  it("opening the scheduler from a contactless thread books nothing until confirm", async () => {
+    detailResponse = () => jsonRes({ ...FIXTURE_DETAIL, contact: null, enrollment: null });
+    await mountLoaded();
+    fireEvent.click(screen.getByLabelText("Planifier un RDV"));
+    await flush();
+    expect(callsTo("/api/meetings/book").length).toBe(0);
+  });
+});
+
 describe("F3 /inbox — pane error vs missing (B5)", () => {
   it("a failed detail fetch shows the pane error + Retry, not 'no longer available'", async () => {
     detailResponse = () => jsonRes({ error: "boom" }, false, 500);

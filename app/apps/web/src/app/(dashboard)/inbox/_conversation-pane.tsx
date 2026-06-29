@@ -546,6 +546,14 @@ export function ConversationPane({
   }
 
   const conv = detail.conversation;
+  // Booking target: the linked contact when present, else the thread sender. The
+  // book route resolves-or-creates the contact at book time, so scheduling a
+  // meeting from the mail no longer requires the sender to be a contact already.
+  const bookContactId = detail.contact?.id;
+  const bookEmail = detail.contact?.email || conv.fromAddress || "";
+  const bookName = detail.contact?.name || conv.displayName || "";
+  const bookFirstName = bookName.split(" ")[0] || "";
+  const canBook = Boolean(bookContactId || bookEmail);
   const intel = conv.intelligence;
   // LT-2: badge count for the collapsed Intelligence panel — how many high-signal
   // sections it holds (brief is contact-driven; the rest are pipeline data). The
@@ -567,7 +575,7 @@ export function ConversationPane({
   // in ⋮ — see the action row below. Only the CONTEXTUAL "Book {proposed time}"
   // stays here, surfaced when the contact actually proposed a slot.
   const moreItems: MoreMenuItem[] = [];
-  if (detail.contact && proposedTime && !schedOpen) {
+  if (canBook && proposedTime && !schedOpen) {
     moreItems.push({
       label: t("inbox.bookProposed", { phrase: proposedTime.phrase }),
       icon: <CalendarPlus size={14} />,
@@ -711,8 +719,10 @@ export function ConversationPane({
             </Button>
           )}
           {/* Schedule a meeting straight from the open mail — a calm, visible
-              calendar action (books on the connected calendar incl. Infomaniak). */}
-          {detail.contact && (
+              calendar action (books on the connected calendar incl. Infomaniak).
+              Shown whenever the thread has a sender, even if they aren't a CRM
+              contact yet (the server creates the contact when you book). */}
+          {canBook && (
             <Button
               size="sm"
               variant="outline"
@@ -807,10 +817,12 @@ export function ConversationPane({
           </div>
         </div>
 
-        {schedOpen && detail.contact && (
+        {schedOpen && canBook && (
           <MeetingSchedulerCard
-            contactId={detail.contact.id}
-            firstName={detail.contact.name.split(" ")[0] || ""}
+            contactId={bookContactId}
+            contactEmail={bookContactId ? undefined : bookEmail}
+            contactName={bookContactId ? undefined : bookName}
+            firstName={bookFirstName}
             initialWhen={prefillWhen ?? undefined}
             onClose={() => {
               setSchedOpen(false);
@@ -824,7 +836,7 @@ export function ConversationPane({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {/* ── Collision heads-up (INBOX-G06): a teammate already touched this
              contact recently. Soft, non-blocking — informs, never gates. ── */}
         {detail.contact && (
@@ -1131,6 +1143,7 @@ export function ConversationPane({
           <EmailComposerPanel
             draft={composer}
             mailboxes={sendableMailboxes}
+            inline
             onClose={() => {
               setComposer(null);
               setReplyTones([]);
