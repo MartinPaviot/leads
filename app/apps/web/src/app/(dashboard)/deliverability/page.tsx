@@ -475,7 +475,7 @@ export default function DeliverabilityPage() {
             the grid would render at the same time as the "No emails sent yet"
             empty state below — a contradictory, broken-looking double state. */}
         {data.totalSent > 0 && (
-        <div className={`${recommendations.length > 0 || data.warnings.length > 0 ? "" : ""} grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3`}>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <Card>
             <CardBody>
               <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Sent</p>

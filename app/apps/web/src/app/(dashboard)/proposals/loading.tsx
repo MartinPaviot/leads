@@ -2,11 +2,12 @@ import { HeaderSkeleton, Skeleton } from "@/components/ui/skeleton";
 
 // Route-level Suspense fallback for /proposals. The page is a custom-toolbar
 // header (FileText + title + subtitle + "Upload template" action) over a
-// two-pane layout, and it renders its OWN in-page skeletons on first paint:
-// a 6-row two-line list skeleton (listLoading) on the left and a detail-panel
-// skeleton (header block + 5 component rows) on the right. This reproduces the
-// SAME footprint — HeaderSkeleton (actions=1 ≈ the upload button) + both panes
-// — so the route-fallback → in-page-skeleton transition is seamless (no morph).
+// two-pane layout. The LEFT pane mirrors the page's listLoading skeleton (a
+// 6-row two-line list). The RIGHT pane does NOT mirror a skeleton — on first
+// paint `selected` is null and `detailLoading` is a CLICK-TIME state only (no
+// deep-link auto-select), so the page's actual initial right pane is just the
+// muted "Select a template…" prompt. Reproducing that (not a tall detail
+// skeleton) keeps the route-fallback → first paint handoff morph-free.
 const LIST_ROW_WIDTHS = [72, 55, 83, 60, 76, 50];
 
 export default function ProposalsLoading() {
@@ -29,29 +30,12 @@ export default function ProposalsLoading() {
           ))}
         </div>
 
-        {/* Right: review/detail panel (mirrors the page's detailLoading skeleton) */}
-        <div className="min-w-0 flex-1 overflow-y-auto p-6">
-          <div className="mx-auto max-w-3xl">
-            <div className="mb-4">
-              <Skeleton className="h-4 w-48 rounded" />
-              <Skeleton className="mt-1.5 h-3 w-32 rounded" />
-            </div>
-            <div className="space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-2 rounded-md p-2"
-                  style={{ border: "1px solid var(--color-border-default)" }}
-                >
-                  <Skeleton className="h-7 w-20 rounded" />
-                  <Skeleton className="h-7 flex-1 rounded" />
-                  <Skeleton className="h-7 w-28 rounded" />
-                  <Skeleton className="h-4 w-10 rounded" />
-                  <Skeleton className="h-6 w-14 rounded" />
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* Right: matches the page's INITIAL paint (nothing selected yet) — a
+            single muted prompt line, not a detail skeleton. */}
+        <div className="flex min-w-0 flex-1 items-center justify-center overflow-y-auto p-6">
+          <p className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
+            Select a template to review its detected components.
+          </p>
         </div>
       </div>
     </div>

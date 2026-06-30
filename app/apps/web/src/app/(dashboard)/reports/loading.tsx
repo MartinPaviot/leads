@@ -5,9 +5,9 @@ const CARD_STYLE = {
   border: "1px solid var(--color-border-default)",
 } as const;
 
-// Tall pipeline-intelligence panel (RevenueForecast / CohortInsights): icon tile
-// + title/subtitle + a badge, a headline number/summary, a diagnosis block, and
-// a two-column rate list — the resolved shape these cards settle into.
+// Tall pipeline-intelligence panel (RevenueForecast): icon tile + title/subtitle
+// + a badge, a headline number/summary, a diagnosis block, and a two-column rate
+// list — the resolved shape this card settles into.
 function PanelSkeleton() {
   return (
     <div className="skeleton-row rounded-lg p-4" style={CARD_STYLE}>
@@ -51,6 +51,42 @@ function PanelSkeleton() {
   );
 }
 
+// Short cohort-insights panel (CohortInsights): icon tile + title/subtitle
+// header, one summary line, and two short cohort rows — matches that card's own
+// in-page skeleton, which is far shorter than the RevenueForecast panel.
+function CohortPanelSkeleton() {
+  return (
+    <div className="skeleton-row rounded-lg p-4" style={CARD_STYLE}>
+      {/* Header — icon tile + title/subtitle */}
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-8 w-8 rounded-lg" />
+        <div className="space-y-1.5">
+          <Skeleton className="h-3.5 w-28 rounded" />
+          <Skeleton className="h-2.5 w-36 rounded" />
+        </div>
+      </div>
+
+      {/* Summary line */}
+      <Skeleton className="mt-3 h-3 w-3/4 rounded" />
+
+      {/* Two cohort rows */}
+      <div className="mt-4 space-y-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i} className="rounded-lg p-3" style={{ background: "var(--color-bg-page)" }}>
+            <div className="flex flex-wrap items-center gap-2">
+              <Skeleton className="h-3.5 w-24 rounded" />
+              <Skeleton className="h-2.5 w-14 rounded" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+              <Skeleton className="h-2.5 w-40 rounded" />
+            </div>
+            <Skeleton className="mt-2 h-3 w-2/3 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // On-demand report-type card: icon tile + badge, title, two description lines,
 // and a button row (Generate + Schedule weekly).
 function TypeCardSkeleton() {
@@ -77,10 +113,10 @@ export default function ReportsLoading() {
       <HeaderSkeleton />
 
       <div className="flex-1 overflow-y-auto px-4 py-6">
-        {/* Always-on pipeline intelligence — two tall panels */}
+        {/* Always-on pipeline intelligence — tall forecast + short cohort panel */}
         <div className="grid gap-4 lg:grid-cols-2">
           <PanelSkeleton />
-          <PanelSkeleton />
+          <CohortPanelSkeleton />
         </div>
 
         {/* "Generate a report" section heading */}
