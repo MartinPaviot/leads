@@ -62,6 +62,34 @@ const RECENT_ACTIVITIES: Array<{ value: string; label: string }> = [
   { value: "funding_events", label: "Funding" },
 ];
 
+// Warm/interaction spotlights (people) → the boolean payload keys they set.
+const WARM_SIGNALS: Array<{ key: string; label: string }> = [
+  { key: "followingYourCompany", label: "Follows you" },
+  { key: "viewedYourProfileRecently", label: "Viewed your profile" },
+  { key: "messagedRecently", label: "Messaged you" },
+  { key: "pastColleague", label: "Past colleague" },
+  { key: "sharedExperiences", label: "Shared experience" },
+];
+
+// Time-in-current-role buckets (people) → SN tenure_at_role ranges.
+const ROLE_TENURE: Array<{ key: string; label: string; range: { min?: number; max?: number } }> = [
+  { key: "<1", label: "<1 yr", range: { min: 0, max: 1 } },
+  { key: "1-2", label: "1–2 yr", range: { min: 1, max: 2 } },
+  { key: "3-5", label: "3–5 yr", range: { min: 3, max: 5 } },
+  { key: "6-10", label: "6–10 yr", range: { min: 6, max: 10 } },
+  { key: "10+", label: "10 yr+", range: { min: 10 } },
+];
+
+// Annual-revenue buckets (companies, USD millions) → SN annual_revenue {min,max}.
+const REVENUE: Array<{ key: string; label: string; range: { min: number; max: number } }> = [
+  { key: "<1M", label: "<1M", range: { min: 0, max: 1 } },
+  { key: "1-10M", label: "1–10M", range: { min: 1, max: 10 } },
+  { key: "10-50M", label: "10–50M", range: { min: 10, max: 50 } },
+  { key: "50-100M", label: "50–100M", range: { min: 50, max: 100 } },
+  { key: "100M-1B", label: "100M–1B", range: { min: 100, max: 1000 } },
+  { key: "1B+", label: "1B+", range: { min: 1000, max: 1001 } },
+];
+
 function Chip({ on, onClick, children, disabled }: { on: boolean; onClick: () => void; children: React.ReactNode; disabled?: boolean }) {
   return (
     <button
@@ -99,6 +127,11 @@ export function SalesNavSourcing() {
   const [mentionedInNews, setMentionedInNews] = useState(false);
   const [hasJobOffers, setHasJobOffers] = useState(false);
   const [recentActivities, setRecentActivities] = useState<Set<string>>(new Set());
+  const [warmSignals, setWarmSignals] = useState<Set<string>>(new Set());
+  const [roleTenure, setRoleTenure] = useState<Set<string>>(new Set());
+  const [revenueKey, setRevenueKey] = useState("");
+  const [fastGrowing, setFastGrowing] = useState(false);
+  const [personaId, setPersonaId] = useState("");
   const [savedSearchId, setSavedSearchId] = useState("");
   const [leadListId, setLeadListId] = useState("");
   const [hydrateAccounts, setHydrateAccounts] = useState(true);
@@ -162,10 +195,17 @@ export function SalesNavSourcing() {
       if (changedJobs) payload.changedJobs = true;
       if (postedOnLinkedin) payload.postedOnLinkedin = true;
       if (mentionedInNews) payload.mentionedInNews = true;
+      for (const w of warmSignals) payload[w] = true; // following_your_company, etc.
+      const roleTenureRanges = ROLE_TENURE.filter((t) => roleTenure.has(t.key)).map((t) => t.range);
+      if (roleTenureRanges.length) payload.tenureAtRole = roleTenureRanges;
+      if (personaId) payload.personaIds = [personaId];
       if (leadListId) payload.leadListIds = [leadListId];
     } else {
       if (hasJobOffers) payload.hasJobOffers = true;
       if (recentActivities.size) payload.recentActivities = [...recentActivities];
+      const rev = REVENUE.find((x) => x.key === revenueKey);
+      if (rev) payload.annualRevenue = { currency: "USD", ...rev.range };
+      if (fastGrowing) payload.headcountGrowth = { min: 20 };
     }
     if (headcountRanges.length) payload.companyHeadcount = headcountRanges;
     return payload;
@@ -185,8 +225,13 @@ export function SalesNavSourcing() {
     changedJobs,
     postedOnLinkedin,
     mentionedInNews,
+    warmSignals,
+    roleTenure,
+    personaId,
     hasJobOffers,
     recentActivities,
+    revenueKey,
+    fastGrowing,
     leadListId,
   ]);
 
@@ -267,6 +312,7 @@ export function SalesNavSourcing() {
   const fmt = (n: number) => new Intl.NumberFormat().format(n);
   const savedSearches = collections?.savedSearches ?? [];
   const leadLists = collections?.leadLists ?? [];
+  const personas = collections?.personas ?? [];
 
   return (
     <div className="rounded-md p-3" style={{ border: "1px solid var(--color-border)" }}>
@@ -340,30 +386,65 @@ export function SalesNavSourcing() {
 
       {/* Spotlights / signals */}
       {category === "people" ? (
-        <div className="mt-2">
-          <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Buying signals</p>
-          <div className="mt-1 flex flex-wrap gap-1">
-            <Chip on={changedJobs} onClick={() => setChangedJobs((v) => !v)} disabled={busy}>Changed jobs</Chip>
-            <Chip on={postedOnLinkedin} onClick={() => setPostedOnLinkedin((v) => !v)} disabled={busy}>Posted recently</Chip>
-            <Chip on={mentionedInNews} onClick={() => setMentionedInNews((v) => !v)} disabled={busy}>In the news</Chip>
+        <>
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Buying signals</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              <Chip on={changedJobs} onClick={() => setChangedJobs((v) => !v)} disabled={busy}>Changed jobs</Chip>
+              <Chip on={postedOnLinkedin} onClick={() => setPostedOnLinkedin((v) => !v)} disabled={busy}>Posted recently</Chip>
+              <Chip on={mentionedInNews} onClick={() => setMentionedInNews((v) => !v)} disabled={busy}>In the news</Chip>
+            </div>
           </div>
-        </div>
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Warm signals (already engaging you)</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {WARM_SIGNALS.map((w) => (
+                <Chip key={w.key} on={warmSignals.has(w.key)} onClick={() => toggle(setWarmSignals, w.key)} disabled={busy}>
+                  {w.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Time in current role</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {ROLE_TENURE.map((t) => (
+                <Chip key={t.key} on={roleTenure.has(t.key)} onClick={() => toggle(setRoleTenure, t.key)} disabled={busy}>
+                  {t.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        </>
       ) : (
-        <div className="mt-2">
-          <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Buying signals</p>
-          <div className="mt-1 flex flex-wrap gap-1">
-            <Chip on={hasJobOffers} onClick={() => setHasJobOffers((v) => !v)} disabled={busy}>Hiring on LinkedIn</Chip>
-            {RECENT_ACTIVITIES.map((a) => (
-              <Chip key={a.value} on={recentActivities.has(a.value)} onClick={() => toggle(setRecentActivities, a.value)} disabled={busy}>
-                {a.label}
-              </Chip>
-            ))}
+        <>
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Buying signals</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              <Chip on={hasJobOffers} onClick={() => setHasJobOffers((v) => !v)} disabled={busy}>Hiring on LinkedIn</Chip>
+              <Chip on={fastGrowing} onClick={() => setFastGrowing((v) => !v)} disabled={busy}>Fast-growing (+20% headcount)</Chip>
+              {RECENT_ACTIVITIES.map((a) => (
+                <Chip key={a.value} on={recentActivities.has(a.value)} onClick={() => toggle(setRecentActivities, a.value)} disabled={busy}>
+                  {a.label}
+                </Chip>
+              ))}
+            </div>
           </div>
-        </div>
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Annual revenue</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {REVENUE.map((rv) => (
+                <Chip key={rv.key} on={revenueKey === rv.key} onClick={() => setRevenueKey((k) => (k === rv.key ? "" : rv.key))} disabled={busy}>
+                  {rv.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        </>
       )}
 
-      {/* Saved lists / searches — reuse what the founder already built in SN */}
-      {(savedSearches.length > 0 || (category === "people" && leadLists.length > 0)) && (
+      {/* Saved lists / searches / personas — reuse what the founder already built in SN */}
+      {(savedSearches.length > 0 || (category === "people" && (leadLists.length > 0 || personas.length > 0))) && (
         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {savedSearches.length > 0 && (
             <label className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
@@ -395,6 +476,23 @@ export function SalesNavSourcing() {
                 <option value="">— any —</option>
                 {leadLists.map((l) => (
                   <option key={l.id} value={l.id}>{l.title.length > 60 ? `${l.title.slice(0, 60)}…` : l.title}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {category === "people" && personas.length > 0 && (
+            <label className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+              Match a saved persona
+              <select
+                value={personaId}
+                onChange={(e) => setPersonaId(e.target.value)}
+                disabled={busy}
+                className="mt-0.5 w-full rounded-md px-2 py-1 text-[12px]"
+                style={{ border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text-primary)" }}
+              >
+                <option value="">— none —</option>
+                {personas.map((p) => (
+                  <option key={p.id} value={p.id}>{p.title.length > 60 ? `${p.title.slice(0, 60)}…` : p.title}</option>
                 ))}
               </select>
             </label>

@@ -102,6 +102,27 @@ export async function POST(req: Request) {
     return out.length ? out : undefined;
   };
   const asBool = (v: unknown): boolean | undefined => (v === true ? true : undefined);
+  const asStr = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const asNum = (v: unknown): number | undefined => (Number.isFinite(Number(v)) ? Number(v) : undefined);
+  const asRange1 = (v: unknown): { min?: number; max?: number } | undefined => {
+    const o = (v ?? {}) as { min?: unknown; max?: unknown };
+    const min = asNum(o.min);
+    const max = asNum(o.max);
+    return min === undefined && max === undefined ? undefined : { min, max };
+  };
+  const asRevenue = (v: unknown): { currency?: string; min?: number; max?: number } | undefined => {
+    const o = (v ?? {}) as { currency?: unknown; min?: unknown; max?: unknown };
+    const min = asNum(o.min);
+    const max = asNum(o.max);
+    if (min === undefined && max === undefined) return undefined;
+    return { currency: asStr(o.currency), min, max };
+  };
+  const asDeptHc = (v: unknown): { departments?: string[]; min?: number; max?: number } | undefined => {
+    const o = (v ?? {}) as { departments?: unknown; min?: unknown; max?: unknown };
+    const departments = asList(o.departments);
+    if (!departments.length) return undefined;
+    return { departments, min: asNum(o.min), max: asNum(o.max) };
+  };
 
   const url = typeof body.url === "string" ? body.url.trim() : "";
   const keywords = typeof body.keywords === "string" ? body.keywords.trim() : "";
@@ -112,50 +133,80 @@ export async function POST(req: Request) {
     jobTitles: asList(body.jobTitles),
     companies: asList(body.companies),
     pastCompanies: asList(body.pastCompanies),
+    pastRoles: asList(body.pastRoles),
     schools: asList(body.schools),
     functions: asList(body.functions),
+    companyHqLocations: asList(body.companyHqLocations),
+    connectionsOf: asList(body.connectionsOf),
+    postalCodes: asList(body.postalCodes),
     seniorities: asList(body.seniorities),
     companyTypes: asList(body.companyTypes),
     companyHeadcount: asRanges(body.companyHeadcount),
     tenure: asRanges(body.tenure),
+    tenureAtCompany: asRanges(body.tenureAtCompany),
+    tenureAtRole: asRanges(body.tenureAtRole),
     profileLanguages: asList(body.profileLanguages),
+    firstName: asStr(body.firstName),
+    lastName: asStr(body.lastName),
+    withinAreaMiles: asNum(body.withinAreaMiles),
     recentActivities: asList(body.recentActivities),
+    annualRevenue: asRevenue(body.annualRevenue),
+    headcountGrowth: asRange1(body.headcountGrowth),
+    departmentHeadcount: asDeptHc(body.departmentHeadcount),
+    departmentHeadcountGrowth: asDeptHc(body.departmentHeadcountGrowth),
+    followersCount: asRanges(body.followersCount),
+    fortune: asRanges(body.fortune),
     leadListIds: asList(body.leadListIds),
     accountListIds: asList(body.accountListIds),
-    savedSearchId: typeof body.savedSearchId === "string" ? body.savedSearchId.trim() : undefined,
+    personaIds: asList(body.personaIds),
+    groupIds: asList(body.groupIds),
+    technologyIds: asList(body.technologyIds),
+    savedAccountIds: asList(body.savedAccountIds),
+    savedSearchId: asStr(body.savedSearchId),
+    recentSearchId: asStr(body.recentSearchId),
     changedJobs: asBool(body.changedJobs),
     postedOnLinkedin: asBool(body.postedOnLinkedin),
     mentionedInNews: asBool(body.mentionedInNews),
+    followingYourCompany: asBool(body.followingYourCompany),
+    viewedYourProfileRecently: asBool(body.viewedYourProfileRecently),
+    viewedProfileRecently: asBool(body.viewedProfileRecently),
+    messagedRecently: asBool(body.messagedRecently),
+    pastColleague: asBool(body.pastColleague),
+    sharedExperiences: asBool(body.sharedExperiences),
     hasJobOffers: asBool(body.hasJobOffers),
+    includeSavedLeads: asBool(body.includeSavedLeads),
+    includeSavedAccounts: asBool(body.includeSavedAccounts),
     keywords: keywords || undefined,
     networkDistance: Array.isArray(body.networkDistance)
       ? body.networkDistance.map(Number).filter((n) => Number.isFinite(n))
       : undefined,
   };
 
-  // Did the caller give any real targeting beyond a bare keyword/url?
-  const hasStructured = [
-    icp.industries,
-    icp.locations,
-    icp.jobTitles,
-    icp.companies,
-    icp.pastCompanies,
-    icp.schools,
-    icp.functions,
-    icp.seniorities,
-    icp.companyTypes,
-    icp.companyHeadcount,
-    icp.tenure,
-    icp.profileLanguages,
-    icp.recentActivities,
-    icp.leadListIds,
-    icp.accountListIds,
-  ].some((a) => Array.isArray(a) && a.length > 0) ||
+  // Did the caller give any real targeting beyond a bare keyword/url? Any array
+  // filter with entries, any range/object, any spotlight boolean, or a saved id.
+  const arrayFilters = [
+    icp.industries, icp.locations, icp.jobTitles, icp.companies, icp.pastCompanies, icp.pastRoles,
+    icp.schools, icp.functions, icp.companyHqLocations, icp.connectionsOf, icp.postalCodes,
+    icp.seniorities, icp.companyTypes, icp.companyHeadcount, icp.tenure, icp.tenureAtCompany,
+    icp.tenureAtRole, icp.profileLanguages, icp.recentActivities, icp.followersCount, icp.fortune,
+    icp.leadListIds, icp.accountListIds, icp.personaIds, icp.groupIds, icp.technologyIds, icp.savedAccountIds,
+  ];
+  const boolFilters = [
+    icp.changedJobs, icp.postedOnLinkedin, icp.mentionedInNews, icp.followingYourCompany,
+    icp.viewedYourProfileRecently, icp.viewedProfileRecently, icp.messagedRecently, icp.pastColleague,
+    icp.sharedExperiences, icp.hasJobOffers, icp.includeSavedLeads, icp.includeSavedAccounts,
+  ];
+  const objFilters = [
+    icp.annualRevenue, icp.headcountGrowth, icp.departmentHeadcount, icp.departmentHeadcountGrowth,
+  ];
+  const hasStructured =
+    arrayFilters.some((a) => Array.isArray(a) && a.length > 0) ||
+    boolFilters.some(Boolean) ||
+    objFilters.some((o) => o !== undefined) ||
+    !!icp.firstName ||
+    !!icp.lastName ||
     !!icp.savedSearchId ||
-    !!icp.changedJobs ||
-    !!icp.postedOnLinkedin ||
-    !!icp.mentionedInNews ||
-    !!icp.hasJobOffers;
+    !!icp.recentSearchId;
 
   if (!url && !keywords && !hasStructured) {
     return NextResponse.json(

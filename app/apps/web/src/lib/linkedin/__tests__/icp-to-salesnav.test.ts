@@ -309,3 +309,182 @@ describe("previewSalesNavCount", () => {
     expect(searchLinkedIn.mock.calls[0][3]).toEqual({ limit: 1 });
   });
 });
+
+// ---- full SN vocabulary (people spotlights/tenure/persona; companies revenue/growth/tech) ----
+
+describe("full SN vocabulary — buildSalesNavBody (pure)", () => {
+  it("people: all 6 warm/interaction spotlights + tenure_at_* + first/last + persona/groups", () => {
+    const body = buildSalesNavBody("sales_navigator", "people", [], {
+      structured: {
+        followingYourCompany: true,
+        viewedYourProfileRecently: true,
+        viewedProfileRecently: true,
+        messagedRecently: true,
+        pastColleague: true,
+        sharedExperiences: true,
+        tenureAtCompany: [{ min: 0, max: 1 }],
+        tenureAtRole: [{ min: 0, max: 1 }],
+        firstName: "Marie",
+        lastName: "Curie",
+        personaIds: ["1897293938"],
+        groupIds: ["42"],
+        includeSavedLeads: true,
+        includeSavedAccounts: true,
+      },
+    });
+    expect(body.following_your_company).toBe(true);
+    expect(body.viewed_your_profile_recently).toBe(true);
+    expect(body.viewed_profile_recently).toBe(true);
+    expect(body.messaged_recently).toBe(true);
+    expect(body.past_colleague).toBe(true);
+    expect(body.shared_experiences).toBe(true);
+    expect(body.tenure_at_company).toEqual([{ min: 0, max: 1 }]);
+    expect(body.tenure_at_role).toEqual([{ min: 0, max: 1 }]);
+    expect(body.first_name).toBe("Marie");
+    expect(body.last_name).toBe("Curie");
+    expect(body.persona).toEqual(["1897293938"]);
+    expect(body.groups).toEqual(["42"]);
+    expect(body.include_saved_leads).toBe(true);
+    expect(body.include_saved_accounts).toBe(true);
+  });
+
+  it("people: past_role/company_location are numeric-id-only (drop unresolved); connections_of is a flat array; postal gets within_area", () => {
+    const body = buildSalesNavBody(
+      "sales_navigator",
+      "people",
+      [
+        r("PAST_ROLE", "VP Sales", "136"),
+        r("PAST_ROLE", "Wizard", null),
+        r("COMPANY_LOCATION", "Paris", "106383538"),
+        r("CONNECTIONS_OF", "Jane", "ACoAA1"),
+        r("POSTAL_CODE", "75001", "104883172"),
+      ],
+      { structured: { withinAreaMiles: 25 } },
+    );
+    expect(body.past_role).toEqual({ include: ["136"] }); // Wizard dropped (id-only)
+    expect(body.company_location).toEqual({ include: ["106383538"] });
+    expect(body.connections_of).toEqual(["ACoAA1"]);
+    expect(body.location_by_postal_code).toEqual({ include: ["104883172"], within_area: 25 });
+  });
+
+  it("companies: revenue/headcount_growth/department_headcount/followers/fortune/technologies", () => {
+    const body = buildSalesNavBody("sales_navigator", "companies", [], {
+      structured: {
+        annualRevenue: { currency: "USD", min: 1, max: 100 },
+        headcountGrowth: { min: 20 },
+        departmentHeadcount: { departmentIds: ["8"], min: 10 },
+        departmentHeadcountGrowth: { departmentIds: ["25"], min: 15, max: 100 },
+        followersCount: [{ min: 1001, max: 5000 }],
+        fortune: [{ min: 0, max: 500 }],
+        technologyIds: ["555"],
+        savedAccountIds: ["SA"],
+      },
+    });
+    expect(body.annual_revenue).toEqual({ currency: "USD", min: 1, max: 100 });
+    expect(body.headcount_growth).toEqual({ min: 20 });
+    expect(body.department_headcount).toEqual({ department: ["8"], min: 10 });
+    expect(body.department_headcount_growth).toEqual({ department: ["25"], min: 15, max: 100 });
+    expect(body.followers_count).toEqual([{ min: 1001, max: 5000 }]);
+    expect(body.fortune).toEqual([{ min: 0, max: 500 }]);
+    expect(body.technologies).toEqual(["555"]);
+    expect(body.saved_accounts).toEqual(["SA"]);
+  });
+
+  it("recent_search_id overrides every other filter (like saved_search_id)", () => {
+    const body = buildSalesNavBody("sales_navigator", "people", [r("INDUSTRY", "x", "4")], {
+      keywords: "ignored",
+      structured: { recentSearchId: "777", seniorities: ["cxo"] },
+    });
+    expect(body).toEqual({ api: "sales_navigator", category: "people", recent_search_id: "777" });
+  });
+});
+
+describe("full SN vocabulary — validateStructured (pure)", () => {
+  it("snaps annual revenue to the enum, defaults currency to USD, uppercases ISO", () => {
+    const a = validateStructured({ annualRevenue: { min: 3, max: 120 } });
+    expect(a.structured.annualRevenue).toEqual({ currency: "USD", min: 2.5, max: 100 });
+    const b = validateStructured({ annualRevenue: { currency: "eur", min: 1, max: 1001 } });
+    expect(b.structured.annualRevenue).toEqual({ currency: "EUR", min: 1, max: 1001 });
+  });
+
+  it("snaps followers + fortune bucket edges", () => {
+    const { structured } = validateStructured({
+      followersCount: [{ min: 60, max: 90 }],
+      fortune: [{ min: 60, max: 300 }],
+    });
+    expect(structured.followersCount).toEqual([{ min: 51, max: 100 }]);
+    expect(structured.fortune).toEqual([{ min: 51, max: 250 }]);
+  });
+
+  it("passes through persona/group/technology/saved-account ids + headcount growth", () => {
+    const { structured } = validateStructured({
+      personaIds: [" 1897 ", ""],
+      groupIds: ["42"],
+      technologyIds: ["555"],
+      savedAccountIds: ["SA"],
+      headcountGrowth: { min: 20, max: 200 },
+    });
+    expect(structured.personaIds).toEqual(["1897"]);
+    expect(structured.groupIds).toEqual(["42"]);
+    expect(structured.technologyIds).toEqual(["555"]);
+    expect(structured.savedAccountIds).toEqual(["SA"]);
+    expect(structured.headcountGrowth).toEqual({ min: 20, max: 200 });
+  });
+});
+
+describe("full SN vocabulary — resolveIcpToSalesNavQuery (async)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveLinkedInParameter.mockImplementation(async (_cfg: unknown, _acc: unknown, type: string, kw: string) => {
+      const map: Record<string, Array<{ id: string; title: string }>> = {
+        "JOB_TITLE:vp sales": [{ id: "136", title: "Vice President of Sales" }],
+        "REGION:paris": [{ id: "106383538", title: "Paris" }],
+        "PEOPLE:jane doe": [{ id: "ACoAA1", title: "Jane Doe" }],
+        "POSTAL_CODE:75001": [{ id: "104883172", title: "75001, Paris" }],
+        "DEPARTMENT:engineering": [{ id: "8", title: "Engineering" }],
+        "SALES_INDUSTRY:software": [{ id: "4", title: "Software Development" }],
+      };
+      return map[`${type}:${(kw || "").toLowerCase()}`] ?? [];
+    });
+  });
+
+  it("resolves past_role(JOB_TITLE)/company_hq(REGION)/connections_of(PEOPLE)/postal(POSTAL_CODE) into their body fields", async () => {
+    const out = await resolveIcpToSalesNavQuery(
+      CFG,
+      "acc-1",
+      {
+        pastRoles: ["VP Sales"],
+        companyHqLocations: ["Paris"],
+        connectionsOf: ["Jane Doe"],
+        postalCodes: ["75001"],
+        withinAreaMiles: 25,
+      },
+      { api: "sales_navigator", category: "people" },
+    );
+    expect(out.body.past_role).toEqual({ include: ["136"] });
+    expect(out.body.company_location).toEqual({ include: ["106383538"] });
+    expect(out.body.connections_of).toEqual(["ACoAA1"]);
+    expect(out.body.location_by_postal_code).toEqual({ include: ["104883172"], within_area: 25 });
+  });
+
+  it("resolves department-headcount department names → ids and assembles the companies filter", async () => {
+    const out = await resolveIcpToSalesNavQuery(
+      CFG,
+      "acc-1",
+      { industries: ["software"], departmentHeadcount: { departments: ["Engineering"], min: 10 } },
+      { api: "sales_navigator", category: "companies" },
+    );
+    expect(out.body.department_headcount).toEqual({ department: ["8"], min: 10 });
+  });
+
+  it("drops an unresolvable department with a note", async () => {
+    const out = await resolveIcpToSalesNavQuery(
+      CFG,
+      "acc-1",
+      { changedJobs: true, departmentHeadcount: { departments: ["Astrology"], min: 5 } },
+      { api: "sales_navigator", category: "companies" },
+    );
+    expect(out.body.department_headcount).toBeUndefined();
+    expect(out.dropped).toContain('department "Astrology" ignored (no LinkedIn match)');
+  });
+});
