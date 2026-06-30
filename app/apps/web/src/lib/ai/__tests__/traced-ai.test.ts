@@ -8,17 +8,20 @@ const {
   getPlaybookPromptBlock,
   getCoachingPromptBlock,
   getObjectionsPromptBlock,
+  getWinLossPromptBlock,
 } = vi.hoisted(() => ({
   getActivePrompt: vi.fn(),
   getFewShotExamples: vi.fn(),
   getPlaybookPromptBlock: vi.fn(),
   getCoachingPromptBlock: vi.fn(),
   getObjectionsPromptBlock: vi.fn(),
+  getWinLossPromptBlock: vi.fn(),
 }));
 vi.mock("@/lib/evals/flywheel", () => ({ getActivePrompt, getFewShotExamples }));
 vi.mock("@/lib/playbook/get-playbook", () => ({ getPlaybookPromptBlock }));
 vi.mock("@/lib/coaching/get-coaching-guidance", () => ({ getCoachingPromptBlock }));
 vi.mock("@/lib/emails/get-objections", () => ({ getObjectionsPromptBlock }));
+vi.mock("@/lib/analysis/get-winloss", () => ({ getWinLossPromptBlock }));
 
 // Stub the infra siblings traced-ai imports at module load so the unit
 // under test stays hermetic (these are never called by the functions we
@@ -38,10 +41,12 @@ beforeEach(() => {
   getPlaybookPromptBlock.mockReset();
   getCoachingPromptBlock.mockReset();
   getObjectionsPromptBlock.mockReset();
+  getWinLossPromptBlock.mockReset();
   // Default: no entries -> all blocks empty (the common cold-start case).
   getPlaybookPromptBlock.mockResolvedValue("");
   getCoachingPromptBlock.mockResolvedValue("");
   getObjectionsPromptBlock.mockResolvedValue("");
+  getWinLossPromptBlock.mockResolvedValue("");
 });
 
 describe("injectFewShotExamples", () => {
@@ -292,6 +297,43 @@ describe("applyLearnedContext — per-contact objection injection", () => {
     const params: Record<string, unknown> = { system: "BASE", prompt: "q" };
     await expect(
       applyLearnedContext("draft-email", params, "tenant-1", { contactId: "c1" }),
+    ).resolves.toBeUndefined();
+    expect(params.system).toBe("BASE");
+  });
+});
+
+describe("applyLearnedContext — per-company win/loss injection", () => {
+  beforeEach(() => {
+    getActivePrompt.mockResolvedValue(null);
+    getFewShotExamples.mockResolvedValue([]);
+  });
+
+  it("appends the company's win/loss lessons last, after objections, when a companyId is supplied", async () => {
+    getPlaybookPromptBlock.mockResolvedValue("PLAYBOOK BLOCK");
+    getObjectionsPromptBlock.mockResolvedValue("OBJECTIONS BLOCK");
+    getWinLossPromptBlock.mockResolvedValue("WINLOSS BLOCK");
+
+    const params: Record<string, unknown> = { system: "BASE", prompt: "write a cold email" };
+    await applyLearnedContext("draft-email", params, "tenant-1", { contactId: "c1", companyId: "co1" });
+
+    expect(getWinLossPromptBlock).toHaveBeenCalledWith("tenant-1", "co1");
+    expect(params.system).toBe("BASE\n\nPLAYBOOK BLOCK\n\nOBJECTIONS BLOCK\n\nWINLOSS BLOCK");
+  });
+
+  it("does not fetch win/loss when no companyId is supplied", async () => {
+    const params: Record<string, unknown> = { system: "BASE", prompt: "q" };
+    await applyLearnedContext("draft-email", params, "tenant-1", { contactId: "c1" });
+
+    expect(getWinLossPromptBlock).not.toHaveBeenCalled();
+    expect(params.system).toBe("BASE");
+  });
+
+  it("never throws on the hot path when the win/loss lookup fails", async () => {
+    getWinLossPromptBlock.mockRejectedValue(new Error("db down"));
+
+    const params: Record<string, unknown> = { system: "BASE", prompt: "q" };
+    await expect(
+      applyLearnedContext("draft-email", params, "tenant-1", { companyId: "co1" }),
     ).resolves.toBeUndefined();
     expect(params.system).toBe("BASE");
   });

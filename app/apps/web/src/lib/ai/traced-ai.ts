@@ -18,6 +18,7 @@ import { getActivePrompt, getFewShotExamples } from "../evals/flywheel";
 import { getPlaybookPromptBlock } from "../playbook/get-playbook";
 import { getCoachingPromptBlock } from "../coaching/get-coaching-guidance";
 import { getObjectionsPromptBlock } from "../emails/get-objections";
+import { getWinLossPromptBlock } from "../analysis/get-winloss";
 import { enforceLlmBudget } from "../billing/llm-budget";
 import logger from "../observability/logger";
 import { isAiDisabled } from "./ai-provider";
@@ -136,16 +137,21 @@ export async function applyLearnedContext(
   // no-op when there's nothing to add:
   //  - playbook + coaching: tenant-scoped (what's worked / to improve);
   //  - objections: per-CONTACT (open concerns to pre-empt) when a
-  //    contactId is supplied.
+  //    contactId is supplied;
+  //  - win/loss: per-COMPANY (lessons from prior deals here) when a
+  //    companyId is supplied.
   if (tenantId && DRAFTING_AGENT_IDS.has(agentId)) {
-    const [playbook, coaching, objections] = await Promise.all([
+    const [playbook, coaching, objections, winloss] = await Promise.all([
       getPlaybookPromptBlock(tenantId).catch(() => ""),
       getCoachingPromptBlock(tenantId).catch(() => ""),
       entity?.contactId
         ? getObjectionsPromptBlock(tenantId, entity.contactId).catch(() => "")
         : Promise.resolve(""),
+      entity?.companyId
+        ? getWinLossPromptBlock(tenantId, entity.companyId).catch(() => "")
+        : Promise.resolve(""),
     ]);
-    for (const block of [playbook, coaching, objections]) {
+    for (const block of [playbook, coaching, objections, winloss]) {
       if (block) {
         aiParams.system = aiParams.system ? `${aiParams.system}\n\n${block}` : block;
       }
