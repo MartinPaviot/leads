@@ -35,24 +35,19 @@ export interface ResolvedLogo {
   fromCache: boolean;
 }
 
-const CLEARBIT_TIMEOUT = 2000;
 const GOOGLE_V2_TIMEOUT = 2000;
 
-// ── Tier helpers ──
-
-async function tryClearbit(domain: string): Promise<string | null> {
-  try {
-    const url = `https://logo.clearbit.com/${domain}`;
-    const res = await fetch(url, {
-      method: "HEAD",
-      signal: AbortSignal.timeout(CLEARBIT_TIMEOUT),
-    });
-    if (res.ok) return url;
-    return null;
-  } catch {
-    return null;
-  }
+// logo.clearbit.com's CDN is dead (DNS gone). Two consequences, both handled
+// here: (1) we no longer resolve to it — every uncached lookup used to pay a
+// guaranteed-failing HEAD request to Clearbit first (the old tier 2); (2) we
+// must not SERVE a stale tier-2 Clearbit URL still sitting in the cache/DB from
+// before it died — treat those as a miss so the entry self-heals to a live tier
+// (Apollo / Google favicon) on the next resolve.
+function isDeadLogoUrl(url: string | null | undefined): boolean {
+  return !!url && url.includes("logo.clearbit.com");
 }
+
+// ── Tier helpers ──
 
 async function tryApolloFromDb(
   domain: string,
@@ -141,13 +136,13 @@ export async function resolveCompanyLogo(
   }
 
   // Tier 0: user-uploaded (stretch, always null in v1)
-  // Tier 1: check existing cached value
-  if (existingLogoUrl) {
+  // Tier 1: check existing cached value (ignore a dead Clearbit URL)
+  if (existingLogoUrl && !isDeadLogoUrl(existingLogoUrl)) {
     return { url: existingLogoUrl, tier: 1, resolvedAt: now, fromCache: true };
   }
 
   const cached = await getCached(d);
-  if (cached) {
+  if (cached && !isDeadLogoUrl(cached.url)) {
     return {
       url: cached.url,
       tier: cached.tier as ResolvedLogoTier,
@@ -161,19 +156,7 @@ export async function resolveCompanyLogo(
     return { url: null, tier: 6, resolvedAt: now, fromCache: true };
   }
 
-  // Tier 2: Clearbit
-  const clearbit = await tryClearbit(d);
-  if (clearbit) {
-    const result: ResolvedLogo = {
-      url: clearbit,
-      tier: 2,
-      resolvedAt: now,
-      fromCache: false,
-    };
-    await setCached(d, { url: clearbit, tier: 2, resolvedAt: now });
-    persistToDb(d, clearbit, 2).catch(() => {});
-    return result;
-  }
+  // Tier 2 (Clearbit) removed — CDN dead. Apollo is the first network tier now.
 
   // Tier 3: Apollo enrichment payload from DB
   const apollo = await tryApolloFromDb(d, tenantId);
@@ -245,8 +228,8 @@ export async function resolveCompanyLogoBatch(
   for (const req of requests) {
     const d = req.domain?.toLowerCase()?.trim();
     const key = d || req.companyName;
-    if (d && cachedBatch.has(d)) {
-      const c = cachedBatch.get(d)!;
+    const c = d ? cachedBatch.get(d) : undefined;
+    if (c && !isDeadLogoUrl(c.url)) {
       results[key] = {
         url: c.url,
         tier: c.tier as ResolvedLogoTier,
@@ -254,6 +237,7 @@ export async function resolveCompanyLogoBatch(
         fromCache: true,
       };
     } else {
+      // miss, or a stale dead-Clearbit hit → re-resolve so it self-heals
       toResolve.push(req);
     }
   }
