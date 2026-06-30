@@ -3536,7 +3536,8 @@ export default function AccountsPage() {
                                           {signal.sources.map((src, si) => (
                                             <a key={si} href={src.url} target="_blank" rel="noopener noreferrer"
                                               className="flex items-center gap-2 text-[11px] hover:underline" style={{ color: "var(--color-accent)" }}>
-                                              <img src={`https://logo.clearbit.com/${new URL(src.url).hostname}`} alt="" className="h-3.5 w-3.5 rounded shrink-0"
+                                              {/* Google favicon, not logo.clearbit.com (CDN dead) — hides on error. */}
+                                              <img src={`https://www.google.com/s2/favicons?domain=${new URL(src.url).hostname}&sz=64`} alt="" className="h-3.5 w-3.5 rounded shrink-0"
                                                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                                               <span className="truncate">{src.title}</span>
                                             </a>
