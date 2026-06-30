@@ -1192,6 +1192,12 @@ export default function InboxPage() {
     [conversations, customLanes, customLaneId, bundleTotal, selectedKey, tab, handleTriage, mailboxes, splitCounts, mailboxConnected, toast, router, t, tabLabels],
   );
 
+  // The reading-pane column is "active" when a thread is open OR a new email is
+  // being composed — both take over the right column (and collapse the list to a
+  // sidebar on wide / hide it on narrow), so composing a new mail reads like a
+  // reply in the page, not a slide-over drawer.
+  const paneActive = Boolean(selectedKey) || composeOpen;
+
   return (
     <div className="flex h-full flex-col animate-content-in">
       <PageHeader
@@ -1269,7 +1275,7 @@ export default function InboxPage() {
           we're in the list/pane branch (not the outbound/bundles table, where a stale
           selectedKey would otherwise hide the rail with no way back). */}
       {mailboxConnected && (
-        <div className={selectedKey && !((tab === "outbound" || tab === "bundles") && !customLaneId) ? "hidden shrink-0 @min-[960px]:flex" : "flex shrink-0"}>
+        <div className={paneActive && !((tab === "outbound" || tab === "bundles") && !customLaneId) ? "hidden shrink-0 @min-[960px]:flex" : "flex shrink-0"}>
         <InboxFolders
           tab={customLaneId ? "attention" : tab}
           customLaneId={customLaneId}
@@ -1313,7 +1319,7 @@ export default function InboxPage() {
       {/* Second nav axis: the split-tab strip (attention lane only). Hidden in
           the narrow single-pane reader so the open thread stands alone. */}
       {mailboxConnected && tab === "attention" && !customLaneId && (
-        <div className={selectedKey ? "hidden @min-[960px]:block" : "block"}>
+        <div className={paneActive ? "hidden @min-[960px]:block" : "block"}>
           <SplitStrip splits={splitCounts} noiseCount={noiseCount} active={activeSplit} onSelect={setActiveSplit} />
         </div>
       )}
@@ -1328,11 +1334,11 @@ export default function InboxPage() {
             actionVariant="gradient"
           />
         </div>
-      ) : tab === "outbound" && !customLaneId ? (
+      ) : !composeOpen && tab === "outbound" && !customLaneId ? (
         <div className="flex-1 overflow-hidden">
           <OutboundTable apiRef={outboundApiRef} />
         </div>
-      ) : tab === "bundles" && !customLaneId ? (
+      ) : !composeOpen && tab === "bundles" && !customLaneId ? (
         <div className="flex flex-1 overflow-hidden">
           <BundlesView bundles={bundles} onClear={handleClearBundle} clearing={clearingBundle} />
         </div>
@@ -1343,11 +1349,11 @@ export default function InboxPage() {
           <div
             ref={listRef}
             onScroll={(e) => {
-              // Record the offset only while no thread is open, so reopening the
-              // list (single-pane) restores it instead of jumping to the top.
-              if (!selectedKey) listScrollRef.current = e.currentTarget.scrollTop;
+              // Record the offset only while neither a thread nor compose is open,
+              // so reopening the list (single-pane) restores it instead of the top.
+              if (!paneActive) listScrollRef.current = e.currentTarget.scrollTop;
             }}
-            className={`overflow-y-auto ${selectedKey ? "hidden border-r @min-[960px]:block @min-[960px]:w-[var(--inbox-list-w)] @min-[960px]:shrink-0" : "flex-1"}`}
+            className={`overflow-y-auto ${paneActive ? "hidden border-r @min-[960px]:block @min-[960px]:w-[var(--inbox-list-w)] @min-[960px]:shrink-0" : "flex-1"}`}
             style={{ borderColor: "var(--color-border-default)", "--inbox-list-w": `${listW}px` } as CSSProperties}
           >
             {/* Capture review (INBOX-G02) — auto-captured interactions awaiting approval. */}
@@ -1447,7 +1453,9 @@ export default function InboxPage() {
                   lane={customLaneId ? "attention" : tab === "snoozed" || tab === "done" || tab === "handled" ? tab : "attention"}
                   conversations={conversations}
                   selectedKey={selectedKey}
-                  onSelect={setSelectedKey}
+                  // Opening a thread from the sidebar closes an in-progress compose
+                  // (its draft auto-saves) so the thread actually shows.
+                  onSelect={(k) => { setComposeOpen(false); setSelectedKey(k); }}
                   selectedKeys={selection.keys}
                   onToggleSelect={handleToggleSelect}
                   hasMore={hasMore}
@@ -1467,33 +1475,50 @@ export default function InboxPage() {
               );
             })()}
           </div>
-          {/* Draggable divider between the list and the open mail (3-column only). */}
-          {selectedKey && <ResizeHandle onDelta={handleResizeList} value={listW} min={LIST_W_MIN} max={LIST_W_MAX} />}
-          {selectedKey && (
+          {/* Draggable divider between the list and the open mail/compose (3-column only). */}
+          {paneActive && <ResizeHandle onDelta={handleResizeList} value={listW} min={LIST_W_MIN} max={LIST_W_MAX} />}
+          {paneActive && (
             <div className="flex min-w-0 flex-1 flex-col">
               {/* Single-pane back control: shown only when the inbox area is too
                   narrow for the list (which is then hidden). In 3-column mode the
-                  master-detail list is itself the way back. */}
+                  master-detail list is itself the way back. Closes compose if open,
+                  else deselects the thread. */}
               <button
-                onClick={() => setSelectedKey(null)}
+                onClick={() => (composeOpen ? setComposeOpen(false) : setSelectedKey(null))}
                 className="flex shrink-0 items-center gap-1 border-b px-3 py-2 text-[13px] font-medium @min-[960px]:hidden"
                 style={{ borderColor: "var(--color-border-default)", color: "var(--color-text-secondary)" }}
               >
                 <ChevronLeft size={15} /> Inbox
               </button>
               <div className="min-h-0 flex-1">
-              <ConversationPane
-                conversationKey={selectedKey}
-                lane={customLaneId ? "attention" : tab === "snoozed" || tab === "done" || tab === "handled" ? tab : "attention"}
-                replySignal={replySignal}
-                labelSignal={labelSignal}
-                onTriage={handleTriage}
-                onTrash={handleTrash}
-                isTrashView={tab === "trash"}
-                onSpam={handleSpam}
-                isSpamView={tab === "spam"}
-                apiRef={paneApiRef}
-              />
+              {composeOpen ? (
+                // New email — composed IN the page (inline), like a reply, not a
+                // slide-over drawer. The inline composer carries its own header
+                // ("Nouveau message") + close, so it reads as a full compose view.
+                <EmailComposerPanel
+                  draft={{ to: "", subject: "", body: "", mailboxId: sendableMailboxes[0]?.id }}
+                  mailboxes={sendableMailboxes}
+                  inline
+                  onClose={() => setComposeOpen(false)}
+                  onSent={() => {
+                    setComposeOpen(false);
+                    toast(t("inbox.toast.emailSent"), "success");
+                  }}
+                />
+              ) : (
+                <ConversationPane
+                  conversationKey={selectedKey}
+                  lane={customLaneId ? "attention" : tab === "snoozed" || tab === "done" || tab === "handled" ? tab : "attention"}
+                  replySignal={replySignal}
+                  labelSignal={labelSignal}
+                  onTriage={handleTriage}
+                  onTrash={handleTrash}
+                  isTrashView={tab === "trash"}
+                  onSpam={handleSpam}
+                  isSpamView={tab === "spam"}
+                  apiRef={paneApiRef}
+                />
+              )}
               </div>
             </div>
           )}
@@ -1504,19 +1529,6 @@ export default function InboxPage() {
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
-
-      {/* Compose a NEW email (Upstream pencil) — blank overlay composer. */}
-      {composeOpen && (
-        <EmailComposerPanel
-          draft={{ to: "", subject: "", body: "", mailboxId: sendableMailboxes[0]?.id }}
-          mailboxes={sendableMailboxes}
-          onClose={() => setComposeOpen(false)}
-          onSent={() => {
-            setComposeOpen(false);
-            toast(t("inbox.toast.emailSent"), "success");
-          }}
-        />
-      )}
     </div>
   );
 }

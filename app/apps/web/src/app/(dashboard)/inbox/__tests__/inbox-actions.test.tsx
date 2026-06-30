@@ -503,6 +503,19 @@ describe("CLE-14 /inbox — outbound filter (child mounts on the outbound tab)",
   });
 });
 
+describe("/inbox — Composer (new email) renders in-page, not a drawer", () => {
+  it("clicking Composer shows the inline composer in the reading pane — no slide-over, no backdrop", async () => {
+    await mountLoaded();
+    fireEvent.click(screen.getByRole("button", { name: /Composer/ }));
+    await flush();
+    // In-page like a reply: no fixed slide-over drawer and no page-dimming backdrop.
+    expect(document.querySelector(".slide-in-right")).toBeNull();
+    expect(document.querySelector('[style*="overlay-fade-in"]')).toBeNull();
+    // The compose body (textarea) rendered in the document flow.
+    expect(document.querySelector("textarea")).not.toBeNull();
+  });
+});
+
 describe("CLE-14 /inbox — off-page degradation", () => {
   it("after unmount the inbox.* ids are gone and runRegisteredAction refuses", async () => {
     await mountLoaded();
