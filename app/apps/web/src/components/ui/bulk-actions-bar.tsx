@@ -42,7 +42,12 @@ export function BulkActionsBar({
     <div
       role="toolbar"
       aria-label={countLabel ?? `${count} items selected`}
-      className={`sticky top-0 z-20 flex items-center gap-2 border-b px-4 py-2 ${className}`.trim()}
+      // `relative` (not `sticky top-0`): the bar now sits in the non-scrolling
+      // header stack BELOW the filter bar, so sticky-to-top would pin it to the
+      // dashboard root scroll container and let it re-overlap the page header on
+      // scroll. `relative` gives it a stacking context for the menus' z-50;
+      // `shrink-0` holds its height in the flex column.
+      className={`relative z-20 shrink-0 flex items-center gap-2 border-b px-4 py-2 ${className}`.trim()}
       style={{
         background: "var(--color-bg-selected, var(--color-bg-card))",
         borderColor: "var(--color-border-default)",
