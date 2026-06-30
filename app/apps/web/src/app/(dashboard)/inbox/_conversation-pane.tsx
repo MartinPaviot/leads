@@ -824,26 +824,31 @@ export function ConversationPane({
           </div>
         </div>
 
-        {schedOpen && canBook && (
-          <MeetingSchedulerCard
-            contactId={bookContactId}
-            contactEmail={bookContactId ? undefined : bookEmail}
-            contactName={bookContactId ? undefined : bookName}
-            firstName={bookFirstName}
-            initialWhen={prefillWhen ?? undefined}
-            onClose={() => {
-              setSchedOpen(false);
-              setPrefillWhen(null);
-            }}
-            // Drop the sovereign join link straight into an open reply draft (INBOX-G10).
-            onBooked={(joinUrl) => {
-              if (joinUrl) setComposer((c) => (c ? { ...c, body: injectMeetingLink(c.body, joinUrl) } : c));
-            }}
-          />
-        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        {/* Meeting scheduler — rendered in the SCROLLABLE reading area (not the
+             fixed header) so its full height + the Confirm button stay reachable
+             on a narrow or zoomed viewport (the header doesn't scroll). */}
+        {schedOpen && canBook && (
+          <div className="mb-3">
+            <MeetingSchedulerCard
+              contactId={bookContactId}
+              contactEmail={bookContactId ? undefined : bookEmail}
+              contactName={bookContactId ? undefined : bookName}
+              firstName={bookFirstName}
+              initialWhen={prefillWhen ?? undefined}
+              onClose={() => {
+                setSchedOpen(false);
+                setPrefillWhen(null);
+              }}
+              // Drop the sovereign join link straight into an open reply draft (INBOX-G10).
+              onBooked={(joinUrl) => {
+                if (joinUrl) setComposer((c) => (c ? { ...c, body: injectMeetingLink(c.body, joinUrl) } : c));
+              }}
+            />
+          </div>
+        )}
         {/* ── Collision heads-up (INBOX-G06): a teammate already touched this
              contact recently. Soft, non-blocking — informs, never gates. ── */}
         {detail.contact && (

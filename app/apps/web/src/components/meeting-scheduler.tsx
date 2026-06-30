@@ -7,7 +7,7 @@
  * bilingual via useT() — follows the global locale (default FR).
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { X, ChevronRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -175,11 +175,14 @@ export function MeetingSchedulerCard({
   // Armed when a manually-typed time collides with the calendar — a second
   // Confirm ("Confirmer quand même") then books over it.
   const [manualConfirm, setManualConfirm] = useState(false);
-  // Sovereign Jitsi by default; Google Meet / Teams / Zoom when the prospect
-  // needs it (the backend honours it per the connected calendar / config).
+  // Conferencing tool. Defaults to the connected calendar's NATIVE tool (Google →
+  // Meet, Microsoft → Teams), and a sovereign Jitsi "Visio" for an IMAP/SMTP box
+  // (no native conferencing). The user can still override. `pickedConferencing`
+  // guards the auto-default so we never stomp a manual choice.
   const [conferencing, setConferencing] = useState<
     "sovereign" | "google_meet" | "teams" | "zoom"
   >("sovereign");
+  const pickedConferencing = useRef(false);
   // Once booked, surface the join link (the API returned it but the cockpit
   // never showed it before).
   const [booked, setBooked] = useState<{ joinUrl: string | null; conferencing: string } | null>(null);
@@ -215,6 +218,24 @@ export function MeetingSchedulerCard({
       cancelled = true;
     };
   }, [duration, booked]);
+
+  // Provider-aware default: once we know which calendar is connected, pick its
+  // native conferencing (Google → Meet, Microsoft → Teams), else the sovereign
+  // Visio for an IMAP/SMTP box. Never overrides a manual choice.
+  useEffect(() => {
+    if (pickedConferencing.current || !source || source === "") return;
+    setConferencing(source === "google" ? "google_meet" : source === "microsoft" ? "teams" : "sovereign");
+  }, [source]);
+
+  // The conferencing options to offer, scoped to what the connected calendar can
+  // actually do: a sovereign Visio is always available; the native tool only on
+  // its own provider (offering Teams on a Google box just silently falls back).
+  const videoOptions = useMemo<Array<{ key: "sovereign" | "google_meet" | "teams" | "zoom"; label: string }>>(() => {
+    const visio = { key: "sovereign" as const, label: "Visio" };
+    if (source === "google") return [visio, { key: "google_meet", label: "Google Meet" }];
+    if (source === "microsoft") return [visio, { key: "teams", label: "Teams" }];
+    return [visio]; // caldav / smtp / none → only the sovereign Visio is real
+  }, [source]);
 
   // Drop a pill selection that a duration refetch no longer offers, so Confirm
   // can't book a time that just became busy. Manual entries (selectedIso === null)
@@ -496,16 +517,11 @@ export function MeetingSchedulerCard({
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{t("meeting.video")}</span>
-            {([
-              { key: "sovereign", label: "Visio" },
-              { key: "google_meet", label: "Google Meet" },
-              { key: "teams", label: "Teams" },
-              { key: "zoom", label: "Zoom" },
-            ] as const).map((opt) => (
+            {videoOptions.map((opt) => (
               <button
                 key={opt.key}
                 type="button"
-                onClick={() => setConferencing(opt.key)}
+                onClick={() => { pickedConferencing.current = true; setConferencing(opt.key); }}
                 aria-pressed={conferencing === opt.key}
                 className="rounded-md px-2 py-0.5 text-[12px] transition-colors"
                 style={conferencing === opt.key
