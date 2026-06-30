@@ -84,6 +84,7 @@ import { deliverabilityHealthCron } from "@/inngest/deliverability-monitor";
 import { linkedinInboxSync } from "@/inngest/linkedin-inbox-sync";
 import { linkedinAccountHydrationCron } from "@/inngest/linkedin-account-hydration-cron";
 import { linkedinEngagementSourcingCron } from "@/inngest/linkedin-engagement-sourcing-cron";
+import { linkedinContactHydrationCron } from "@/inngest/linkedin-contact-hydration-cron";
 import { campaignWeeklyReport } from "@/inngest/campaign-weekly-report";
 // voice-cold-call Phase 1 — post-call LLM extraction + CRM sync
 import { postProcessCall } from "@/inngest/calls-post-process";
@@ -316,6 +317,9 @@ export const { GET, POST, PUT } = serve({
     // LinkedIn engagement -> warm leads — daily, behind LINKEDIN_ENGAGEMENT_SOURCING_ENABLED.
     // Auto-sources reactors/commenters on each seat owner's own recent posts.
     linkedinEngagementSourcingCron,
+    // LinkedIn contact hydration — daily, behind LINKEDIN_CONTACT_HYDRATION_ENABLED.
+    // Enriches existing contacts (warm-first) with their full profile; shared view budget.
+    linkedinContactHydrationCron,
     campaignWeeklyReport,
     // voice-cold-call Phase 1 — post-call LLM extraction + CRM sync
     postProcessCall,
