@@ -11,105 +11,15 @@
 
 import { inngest } from "./client";
 import { db } from "@/db";
-import { tenants, sequences, sequenceEnrollments, companies } from "@/db/schema";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { tenants } from "@/db/schema";
 import { logger } from "@/lib/observability/logger";
-import { getTenantSettings } from "@/lib/config/tenant-settings";
-import { readApprovalMode } from "@/lib/guardrails/approval-mode";
-import { coerceConfigBudget } from "@/lib/autopilot/budget";
 import { isDailyAutopilotEnabled } from "@/lib/autopilot/flag";
-import { loadTenantCapacity } from "@/lib/autopilot/capacity-source";
-import { loadCandidates } from "@/lib/autopilot/candidates";
-import { prepareProspect } from "@/lib/autopilot/prepare";
-import { enrollOne } from "@/lib/autopilot/enroll";
-import { runAutopilotForTenant, type RunAutopilotDeps, type TenantAutopilotSummary } from "@/lib/autopilot/run";
-import { resolveSequenceForProspect, type RouterSequence } from "@/lib/autopilot/sequence-router";
-
-/** Fallback if a tenant predates the `dailyAutopilotBudget` default (DEFAULTS sets 100). */
-const DEFAULT_BUDGET = 100;
+import { runAutopilotForTenant, type TenantAutopilotSummary } from "@/lib/autopilot/run";
+import { buildAutopilotDeps } from "@/lib/autopilot/deps";
 
 // Re-exported so existing importers keep their path; the impl now lives in the pure
 // flag module (lib/autopilot/flag.ts) so it can be unit-tested without @/db.
 export { isDailyAutopilotEnabled };
-
-/** Autopilot/any enrollments created for a tenant since UTC midnight — the per-day spend. */
-async function countEnrolledToday(tenantId: string, since: Date): Promise<number> {
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(sequenceEnrollments)
-    .innerJoin(sequences, eq(sequenceEnrollments.sequenceId, sequences.id))
-    .where(and(eq(sequences.tenantId, tenantId), gte(sequenceEnrollments.enrolledAt, since)));
-  return Number(row?.n ?? 0);
-}
-
-/** A tenant's active sequences for the router (most-recent first). */
-async function loadActiveSequencesForRouting(tenantId: string): Promise<RouterSequence[]> {
-  const rows = await db
-    .select({ id: sequences.id, name: sequences.name, icpId: sequences.icpId, campaignConfig: sequences.campaignConfig })
-    .from(sequences)
-    .where(and(eq(sequences.tenantId, tenantId), eq(sequences.status, "active")))
-    .orderBy(desc(sequences.createdAt));
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    icpId: r.icpId ?? null,
-    campaignConfig: (r.campaignConfig as Record<string, unknown> | null) ?? null,
-  }));
-}
-
-/** The company's primary ICP + freshest signal type (the "why-now") for sequence routing. */
-async function loadCompanyRouting(tenantId: string, companyId: string): Promise<{ primaryIcpId: string | null; topSignalType: string | null }> {
-  const [row] = await db
-    .select({ properties: companies.properties })
-    .from(companies)
-    .where(and(eq(companies.id, companyId), eq(companies.tenantId, tenantId)))
-    .limit(1);
-  const props = (row?.properties as Record<string, unknown> | null) ?? {};
-  const primaryIcpId = typeof props.primaryIcpId === "string" ? props.primaryIcpId : null;
-  const signals = Array.isArray(props.signals) ? (props.signals as Array<{ type?: unknown; detectedAt?: unknown }>) : [];
-  const freshest = signals
-    .filter((s) => typeof s.type === "string")
-    .sort((a, b) => String(b.detectedAt ?? "").localeCompare(String(a.detectedAt ?? "")))[0];
-  return { primaryIcpId, topSignalType: freshest && typeof freshest.type === "string" ? freshest.type : null };
-}
-
-function realDeps(now: Date): RunAutopilotDeps {
-  const startOfDay = new Date(now);
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  // Per-run cache: the active-sequence set is the same for all of a tenant's prospects.
-  const seqCache = new Map<string, Promise<RouterSequence[]>>();
-  const loadActiveSequences = (tenantId: string) => {
-    let p = seqCache.get(tenantId);
-    if (!p) { p = loadActiveSequencesForRouting(tenantId); seqCache.set(tenantId, p); }
-    return p;
-  };
-  return {
-    loadCapacity: (tenantId) => loadTenantCapacity(tenantId),
-    getConfig: async (tenantId) => {
-      const s = await getTenantSettings(tenantId);
-      // `dailyAutopilotBudget` is the per-tenant ceiling (DEFAULTS = 100; 0 pauses
-      // this tenant). Coerced: non-finite/negative → the global default.
-      const configBudget = coerceConfigBudget(s.dailyAutopilotBudget, DEFAULT_BUDGET);
-      return { configBudget, maxEmailsPerDay: null, approvalMode: readApprovalMode(s), autopilotPaused: s.autopilotPaused ?? false };
-    },
-    spentToday: (tenantId) => countEnrolledToday(tenantId, startOfDay),
-    getActiveSequenceId: async (tenantId) => {
-      const [seq] = await db
-        .select({ id: sequences.id })
-        .from(sequences)
-        .where(and(eq(sequences.tenantId, tenantId), eq(sequences.status, "active")))
-        .limit(1);
-      return seq?.id ?? null;
-    },
-    // Per-prospect sequence routing (the active sequence whose ICP/trigger matches the
-    // prospect's company+signal) — falls back to the active sequence inside run.ts.
-    resolveSequenceId: (tenantId, companyId) =>
-      resolveSequenceForProspect(tenantId, companyId, { loadActiveSequences, loadCompanyRouting }),
-    loadCandidates: (tenantId, limit) => loadCandidates(tenantId, limit),
-    prepare: (tenantId, contactId, companyId) => prepareProspect(tenantId, contactId, companyId),
-    enroll: (input) => enrollOne(input),
-  };
-}
 
 export const dailyAutopilot = inngest.createFunction(
   {
@@ -126,7 +36,7 @@ export const dailyAutopilot = inngest.createFunction(
     if (!isDailyAutopilotEnabled()) return { enabled: false, tenants: 0 };
 
     const now = new Date();
-    const deps = realDeps(now);
+    const deps = buildAutopilotDeps(now);
     const allTenants = await step.run("fetch-tenants", async () => db.select({ id: tenants.id }).from(tenants));
 
     const perTenant: TenantAutopilotSummary[] = [];

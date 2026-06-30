@@ -19,6 +19,7 @@ const EXPECTED: Record<string, string> = {
   renameAccountList: "update",
   deleteAccountList: "action",
   enrollAccountListInSequence: "action",
+  runAutopilotForAccountList: "action",
 };
 
 describe("account-list chat tools — routing", () => {
@@ -31,7 +32,7 @@ describe("account-list chat tools — routing", () => {
 
   it("only the read tool is viewer-allowed; mutations are member-write", () => {
     expect(toolViewerAllowed("listAccountLists")).toBe(true);
-    for (const name of ["createAccountList", "addCompaniesToAccountList", "removeCompaniesFromAccountList", "renameAccountList", "deleteAccountList", "enrollAccountListInSequence"]) {
+    for (const name of ["createAccountList", "addCompaniesToAccountList", "removeCompaniesFromAccountList", "renameAccountList", "deleteAccountList", "enrollAccountListInSequence", "runAutopilotForAccountList"]) {
       expect(toolViewerAllowed(name), `${name} should not be viewer-allowed`).toBe(false);
     }
   });
