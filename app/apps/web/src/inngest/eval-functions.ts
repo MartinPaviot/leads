@@ -115,11 +115,20 @@ export const cronFlywheelCycle = inngest.createFunction(
       }
     }
 
+    // Advance / promote / roll back canaries once per cycle (versions are
+    // agent-scoped, not per-tenant). Closes the prompt-canary loop that
+    // previously left a canary stuck at its initial percent forever.
+    const canaryRamp = await step.run("ramp-canaries", async () => {
+      const { rampCanaries } = await import("@/lib/prompts/canary-ramp");
+      return rampCanaries();
+    });
+
     return {
       agentsProcessed: results.length,
       promptsRefined: results.filter((r: any) => r.promptRefined).length,
       promptsActivated: results.filter((r: any) => r.promptActivated).length,
       patternsFound: results.reduce((s: number, r: any) => s + r.patterns, 0),
+      canaryRamp,
       details: results.filter((r: any) => r.patterns > 0 || r.promptRefined),
     };
   }
