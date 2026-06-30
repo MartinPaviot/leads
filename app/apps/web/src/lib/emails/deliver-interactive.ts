@@ -37,6 +37,7 @@ import { trackUsage } from "@/lib/billing/billing";
 import { logger } from "@/lib/observability/logger";
 import { recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 import { evaluateSend, isInteractiveRecipientSendable } from "@/lib/guardrails/sending-gate";
+import { watchReplyOutcome } from "@/lib/outcomes/reply-flywheel";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FALLBACK_FROM = process.env.INVITE_FROM_ADDRESS || "Elevay <outbound@resend.dev>";
@@ -308,6 +309,14 @@ export async function deliverInteractiveEmail(
       });
     } catch (err) {
       logger.warn?.("deliver-interactive: activity record failed (non-fatal)", { err });
+    }
+
+    // P3 — outcome→learn loop (lib/outcomes/reply-flywheel.ts): only for a
+    // real human send to a known contact via the composer (queue/cron sends
+    // never call this function at all, so autopilot volume is untouched).
+    // Fire-and-forget, fail-soft — never blocks or fails the send.
+    if (input.source === "composer") {
+      void watchReplyOutcome({ tenantId, contactId: input.contactId, replyBody: body }).catch(() => {});
     }
   }
 

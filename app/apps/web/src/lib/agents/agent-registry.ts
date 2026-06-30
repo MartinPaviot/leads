@@ -189,6 +189,23 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
     maxCostPerCall: 0.08,
     evalSampleRate: 0.10,
   },
+  "inbox-compose-reply": {
+    id: "inbox-compose-reply",
+    name: "Inbox Reply Composer",
+    category: "generation",
+    description: "Drafts a complete voice-matched reply to the latest message in an inbox thread",
+    qualityThreshold: 0.7,
+    maxLatencyMs: 10000,
+    maxCostPerCall: 0.05,
+    // P3 outcome→learn loop (lib/outcomes/reply-flywheel.ts): a low but
+    // non-zero rate is REQUIRED, not just for sampling — eval-functions.ts'
+    // and prompt-optimizer-cron.ts's eligibility filters are
+    // `evalSampleRate > 0 && maxCostPerCall > 0`, and that's what makes the
+    // periodic flywheel cron call curateFewShotExamples (and therefore
+    // promoteApprovedCandidates) for this agentId at all. Without this entry,
+    // recordFlywheelCandidate's inserts would sit isActive:false forever.
+    evalSampleRate: 0.05,
+  },
   "meeting-prep": {
     id: "meeting-prep",
     name: "Meeting Prep API",

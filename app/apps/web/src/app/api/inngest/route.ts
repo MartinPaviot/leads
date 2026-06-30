@@ -76,6 +76,8 @@ import { agentReactor, agentDailySweep } from "@/inngest/agent-reactor";
 import { agentActionDispatcher } from "@/inngest/agent-action-dispatcher";
 import { outcomeDetectorCron } from "@/inngest/outcome-detector";
 import { weeklyTrustRecalculation } from "@/inngest/trust-recalculator";
+// P3 — inbox-deal-closer roadmap: outcome→learn loop for inbox replies
+import { replyFlywheelListener } from "@/inngest/reply-flywheel-listener";
 // Campaign Engine 1000x
 import { replyAgent } from "@/inngest/reply-agent";
 import { campaignDecisionEngine, bridgeTrackingEvents } from "@/inngest/campaign-decision-engine";
@@ -301,6 +303,10 @@ export const { GET, POST, PUT } = serve({
     outcomeDetectorCron,
     // F005: Learned trust — weekly threshold recalculation from outcomes
     weeklyTrustRecalculation,
+    // P3: a sent inbox reply that gets a genuinely positive prospect reply
+    // gets promoted into the inbox-compose-reply few-shot pool. See
+    // lib/outcomes/reply-flywheel.ts for the full design.
+    replyFlywheelListener,
     // Campaign Engine 1000x
     replyAgent,
     campaignDecisionEngine,
