@@ -44,7 +44,7 @@ import { SmartSearchBar, ActiveFiltersChips } from "@/components/ui/smart-search
 import { applyFilters } from "@/lib/search/filters";
 import type { FilterCondition } from "@/lib/search/filters";
 import { ColumnFilter, isColumnFilterActive, formatColumnFilterValue, type ColumnFilterKind, type ColumnFilterState } from "@/components/ui/column-filter";
-import { ListChipMenu } from "./_list-chip-menu";
+import { ListsMenu } from "./_lists-menu";
 import { CascadeDeleteModal, type CascadeOption } from "@/components/ui/cascade-delete-modal";
 import { EnrichMenu } from "@/components/ui/enrich-menu";
 import { useEnrichStream, type EnrichCellState } from "@/hooks/use-enrich-stream";
@@ -241,12 +241,9 @@ export default function AccountsPage() {
   const [activeListId, setActiveListId] = useState<string | null>(null);
   const [showAddToList, setShowAddToList] = useState(false);
   const [listBusy, setListBusy] = useState(false);
-  // Inline rename of a list chip — `renamingListId` is the chip being edited.
-  // The intent ref lets Enter/blur commit once and Escape cancel: both keys
-  // blur the input, and onBlur reads the intent (default commit on click-away).
-  const [renamingListId, setRenamingListId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const renameIntentRef = useRef<"commit" | "cancel">("commit");
+  // List rename/delete now live inside the ListsMenu dropdown (it owns the
+  // inline-edit state); the page only exposes the renameList / deleteList
+  // mutations it calls.
   // Per-column header filters (Notion / Excel style). Keyed by the
   // column's filterKey → its filter state. An entry only exists while
   // the column constrains the list; clearing it deletes the key.
@@ -999,12 +996,11 @@ export default function AccountsPage() {
     }
   }, [activeListId, toast, fetchLists, refetchLoadedAccounts, t]);
 
-  // Rename a list (inline edit on the active chip). No-op on an empty or
+  // Rename a list (inline edit inside the lists dropdown). No-op on an empty or
   // unchanged name; a name collision comes back 409 → a localized warning.
   const renameList = useCallback(async (listId: string, nextName: string) => {
     const trimmed = nextName.trim();
     const current = lists.find((l) => l.id === listId);
-    setRenamingListId(null);
     if (!trimmed || !current || trimmed === current.name) return;
     try {
       const res = await fetch(`/api/account-lists/${listId}`, {
@@ -2632,73 +2628,20 @@ export default function AccountsPage() {
           ))}
         </div>
 
-        {/* Account lists — selectable chips beside the source tabs. Click to
-            scope the view to one list's members; click the active one again to
-            leave it. The × on the active chip deletes the list (its accounts are
-            kept). Lists are created from a selection via the bulk-actions bar. */}
+        {/* Account lists — one dropdown beside the source tabs that scales to
+            any number of lists (the old scrolling chip row crowded the bar).
+            The trigger shows the active list (current scope); inside, pick a
+            list to scope the view, rename/delete per row, search past 7. Lists
+            are created from a selection via the bulk-actions bar. */}
         {lists.length > 0 && (
-          // min-w-0 + overflow-x-auto so many lists scroll horizontally inside
-          // this group instead of pushing the bar wider than the viewport
-          // (founder runs the app half-screen + 200% zoom).
-          <div className="flex min-w-0 items-center gap-1 overflow-x-auto border-l pl-2" style={{ borderColor: "var(--color-border-default)" }}>
-            {lists.map((l) => {
-              const isActive = activeListId === l.id;
-              const isRenaming = renamingListId === l.id;
-              if (isRenaming) {
-                // Inline rename — replaces the chip with an input. Enter / blur
-                // commits, Escape cancels (renameList no-ops on empty/unchanged).
-                return (
-                  <input
-                    key={l.id}
-                    autoFocus
-                    value={renameValue}
-                    maxLength={120}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { renameIntentRef.current = "commit"; e.currentTarget.blur(); }
-                      else if (e.key === "Escape") { renameIntentRef.current = "cancel"; e.currentTarget.blur(); }
-                    }}
-                    onBlur={() => {
-                      if (renameIntentRef.current === "cancel") setRenamingListId(null);
-                      else renameList(l.id, renameValue);
-                      renameIntentRef.current = "commit";
-                    }}
-                    aria-label={t("accountLists.chip.renameTitle")}
-                    className="h-[26px] w-[150px] shrink-0 rounded-md px-2 text-[12px] font-medium outline-none"
-                    style={{ background: "var(--color-bg-card)", color: "var(--color-text-primary)", border: "1px solid var(--color-accent)" }}
-                  />
-                );
-              }
-              return (
-                <div
-                  key={l.id}
-                  className="inline-flex shrink-0 items-center rounded-md"
-                  style={{ background: isActive ? "var(--color-accent-soft)" : "transparent" }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setActiveListId(isActive ? null : l.id)}
-                    onDoubleClick={() => { setRenamingListId(l.id); setRenameValue(l.name); }}
-                    title={isActive ? t("accountLists.chip.leave") : t("accountLists.chip.showOnly", { name: l.name })}
-                    className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
-                    style={{ color: isActive ? "var(--color-accent)" : "var(--color-text-tertiary)" }}
-                  >
-                    <ListPlus size={12} style={{ opacity: 0.7 }} />
-                    <span className="max-w-[110px] truncate md:max-w-[160px]">{l.name}</span>
-                    <span className="tabular-nums" style={{ opacity: 0.7 }}>{l.count}</span>
-                  </button>
-                  {isActive && (
-                    <ListChipMenu
-                      triggerAriaLabel={t("accountLists.chip.menuAria", { name: l.name })}
-                      renameLabel={t("accountLists.chip.renameTitle")}
-                      deleteLabel={t("accountLists.chip.deleteTitle")}
-                      onRename={() => { setRenamingListId(l.id); setRenameValue(l.name); }}
-                      onDelete={() => deleteList(l.id, l.name)}
-                    />
-                  )}
-                </div>
-              );
-            })}
+          <div className="flex shrink-0 items-center border-l pl-2" style={{ borderColor: "var(--color-border-default)" }}>
+            <ListsMenu
+              lists={lists}
+              activeListId={activeListId}
+              onSelect={setActiveListId}
+              onRename={(id, name) => renameList(id, name)}
+              onDelete={(id, name) => deleteList(id, name)}
+            />
           </div>
         )}
 
