@@ -16,6 +16,7 @@ import { generateText, generateObject, streamText } from "ai";
 import { recordTrace, type TraceContext, AGENT_REGISTRY } from "../observability/observability";
 import { getActivePrompt, getFewShotExamples } from "../evals/flywheel";
 import { getPlaybookPromptBlock } from "../playbook/get-playbook";
+import { getCoachingPromptBlock } from "../coaching/get-coaching-guidance";
 import { enforceLlmBudget } from "../billing/llm-budget";
 import logger from "../observability/logger";
 import { isAiDisabled } from "./ai-provider";
@@ -93,12 +94,13 @@ export function injectFewShotExamples(
  */
 
 /**
- * Outbound-drafting agents that get the tenant's learned playbook
- * (objections / openers / questions) appended to their system prompt.
- * Other agents (classification, extraction, chat) are left untouched so
- * we neither pay the tokens nor muddy unrelated prompts.
+ * Outbound-drafting agents that get the tenant's learned context — the
+ * playbook (what's worked) and recent coaching (what to improve) —
+ * appended to their system prompt. Other agents (classification,
+ * extraction, chat) are left untouched so we neither pay the tokens nor
+ * muddy unrelated prompts.
  */
-const PLAYBOOK_AGENT_IDS = new Set([
+const DRAFTING_AGENT_IDS = new Set([
   "draft-email",
   "follow-up-email",
   "suggest-reply",
@@ -121,13 +123,19 @@ export async function applyLearnedContext(
     (await getFewShotExamples(agentId).catch(() => []));
   injectFewShotExamples(aiParams, examples);
 
-  // Append the tenant's learned playbook for outbound-drafting agents.
-  // It rides at the END of the system prompt so the stable prefix still
-  // prompt-caches, and is a no-op when the tenant has no entries.
-  if (tenantId && PLAYBOOK_AGENT_IDS.has(agentId)) {
-    const block = await getPlaybookPromptBlock(tenantId).catch(() => "");
-    if (block) {
-      aiParams.system = aiParams.system ? `${aiParams.system}\n\n${block}` : block;
+  // Append tenant-scoped learned context for outbound-drafting agents:
+  // the playbook (what's worked) + recent coaching (what to improve).
+  // Both ride at the END of system so the stable prefix still prompt-
+  // caches, and each is a no-op when the tenant has nothing to add.
+  if (tenantId && DRAFTING_AGENT_IDS.has(agentId)) {
+    const [playbook, coaching] = await Promise.all([
+      getPlaybookPromptBlock(tenantId).catch(() => ""),
+      getCoachingPromptBlock(tenantId).catch(() => ""),
+    ]);
+    for (const block of [playbook, coaching]) {
+      if (block) {
+        aiParams.system = aiParams.system ? `${aiParams.system}\n\n${block}` : block;
+      }
     }
   }
 }
