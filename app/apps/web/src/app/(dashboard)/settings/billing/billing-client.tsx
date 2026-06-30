@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProviderLogo } from "@/components/ui/provider-logo";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SubscriptionData {
   status: string | null;
@@ -227,16 +228,46 @@ export default function BillingClient() {
       )}
 
       {loading ? (
-        <div
-          className="flex items-center gap-2 py-12 text-[13px]"
-          style={{ color: "var(--color-text-muted)" }}
-        >
-          <div
-            className="h-4 w-4 animate-spin rounded-full border-2 border-current"
-            style={{ borderTopColor: "transparent" }}
-          />
-          Loading billing information...
-        </div>
+        <>
+          {/* Current Plan skeleton — mirrors the loaded Card footprint below */}
+          <Card>
+            <CardBody className="p-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-3 w-20 rounded" />
+                  </div>
+                  <div className="mt-2 flex items-center gap-3">
+                    <Skeleton className="h-6 w-32 rounded" />
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </div>
+                  <Skeleton className="mt-2 h-3 w-48 rounded" />
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <Skeleton className="h-7 w-40 rounded-md" />
+                  <Skeleton className="h-7 w-28 rounded-md" />
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* Usage skeleton — mirrors the 3-meter grid-cols-2 lg:grid-cols-3 row */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <Card key={i}>
+                <CardBody>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-[15px] w-[15px] rounded" />
+                    <Skeleton className="h-3 w-16 rounded" />
+                  </div>
+                  <Skeleton className="mt-2 h-[18px] w-20 rounded" />
+                  <Skeleton className="mt-2 h-1.5 w-full rounded-full" />
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        </>
       ) : (
         <>
           {/* ── Current Plan ── */}

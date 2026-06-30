@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from "react";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type QueueItemKind = "reply" | "reminder" | "draft";
 
@@ -112,9 +113,27 @@ export default function OutboundModePage() {
         style={{ borderColor: "var(--color-border-default)" }}
       >
         {loading && (
-          <p className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-            Loading the day's queue…
-          </p>
+          <ul className="flex flex-col gap-2" aria-hidden>
+            {[68, 80, 56, 72, 60].map((titleW, i) => (
+              <li key={i}>
+                <div
+                  className="flex items-center gap-3 rounded-lg border px-4 py-3"
+                  style={{
+                    borderColor: "var(--color-border-default)",
+                    background: "var(--color-bg-card)",
+                  }}
+                >
+                  <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
+                  <Skeleton className="h-2.5 w-[64px] shrink-0 rounded" />
+                  <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <Skeleton className="h-3 rounded" style={{ width: `${titleW}%` }} />
+                    <Skeleton className="h-2.5 rounded" style={{ width: `${titleW - 22}%` }} />
+                  </span>
+                  <Skeleton className="h-4 w-8 shrink-0 rounded" />
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
 
         {error && !loading && (

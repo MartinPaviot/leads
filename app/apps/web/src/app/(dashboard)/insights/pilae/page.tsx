@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatDealAmount } from "@/lib/deals/amount";
 import { bookingsTotals } from "./_bookings-totals";
 import { AlertTriangle, CheckCircle2, Circle, Target } from "lucide-react";
@@ -109,15 +110,33 @@ export default function PilaeDashboardPage() {
           </div>
         )}
         {!data && loading && (
-          <p
-            className="text-[12px]"
-            style={{ color: "var(--color-text-tertiary)" }}
-          >
-            Loading…
-          </p>
+          // First-paint skeleton reserving the three-panel layout (was a bare
+          // "Loading…" line that collapsed to the full grid, causing reflow).
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <PanelSkeleton key={i} />
+            ))}
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+function PanelSkeleton() {
+  return (
+    <Card>
+      <CardBody>
+        <Skeleton className="h-2.5 w-28 rounded" />
+        <Skeleton className="mt-3 h-7 w-24 rounded" />
+        <Skeleton className="mt-2 h-2.5 w-36 rounded" />
+        <div className="mt-4 space-y-2">
+          <Skeleton className="h-2.5 w-full rounded" />
+          <Skeleton className="h-2.5 w-5/6 rounded" />
+          <Skeleton className="h-2.5 w-2/3 rounded" />
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 

@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CompanyLogo } from "@/components/ui/company-logo";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useCan } from "@/components/role-provider";
 import {
@@ -1412,10 +1413,90 @@ export default function CallModePage() {
   // the empty screen reads as deliberate, not top-anchored.
 
   if (loading) {
+    // Bespoke cockpit skeleton mirroring the loaded 3-column footprint
+    // (queue rail · brief/funnel · script rail) at the same widths, so the
+    // swap to real data causes no reflow — never a bare centered spinner.
     return (
       <CallModeShell>
-        <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+        <div className="flex flex-1 min-h-0 w-full" aria-busy="true">
+          {/* LEFT — queue rail */}
+          <aside
+            className="shrink-0 overflow-hidden border-r border-zinc-200 dark:border-zinc-800"
+            style={{ width: colW.left }}
+          >
+            <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+              <Skeleton className="h-4 w-24 rounded" />
+              <Skeleton className="mt-1.5 h-3 w-16 rounded" />
+            </div>
+            <div className="flex flex-col">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="skeleton-row flex items-start gap-2.5 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800/60"
+                >
+                  <Skeleton className="mt-0.5 h-7 w-7 shrink-0 rounded-md" />
+                  <div className="min-w-0 flex-1">
+                    <Skeleton className="h-3.5 rounded" style={{ width: `${60 + (i * 11) % 30}%` }} />
+                    <Skeleton className="mt-1.5 h-3 rounded" style={{ width: `${40 + (i * 7) % 25}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
+
+          {/* CENTER — brief + funnel (flex-1) */}
+          <main className="flex min-w-0 flex-1 flex-col">
+            <div className="flex items-center justify-between gap-4 border-b border-zinc-200 px-6 py-2.5 dark:border-zinc-800">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+                <div className="min-w-0">
+                  <Skeleton className="h-4 w-40 rounded" />
+                  <Skeleton className="mt-1.5 h-3 w-56 rounded" />
+                </div>
+              </div>
+              <Skeleton className="h-9 w-24 shrink-0 rounded-md" />
+            </div>
+            <div className="min-h-0 flex-1 space-y-4 overflow-hidden p-6">
+              {/* funnel block */}
+              <div
+                className="skeleton-row rounded-lg p-4"
+                style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
+              >
+                <Skeleton className="h-3 w-28 rounded" />
+                <Skeleton className="mt-3 h-3 w-full rounded" />
+                <Skeleton className="mt-2 h-3 w-3/4 rounded" />
+              </div>
+              {/* brief block */}
+              <div
+                className="skeleton-row rounded-lg p-4"
+                style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
+              >
+                <Skeleton className="h-4 w-32 rounded" />
+                <Skeleton className="mt-3 h-3 w-full rounded" />
+                <Skeleton className="mt-2 h-3 w-5/6 rounded" />
+                <Skeleton className="mt-2 h-3 w-2/3 rounded" />
+              </div>
+            </div>
+          </main>
+
+          {/* RIGHT — script rail placeholder */}
+          <aside
+            className="shrink-0 border-l border-zinc-200 dark:border-zinc-800"
+            style={{ width: colW.right }}
+          >
+            <div className="space-y-3 p-3">
+              <div
+                className="skeleton-row rounded-lg p-4"
+                style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}
+              >
+                <Skeleton className="h-4 w-24 rounded" />
+                <Skeleton className="mt-3 h-3 w-full rounded" />
+                <Skeleton className="mt-2 h-3 w-full rounded" />
+                <Skeleton className="mt-2 h-3 w-4/5 rounded" />
+                <Skeleton className="mt-2 h-3 w-3/5 rounded" />
+              </div>
+            </div>
+          </aside>
         </div>
       </CallModeShell>
     );

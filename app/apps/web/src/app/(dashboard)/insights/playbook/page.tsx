@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PLAYBOOK_ENTRY_TYPES } from "@/lib/playbook/capture";
 import { playbookListState } from "./_list-state";
 import { Plus, Star } from "lucide-react";
@@ -136,12 +137,13 @@ export default function PlaybookPage() {
           return (
             <>
               {listState === "initial-loading" && (
-                <p
-                  className="text-[12px]"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  Loading…
-                </p>
+                // First-paint skeleton reserving the list footprint (was a
+                // bare "Loading…" line that collapsed to a stack of cards).
+                <div className="space-y-2">
+                  {[0, 1, 2].map((i) => (
+                    <EntryCardSkeleton key={i} />
+                  ))}
+                </div>
               )}
               {listState === "refreshing" && (
                 // Re-fetch cue (was H2: a filter switch silently kept the
@@ -194,6 +196,23 @@ function FilterChip({
     >
       {label}
     </button>
+  );
+}
+
+function EntryCardSkeleton() {
+  return (
+    <Card>
+      <CardBody>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <Skeleton className="h-4 w-16 rounded-full" />
+            <Skeleton className="mt-2.5 h-3 w-full rounded" />
+            <Skeleton className="mt-1.5 h-3 w-3/4 rounded" />
+          </div>
+          <Skeleton className="h-3 w-10 rounded" />
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 

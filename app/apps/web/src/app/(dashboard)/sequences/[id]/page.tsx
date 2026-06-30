@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { CampaignWizard } from "@/components/campaign-wizard";
 import { SequenceDetailSkeleton } from "./_skeleton";
+import { KpiRowSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 import { DestructiveConfirm } from "@/components/ui/destructive-confirm";
 import { useToast } from "@/components/ui/toast";
 import { useCan } from "@/components/role-provider";
@@ -907,7 +908,15 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
 
 function AnalyticsPanel({ loading, data }: { loading: boolean; data: Analytics | null }) {
   if (loading && !data) {
-    return <div className="py-10 text-center text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>Loading analytics...</div>;
+    // Footprint skeleton reserving the analytics layout — the rates grid
+    // (4 KPI tiles) + the per-step table — so the swap to real data doesn't
+    // reflow or flash a centered "loading" line.
+    return (
+      <div className="space-y-6">
+        <KpiRowSkeleton count={4} />
+        <TableSkeleton rows={6} cols={4} />
+      </div>
+    );
   }
   if (!data) {
     return <div className="py-10 text-center text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>No analytics yet.</div>;

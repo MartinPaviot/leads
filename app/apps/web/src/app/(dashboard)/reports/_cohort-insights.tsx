@@ -10,7 +10,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Layers, Loader2, FlaskConical, TrendingUp } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Layers, FlaskConical, TrendingUp } from "lucide-react";
 
 interface Cohort {
   dimension: string;
@@ -80,8 +81,31 @@ export function CohortInsights() {
     return (
       <Card>
         <CardBody>
-          <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-            <Loader2 size={14} className="animate-spin" /> Reading the cohorts…
+          {/* Header row — icon tile + title/subtitle */}
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-8 rounded-lg" />
+            <div>
+              <Skeleton className="h-3.5 w-28 rounded" />
+              <Skeleton className="mt-1.5 h-2.5 w-36 rounded" />
+            </div>
+          </div>
+
+          {/* Summary line */}
+          <Skeleton className="mt-3 h-3 w-3/4 rounded" />
+
+          {/* Placeholder cohort rows */}
+          <div className="mt-4 space-y-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="rounded-lg p-3" style={{ background: "var(--color-bg-page)" }}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Skeleton className="h-3.5 w-24 rounded" />
+                  <Skeleton className="h-2.5 w-14 rounded" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-2.5 w-40 rounded" />
+                </div>
+                <Skeleton className="mt-2 h-3 w-2/3 rounded" />
+              </div>
+            ))}
           </div>
         </CardBody>
       </Card>

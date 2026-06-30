@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Network, Loader2, Filter, Eye, EyeOff, RefreshCw, Info, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Network, Filter, Eye, EyeOff, RefreshCw, Info, ThumbsUp, ThumbsDown } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface GraphNode {
   id: string;
@@ -61,9 +62,17 @@ export default function GraphExplorerPage() {
   const [filterType, setFilterType] = useState<string | null>(null);
   const [showInvalid, setShowInvalid] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
+  // Toggling "show invalidated" reruns fetchGraph (showInvalid is one of its
+  // deps). We want that refetch to refresh in place — keep the current canvas
+  // visible — rather than flashing the full-page loading skeleton. The toggle
+  // sets this ref so the next fetchGraph runs silently; manual Refresh / retry
+  // leave it false and still show the skeleton.
+  const silentRefetch = useRef(false);
 
   const fetchGraph = useCallback(async () => {
-    setLoading(true);
+    const silent = silentRefetch.current;
+    silentRefetch.current = false;
+    if (!silent) setLoading(true);
     setLoadError(false);
     try {
       const [graphRes, statsRes] = await Promise.all([
@@ -212,8 +221,78 @@ export default function GraphExplorerPage() {
     return (
       <div className="flex h-full flex-col">
         <PageHeader icon={<Network size={15} />} title="Context Graph" subtitle="Loading..." />
-        <div className="flex flex-1 items-center justify-center">
-          <Loader2 size={20} className="animate-spin" style={{ color: "var(--color-accent)" }} />
+        <div className="flex flex-1 overflow-hidden">
+          {/* Canvas column — reserves the controls bar + graph area so the swap
+              to the real force-laid-out graph causes no reflow. */}
+          <div className="flex flex-1 flex-col overflow-hidden" style={{ background: "var(--color-bg-surface)" }}>
+            {/* Controls bar (mirrors the loaded filter pills + toggle + Refresh) */}
+            <div
+              className="flex items-center gap-2 px-4 py-2"
+              style={{ borderBottom: "0.5px solid var(--color-border-default)" }}
+            >
+              <Skeleton className="h-3 w-3 rounded" />
+              <Skeleton className="h-3 w-10 rounded" />
+              {[44, 60, 52, 56].map((w, i) => (
+                <Skeleton key={i} className="h-4 rounded-full" style={{ width: w }} />
+              ))}
+              <div className="ml-auto flex items-center gap-2">
+                <Skeleton className="h-3 w-28 rounded" />
+                <Skeleton className="h-7 w-20 rounded-md" />
+              </div>
+            </div>
+            {/* Graph area — scattered node placeholders */}
+            <div className="relative flex-1">
+              {[
+                { top: "24%", left: "30%", size: 48 },
+                { top: "40%", left: "56%", size: 48 },
+                { top: "62%", left: "38%", size: 44 },
+                { top: "30%", left: "72%", size: 40 },
+                { top: "70%", left: "64%", size: 40 },
+                { top: "52%", left: "20%", size: 40 },
+              ].map((n, i) => (
+                <Skeleton
+                  key={i}
+                  className="absolute rounded-full"
+                  style={{ top: n.top, left: n.left, width: n.size, height: n.size }}
+                />
+              ))}
+            </div>
+          </div>
+          {/* Detail-panel footprint (~320px, matches the w-80 selected-node panel) */}
+          <div
+            className="w-80 shrink-0"
+            style={{
+              borderLeft: "1px solid var(--color-border-default)",
+              background: "var(--color-bg-card)",
+            }}
+          >
+            <div className="px-4 py-3" style={{ borderBottom: "0.5px solid var(--color-border-default)" }}>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-3 w-3 rounded-full" />
+                <Skeleton className="h-4 w-32 rounded" />
+              </div>
+              <Skeleton className="mt-1.5 h-3 w-16 rounded" />
+              <Skeleton className="mt-2 h-3 w-full rounded" />
+              <Skeleton className="mt-1.5 h-3 w-3/4 rounded" />
+            </div>
+            <div className="space-y-2 px-4 py-3">
+              <Skeleton className="h-3 w-20 rounded" />
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-md p-2"
+                  style={{
+                    background: "var(--color-bg-surface)",
+                    border: "0.5px solid var(--color-border-default)",
+                  }}
+                >
+                  <Skeleton className="h-3 w-16 rounded" />
+                  <Skeleton className="mt-1.5 h-3 w-full rounded" />
+                  <Skeleton className="mt-1.5 h-3 w-1/2 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -273,7 +352,13 @@ export default function GraphExplorerPage() {
                 ))}
                 <div className="ml-auto flex items-center gap-2">
                   <button
-                    onClick={() => setShowInvalid(!showInvalid)}
+                    onClick={() => {
+                      // Refresh in place — flag the upcoming showInvalid-driven
+                      // refetch as silent so it keeps the current canvas visible
+                      // instead of flashing the full-page skeleton.
+                      silentRefetch.current = true;
+                      setShowInvalid(!showInvalid);
+                    }}
                     className="flex items-center gap-1 text-[10px]"
                     style={{ color: "var(--color-text-tertiary)" }}
                   >
