@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the flywheel so applyLearnedContext is exercised without a DB.
 // vi.hoisted keeps these defined before the hoisted vi.mock factory runs.
-const { getActivePrompt, getFewShotExamples } = vi.hoisted(() => ({
+const { getActivePrompt, getFewShotExamples, getPlaybookPromptBlock } = vi.hoisted(() => ({
   getActivePrompt: vi.fn(),
   getFewShotExamples: vi.fn(),
+  getPlaybookPromptBlock: vi.fn(),
 }));
 vi.mock("@/lib/evals/flywheel", () => ({ getActivePrompt, getFewShotExamples }));
+vi.mock("@/lib/playbook/get-playbook", () => ({ getPlaybookPromptBlock }));
 
 // Stub the infra siblings traced-ai imports at module load so the unit
 // under test stays hermetic (these are never called by the functions we
@@ -23,6 +25,9 @@ import { applyLearnedContext, injectFewShotExamples } from "@/lib/ai/traced-ai";
 beforeEach(() => {
   getActivePrompt.mockReset();
   getFewShotExamples.mockReset();
+  getPlaybookPromptBlock.mockReset();
+  // Default: no playbook entries -> the block is empty (the common case).
+  getPlaybookPromptBlock.mockResolvedValue("");
 });
 
 describe("injectFewShotExamples", () => {
@@ -125,5 +130,64 @@ describe("applyLearnedContext", () => {
     await expect(applyLearnedContext("x", params)).resolves.toBeUndefined();
     // No examples -> prompt untouched, no crash on the hot path.
     expect(params.prompt).toBe("q");
+  });
+});
+
+describe("applyLearnedContext — playbook injection", () => {
+  beforeEach(() => {
+    getActivePrompt.mockResolvedValue(null);
+    getFewShotExamples.mockResolvedValue([]);
+  });
+
+  it("appends the tenant playbook to the system prompt for an outbound-drafting agent", async () => {
+    getPlaybookPromptBlock.mockResolvedValue("PLAYBOOK BLOCK");
+
+    const params: Record<string, unknown> = { system: "BASE", prompt: "write a cold email" };
+    await applyLearnedContext("draft-email", params, "tenant-1");
+
+    expect(getPlaybookPromptBlock).toHaveBeenCalledWith("tenant-1");
+    expect(params.system).toBe("BASE\n\nPLAYBOOK BLOCK");
+  });
+
+  it("sets system to the playbook block when the caller passed none", async () => {
+    getPlaybookPromptBlock.mockResolvedValue("PLAYBOOK BLOCK");
+
+    const params: Record<string, unknown> = { prompt: "q" };
+    await applyLearnedContext("send-sequence-step", params, "tenant-1");
+
+    expect(params.system).toBe("PLAYBOOK BLOCK");
+  });
+
+  it("does not fetch the playbook for a non-drafting agent", async () => {
+    const params: Record<string, unknown> = { system: "BASE", prompt: "classify this" };
+    await applyLearnedContext("process-reply", params, "tenant-1");
+
+    expect(getPlaybookPromptBlock).not.toHaveBeenCalled();
+    expect(params.system).toBe("BASE");
+  });
+
+  it("does not fetch the playbook when there is no tenantId", async () => {
+    const params: Record<string, unknown> = { system: "BASE", prompt: "write a cold email" };
+    await applyLearnedContext("draft-email", params);
+
+    expect(getPlaybookPromptBlock).not.toHaveBeenCalled();
+    expect(params.system).toBe("BASE");
+  });
+
+  it("leaves the system prompt untouched when the tenant has no playbook (empty block)", async () => {
+    getPlaybookPromptBlock.mockResolvedValue("");
+
+    const params: Record<string, unknown> = { system: "BASE", prompt: "write a cold email" };
+    await applyLearnedContext("draft-email", params, "tenant-1");
+
+    expect(params.system).toBe("BASE");
+  });
+
+  it("never throws on the hot path when the playbook lookup fails", async () => {
+    getPlaybookPromptBlock.mockRejectedValue(new Error("db down"));
+
+    const params: Record<string, unknown> = { system: "BASE", prompt: "q" };
+    await expect(applyLearnedContext("draft-email", params, "tenant-1")).resolves.toBeUndefined();
+    expect(params.system).toBe("BASE");
   });
 });

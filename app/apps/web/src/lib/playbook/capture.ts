@@ -56,7 +56,14 @@ export function validatePlaybookEntry(
       error: `Invalid type '${c.type}' — must be one of ${PLAYBOOK_ENTRY_TYPES.join(", ")}`,
     };
   }
-  const content = typeof c.content === "string" ? c.content.trim() : "";
+  // Normalize whitespace to a single line before storing. Playbook
+  // entries are short single-thought learnings, and flattening newlines
+  // here (the shared sink contract for BOTH the LLM extractor and the
+  // manual POST) is defense-in-depth: it stops a multi-line snippet from
+  // later breaking out of its bullet when injected into a drafting
+  // system prompt. The consumer (get-playbook) also re-sanitizes.
+  const content =
+    typeof c.content === "string" ? c.content.replace(/\s+/g, " ").trim() : "";
   if (content.length < MIN_CONTENT_LENGTH) {
     return {
       ok: false,
