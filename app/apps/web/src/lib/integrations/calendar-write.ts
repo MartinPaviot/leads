@@ -80,6 +80,27 @@ function allAttendees(core: EventCore): Array<{ email: string; name?: string }> 
 }
 
 /**
+ * The extra invitees' emails — everyone in the attendee list except the
+ * prospect — for the Cc envelope on the CalDAV / SMTP paths, where the calendar
+ * backend does NOT email attendees itself (Google/Microsoft notify natively via
+ * sendUpdates/Graph, so they don't need this). `exclude` drops addresses already
+ * on the envelope (e.g. the organiser, who is Cc'd separately). Comma-joined for
+ * nodemailer; "" when there's no one to add.
+ */
+export function extraCcEmails(core: EventCore, exclude: string[] = []): string {
+  const skip = new Set([core.contactEmail.toLowerCase(), ...exclude.map((e) => e.toLowerCase())]);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const a of allAttendees(core)) {
+    const k = a.email.toLowerCase();
+    if (skip.has(k) || seen.has(k)) continue;
+    seen.add(k);
+    out.push(a.email);
+  }
+  return out.join(", ");
+}
+
+/**
  * Resolve the effective conferencing for the connected calendar:
  *  - "teams" only on Microsoft, "google_meet" only on Google (native to that
  *    calendar); requesting the wrong one falls back to the sovereign visio.
@@ -420,7 +441,10 @@ async function writeCalDavEvent(
     iCalString: ics,
   });
 
-  // CalDAV does not notify the attendee — send the invitation ourselves.
+  // CalDAV does not notify the attendees — send the invitation ourselves. The
+  // event is already on the organiser's own calendar, so Cc only the EXTRA
+  // invitees (the prospect is on To); without this they'd be in the .ics
+  // ATTENDEE list but never receive the email.
   if (box.smtpHost) {
     try {
       await sendViaSmtp(
@@ -433,6 +457,7 @@ async function writeCalDavEvent(
         },
         {
           to: core.contactEmail,
+          cc: extraCcEmails(core, [box.email]) || undefined,
           subject: core.title,
           html: htmlBody(core.title, link, core.agenda),
           icsInvite: { method: "REQUEST", content: ics, filename: "invite.ics" },
@@ -473,9 +498,12 @@ async function writeSmtpIcsEvent(
   });
 
   // The invitation IS the booking here — there's no calendar API. Send the iTIP
-  // REQUEST from the user's own mailbox to the prospect, Cc the organiser so it
-  // also files onto their calendar. A send failure means the booking failed
-  // (so we throw, unlike the CalDAV path where the event is already written).
+  // REQUEST from the user's own mailbox to the prospect, Cc the organiser (so it
+  // also files onto their calendar) AND any extra invitees (who'd otherwise only
+  // be in the .ics ATTENDEE list, never emailed). A send failure means the
+  // booking failed (so we throw, unlike CalDAV where the event is already
+  // written). The body carries the agenda too — not just the .ics description.
+  const cc = [box.email, extraCcEmails(core, [box.email])].filter(Boolean).join(", ");
   await sendViaSmtp(
     {
       emailAddress: box.email,
@@ -486,9 +514,9 @@ async function writeSmtpIcsEvent(
     },
     {
       to: core.contactEmail,
-      cc: box.email,
+      cc,
       subject: core.title,
-      html: htmlBody(core.title, link),
+      html: htmlBody(core.title, link, core.agenda),
       icsInvite: { method: "REQUEST", content: ics, filename: "invite.ics" },
     },
   );
