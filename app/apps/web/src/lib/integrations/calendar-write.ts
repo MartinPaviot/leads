@@ -286,8 +286,12 @@ async function writeGoogleEvent(
   wopts: WriteOpts,
 ): Promise<WriteResult> {
   const end = new Date(core.startTime.getTime() + core.durationMinutes * 60_000);
-  const start = { dateTime: core.startTime.toISOString() };
-  const endTime = { dateTime: end.toISOString() };
+  // timeZone is OPTIONAL for a single event (the Z-offset dateTime suffices) but
+  // REQUIRED for a recurring one — Google expands the RRULE in this zone. We pin
+  // "UTC" to match the UTC instant from toISOString() and the getUTCDay()/
+  // getUTCDate() basis used to build the RRULE + the Graph patternedRecurrence.
+  const start = { dateTime: core.startTime.toISOString(), timeZone: "UTC" };
+  const endTime = { dateTime: end.toISOString(), timeZone: "UTC" };
   const attendees = allAttendees(core).map((a) => ({ email: a.email, displayName: a.name }));
 
   if (wopts.native) {

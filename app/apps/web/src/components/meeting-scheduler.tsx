@@ -398,7 +398,12 @@ export function MeetingSchedulerCard({
       location: meetLocation,
       reminderMinutes: reminderMinutes ?? undefined,
       recurrence: recurFreq
-        ? { freq: recurFreq, count: recurCount && Number(recurCount) >= 2 ? Number(recurCount) : undefined }
+        ? {
+            freq: recurFreq,
+            // Clamp to the route's [2,52] window — an HTML max= doesn't block
+            // typing, so without this an over-large entry 400s the booking.
+            count: recurCount && Number(recurCount) >= 2 ? Math.min(52, Math.floor(Number(recurCount))) : undefined,
+          }
         : undefined,
     });
     setBooking(false);
