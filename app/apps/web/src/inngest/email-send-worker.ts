@@ -408,7 +408,11 @@ export const processOutboundEmails = inngest.createFunction(
           contactId: email.contactId, // spec 35 — account-scope suppression + targeting
         });
         if (!sendGate.send) {
-          if (sendGate.code === "primary-cap-hit") {
+          // P4: rate_limited is the same transient-condition shape as
+          // primary-cap-hit (a window that resets shortly) — requeue, don't
+          // fail the row, or a tenant-level rate-limit hit would silently
+          // drop a legitimate queued send instead of retrying it.
+          if (sendGate.code === "primary-cap-hit" || sendGate.code === "rate_limited") {
             await db
               .update(outboundEmails)
               .set({
@@ -733,7 +737,11 @@ export const sendSingleEmail = inngest.createFunction(
       contactId: email.contactId, // spec 35 — account-scope suppression + targeting
     });
     if (!singleGate.send) {
-      if (singleGate.code === "primary-cap-hit") {
+      // P4: rate_limited is the same transient-condition shape as
+      // primary-cap-hit (a window that resets shortly) — requeue, don't fail
+      // the row, or a tenant-level rate-limit hit would silently drop a
+      // legitimate queued send instead of retrying it.
+      if (singleGate.code === "primary-cap-hit" || singleGate.code === "rate_limited") {
         await db
           .update(outboundEmails)
           .set({

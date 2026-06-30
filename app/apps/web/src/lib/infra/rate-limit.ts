@@ -88,6 +88,27 @@ export function rateLimitVerifyEmailIp(ip: string): Promise<RateLimitResult> {
 }
 
 /**
+ * P4 (inbox deal-closer roadmap, volume hardening) — tenant-scoped send rate
+ * limit, checked inside lib/guardrails/sending-gate.ts#evaluateSend so it
+ * automatically covers every send chokepoint (campaign cron, single-send,
+ * SMTP cron, interactive composer, meeting follow-up).
+ *
+ * This is a SAFETY NET against a runaway loop/bug (a retry storm, a misfiring
+ * cron re-sending the same batch), NOT a product volume policy — that's a
+ * separate founder decision (max replies/hour per mailbox, post-warmup ramp)
+ * still pending. The numbers here are deliberately generous specifically so
+ * they never throttle legitimate human-paced or autopilot-paced sending —
+ * only an obviously-broken loop blows past either window. Tune down once the
+ * founder sets the real per-mailbox/tenant policy.
+ */
+export function rateLimitTenantSendBurst(tenantId: string): Promise<RateLimitResult> {
+  return rateLimit(`send:tenant:${tenantId}:burst`, 60, 60 * 1000);
+}
+export function rateLimitTenantSendHourly(tenantId: string): Promise<RateLimitResult> {
+  return rateLimit(`send:tenant:${tenantId}:hourly`, 600, 60 * 60 * 1000);
+}
+
+/**
  * Apply rate limiting and return 429 if exceeded.
  * Returns null if allowed, or a Response to return immediately.
  */

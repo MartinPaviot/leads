@@ -186,6 +186,19 @@ describe("C1 processOutboundEmails — sending gate wired", () => {
     expect(resendSend).not.toHaveBeenCalled();
   });
 
+  // P4 (volume hardening): a tenant-rate-limit hit is the SAME transient-
+  // condition shape as primary-cap-hit (a window that resets shortly) — it
+  // must re-queue, not permanently fail the row (which would silently drop
+  // a legitimate queued send instead of retrying it).
+  it("rate_limited -> row re-queued (recoverable), resend never called", async () => {
+    store = [row({ id: "r1" })];
+    evaluateSend.mockResolvedValue({ send: false, code: "rate_limited", reason: "rate limit" });
+    await handler({ step: fakeStep });
+    expect(store[0].status).toBe("queued");
+    expect(store[0].errorMessage).toBe("rate limit");
+    expect(resendSend).not.toHaveBeenCalled();
+  });
+
   it("allowed -> proceeds PAST the gate (not blocked by cold/cap)", async () => {
     // The module-level `resend` is null when RESEND_API_KEY is unset in the test
     // env, so an allowed send fails at the transport stage with that reason — which

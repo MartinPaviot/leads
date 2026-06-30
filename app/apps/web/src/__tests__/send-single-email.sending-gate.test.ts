@@ -161,6 +161,18 @@ describe("C2 sendSingleEmail — sending gate wired", () => {
     expect(resendSend).not.toHaveBeenCalled();
   });
 
+  // P4 (volume hardening): a tenant-rate-limit hit is the SAME transient-
+  // condition shape as primary-cap-hit (a window that resets shortly) — it
+  // must re-queue, not permanently fail the row.
+  it("rate_limited -> re-queued, no transport", async () => {
+    store = [row({ id: "e1" })];
+    evaluateSend.mockResolvedValue({ send: false, code: "rate_limited", reason: "rate limit" });
+    await handler({ event: { data: { emailId: "e1" } }, step: fakeStep });
+    expect(store[0].status).toBe("queued");
+    expect(store[0].errorMessage).toBe("rate limit");
+    expect(resendSend).not.toHaveBeenCalled();
+  });
+
   it("allowed -> proceeds past the gate", async () => {
     store = [row({ id: "e1" })];
     evaluateSend.mockResolvedValue({ send: true, reason: "warm under cap" });
