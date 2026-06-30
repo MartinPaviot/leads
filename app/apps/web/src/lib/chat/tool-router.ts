@@ -97,6 +97,7 @@ const TOOL_GROUPS: Record<string, string> = {
   renameAccountList: "update",
   deleteAccountList: "action",
   enrollAccountListInSequence: "action",
+  runAutopilotForAccountList: "action",
 
   // create (create.ts)
   createContact: "create",

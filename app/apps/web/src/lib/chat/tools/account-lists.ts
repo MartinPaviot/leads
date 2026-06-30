@@ -31,6 +31,7 @@ import { guardEnrollment } from "@/lib/anti-collision/enroll-guard";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { readApprovalMode, enforceAgentApprovalMode } from "@/lib/guardrails/approval-mode";
 import { recordAgentAction } from "@/lib/agents/agent-actions";
+import { runAutopilotForList } from "@/lib/autopilot/deps";
 
 /** Bound a single bulk list-enroll. The send pipeline rate-limits actual sends;
  * this just keeps one enroll call from creating an unbounded row burst. */
@@ -242,6 +243,28 @@ export function buildAccountListTools(ctx: ToolContext) {
           enrolled++;
         }
         return { enrolled, skipped, queued: 0, list: list.name, sequence: seq.name, capped };
+      },
+    }),
+
+    runAutopilotForAccountList: makeTool({
+      description:
+        "Run the autopilot SCOPED to one account list: for each member company it ROUTES to the best-matching active sequence (by ICP + signal) and enrolls the best reachable contact — or DRAFTS it for review when the workspace approval mode isn't auto. Respects capacity, the daily budget, targeting, every eligibility/suppression/anti-collision gate, and the autopilot pause switch. Distinct from enrollAccountListInSequence (which puts ALL the list's contacts into ONE sequence you name); this routes per-company and is budget-bounded. Use when the user says 'run the autopilot on my X list', 'work my Hot Leads list', 'target this list with the autopilot'.",
+      inputSchema: z.object({ ...listRef }),
+      execute: async (input) => {
+        const list = await resolveListRef(tenantId, input);
+        if (!list) return { error: "List not found." };
+        const s = await runAutopilotForList(tenantId, list.id, new Date());
+        // skipped reasons: paused | no_capacity | budget_zero | no_active_sequence | no_candidates
+        return {
+          list: list.name,
+          budget: s.budget,
+          selected: s.selected,
+          prepared: s.prepared,
+          enrolled: s.enrolled,
+          drafted: s.drafted,
+          errors: s.errors,
+          ...(s.skipped ? { skipped: s.skipped } : {}),
+        };
       },
     }),
   };

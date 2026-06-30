@@ -13,7 +13,7 @@
  */
 
 import { db as defaultDb } from "@/db";
-import { companies, contacts, sequenceEnrollments, emailOptouts } from "@/db/schema";
+import { companies, contacts, sequenceEnrollments, emailOptouts, accountListMembers } from "@/db/schema";
 import { and, eq, isNull, inArray, sql } from "drizzle-orm";
 import type { ProspectCandidate } from "./select";
 import { personFromSignals, type SignalEntry, type SignalPerson } from "@/lib/signals/record-signal";
@@ -141,15 +141,27 @@ const EMPTY: CandidatePool = { candidates: [], alreadyEnrolledContactIds: new Se
  * their best reachable contact, and the already-enrolled + suppressed sets. The
  * caller (the cron) feeds these into `selectProspects` to take the top `budget`.
  */
-export async function loadCandidates(tenantId: string, limit: number, database: typeof defaultDb = defaultDb): Promise<CandidatePool> {
+export async function loadCandidates(tenantId: string, limit: number, database: typeof defaultDb = defaultDb, listId?: string): Promise<CandidatePool> {
   if (!Number.isFinite(limit) || limit <= 0) return EMPTY;
 
   // 1. Top targeted, non-excluded, live companies by priority_score (desc, nulls last).
   //    `properties` carries signals[] → the signal→person hint for routing.
+  //    When `listId` is set (on-demand list-scoped run), restrict the source set
+  //    to that account list's member companies — every other gate (targeting,
+  //    excluded, eligibility, budget) still applies on top, so a list run is a
+  //    NARROWING of the daily run, never a bypass.
   const cos = await database
     .select({ id: companies.id, priorityScore: companies.priorityScore, computedAt: companies.priorityScoreComputedAt, properties: companies.properties })
     .from(companies)
-    .where(and(eq(companies.tenantId, tenantId), eq(companies.targetingStatus, "targeted"), isNull(companies.excludedReason), isNull(companies.deletedAt)))
+    .where(and(
+      eq(companies.tenantId, tenantId),
+      eq(companies.targetingStatus, "targeted"),
+      isNull(companies.excludedReason),
+      isNull(companies.deletedAt),
+      listId
+        ? inArray(companies.id, database.select({ id: accountListMembers.companyId }).from(accountListMembers).where(eq(accountListMembers.listId, listId)))
+        : undefined,
+    ))
     .orderBy(sql`${companies.priorityScore} desc nulls last`)
     .limit(Math.floor(limit));
   if (cos.length === 0) return EMPTY;
