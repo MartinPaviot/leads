@@ -295,6 +295,9 @@ const ROUTE_CAPABILITY_RULES: readonly RouteCapRule[] = [
   // Hydrate existing accounts with LinkedIn firmographics from YOUR seat — same
   // member self-serve posture as source (the per-tenant seat cap gates spend).
   { prefix: "/api/linkedin/hydrate-accounts", write: "outbound:send" },
+  // Source warm leads from post engagement (reactors/commenters) — same posture.
+  // (Explicit, though the /api/linkedin/source prefix already covers it.)
+  { prefix: "/api/linkedin/source-from-engagement", write: "outbound:send" },
   { prefix: "/api/sequences", write: "sequences:write", del: "sequences:delete" },
   { prefix: "/api/meetings", write: "deals:write" }, // notes / follow-up = member
   { prefix: "/api/contacts", write: "contacts:write", del: "contacts:delete" },
