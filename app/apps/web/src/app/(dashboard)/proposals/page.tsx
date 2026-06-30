@@ -5,6 +5,7 @@ import { FileText } from "lucide-react";
 import { z } from "zod";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
 import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DATA_KEYS,
   type Component,
@@ -94,6 +95,15 @@ function definePageAction<P>(a: PageAction<P>): PageAction {
 
 export default function ProposalsPage() {
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
+  // Loading flags so neither the list nor the detail panel shows a stale/false
+  // state before its fetch resolves: `listLoading` stays true until the first
+  // loadList resolves (no empty-state flash); `detailLoading` gates the detail
+  // panel while openTemplate is in flight (no stale A while switching to B).
+  const [listLoading, setListLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  // The id being opened — highlights the clicked row optimistically while its
+  // detail loads (falls back to the loaded `selected` once resolved).
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const [selected, setSelected] = useState<TemplateDetail | null>(null);
   const [draft, setDraft] = useState<ComponentMap | null>(null);
   const [busy, setBusy] = useState(false);
@@ -137,6 +147,10 @@ export default function ProposalsPage() {
       }
     } catch {
       setNotice("Could not load your templates. Please refresh or try again.");
+    } finally {
+      // First resolution flips this off for good (subsequent refreshes after an
+      // upload/confirm don't re-show the skeleton over an already-loaded list).
+      setListLoading(false);
     }
   }, []);
 
@@ -146,20 +160,27 @@ export default function ProposalsPage() {
 
   const openTemplate = useCallback(async (id: string) => {
     setNotice(null);
-    const res = await fetch(`/api/proposals/templates/${id}`);
-    if (!res.ok) {
-      setNotice("Could not load that template.");
-      return;
+    setOpeningId(id);
+    setDetailLoading(true);
+    try {
+      const res = await fetch(`/api/proposals/templates/${id}`);
+      if (!res.ok) {
+        setNotice("Could not load that template.");
+        return;
+      }
+      const d = (await res.json()) as { template: TemplateDetail };
+      setSelected(d.template);
+      setDraft(d.template.componentMap ?? null);
+      setFilled(null);
+      setEdits({});
+      setDealId("");
+      setSelectedDealLabel("");
+      setDealQuery("");
+      setDealMenuOpen(false);
+    } finally {
+      setDetailLoading(false);
+      setOpeningId(null);
     }
-    const d = (await res.json()) as { template: TemplateDetail };
-    setSelected(d.template);
-    setDraft(d.template.componentMap ?? null);
-    setFilled(null);
-    setEdits({});
-    setDealId("");
-    setSelectedDealLabel("");
-    setDealQuery("");
-    setDealMenuOpen(false);
   }, []);
 
   // Search deals as the user types in the picker (debounced). Empty query
@@ -595,42 +616,84 @@ export default function ProposalsPage() {
           className="w-72 shrink-0 overflow-y-auto p-2"
           style={{ borderRight: "1px solid var(--color-border-default)" }}
         >
-          {templates.length === 0 && (
-            <div className="p-4 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-              No templates yet. Upload a .docx proposal template to begin.
+          {listLoading ? (
+            // Placeholder rows that reserve the two-line button footprint, so the
+            // real list (or the empty state) swaps in with no reflow — no false
+            // "No templates yet" flash before the first fetch resolves.
+            <div aria-hidden>
+              {[72, 55, 83, 60, 76, 50].map((w, i) => (
+                <div key={i} className="mb-1 flex flex-col gap-1.5 rounded-md px-3 py-2">
+                  <Skeleton className="h-3 rounded" style={{ width: `${w}%` }} />
+                  <Skeleton className="h-2 w-12 rounded" />
+                </div>
+              ))}
             </div>
+          ) : (
+            <>
+              {templates.length === 0 && (
+                <div className="p-4 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  No templates yet. Upload a .docx proposal template to begin.
+                </div>
+              )}
+              {templates.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => void openTemplate(t.id)}
+                  className="mb-1 flex w-full flex-col items-start rounded-md px-3 py-2 text-left transition-colors"
+                  style={{
+                    background: (openingId ?? selected?.id) === t.id ? "var(--color-accent-soft)" : "transparent",
+                  }}
+                >
+                  <span
+                    className="truncate text-[13px] font-medium"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    {t.name}
+                  </span>
+                  <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                    {STATUS_LABEL[t.status] ?? t.status}
+                  </span>
+                </button>
+              ))}
+            </>
           )}
-          {templates.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => void openTemplate(t.id)}
-              className="mb-1 flex w-full flex-col items-start rounded-md px-3 py-2 text-left transition-colors"
-              style={{
-                background: selected?.id === t.id ? "var(--color-accent-soft)" : "transparent",
-              }}
-            >
-              <span
-                className="truncate text-[13px] font-medium"
-                style={{ color: "var(--color-text-primary)" }}
-              >
-                {t.name}
-              </span>
-              <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                {STATUS_LABEL[t.status] ?? t.status}
-              </span>
-            </button>
-          ))}
         </div>
 
         {/* Review panel */}
         <div className="min-w-0 flex-1 overflow-y-auto p-6">
-          {!selected && (
+          {detailLoading && (
+            // Reserve the loaded header + component-row footprint so switching
+            // templates never leaves the previous template's panel on screen.
+            <div className="mx-auto max-w-3xl">
+              <div className="mb-4">
+                <Skeleton className="h-4 w-48 rounded" />
+                <Skeleton className="mt-1.5 h-3 w-32 rounded" />
+              </div>
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 rounded-md p-2"
+                    style={{ border: "1px solid var(--color-border-default)" }}
+                  >
+                    <Skeleton className="h-7 w-20 rounded" />
+                    <Skeleton className="h-7 flex-1 rounded" />
+                    <Skeleton className="h-7 w-28 rounded" />
+                    <Skeleton className="h-4 w-10 rounded" />
+                    <Skeleton className="h-6 w-14 rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!detailLoading && !selected && (
             <div className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
               Select a template to review its detected components.
             </div>
           )}
 
-          {selected && (
+          {!detailLoading && selected && (
             <div className="mx-auto max-w-3xl">
               <div className="mb-4">
                 <div className="text-[15px] font-semibold" style={{ color: "var(--color-text-primary)" }}>

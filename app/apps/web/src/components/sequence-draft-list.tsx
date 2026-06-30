@@ -18,6 +18,7 @@
  */
 
 import { Mail, Clock } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export interface DraftListItem {
   id: string;
@@ -175,6 +176,12 @@ export function SequenceDraftList({
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
+        {/* Initial / status-switch load — show row skeletons that reserve the
+            draft-row footprint instead of mapping stale drafts. Append loads
+            (drafts already present) keep the list and surface the inline
+            "Loading…" on the Load more button. */}
+        {drafts.length === 0 && loading && <DraftListSkeleton />}
+
         {drafts.length === 0 && !loading && (
           <EmptyState status={status} />
         )}
@@ -290,6 +297,31 @@ export function SequenceDraftList({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Footprint skeleton for the draft list rail — ~6 rows matching the
+ *  draft-row layout (subject + status pill, time meta, 2-line preview) so the
+ *  swap to real drafts causes no reflow. */
+function DraftListSkeleton() {
+  return (
+    <div aria-hidden>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="skeleton-row border-b p-3"
+          style={{ borderColor: "var(--color-border-default)" }}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <Skeleton className="h-3.5 rounded" style={{ width: "60%" }} />
+            <Skeleton className="h-3.5 w-12 rounded-full" />
+          </div>
+          <Skeleton className="mt-2 h-2.5 w-28 rounded" />
+          <Skeleton className="mt-2 h-2.5 w-full rounded" />
+          <Skeleton className="mt-1.5 h-2.5 w-3/4 rounded" />
+        </div>
+      ))}
     </div>
   );
 }

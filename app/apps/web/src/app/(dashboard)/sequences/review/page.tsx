@@ -485,6 +485,9 @@ export default function ReviewQueuePage() {
               setStatus(s);
               setSelectedDraftId(null);
               setSelectedIds(new Set());
+              // Drop the previous status' rows immediately so the list shows
+              // its loading skeleton instead of stale drafts during the refetch.
+              setDrafts([]);
             }}
             hasMore={hasMore}
             onLoadMore={() =>
@@ -513,7 +516,9 @@ export default function ReviewQueuePage() {
             >
               <p className="text-[13px]">
                 {drafts.length === 0
-                  ? "Nothing to review here."
+                  ? loading
+                    ? "Loading…"
+                    : "Nothing to review here."
                   : "Select a draft to preview."}
               </p>
             </div>

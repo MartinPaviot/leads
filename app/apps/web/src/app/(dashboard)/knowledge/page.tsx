@@ -319,7 +319,7 @@ export default function KnowledgePage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search knowledge..."
-            className="rounded-md px-3 py-1.5 text-[13px]"
+            className="h-7 rounded-md px-3 text-[13px]"
             style={{ width: 220, background: "var(--color-bg-card)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
           />
           <Button

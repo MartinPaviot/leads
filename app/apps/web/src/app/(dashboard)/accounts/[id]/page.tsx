@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge, IndustryBadge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
-import { DetailPageSkeleton } from "@/components/ui/skeleton";
+import { DetailPageSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { OwnerSelect } from "@/components/owner-select";
 import { useToast } from "@/components/ui/toast";
 import { displayScore } from "@/lib/util/ui-utils";
@@ -72,6 +72,7 @@ export default function AccountDetailPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [contacts, setContacts] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; title: string | null }>>([]);
   const [loading, setLoading] = useState(true);
+  const [contactsLoading, setContactsLoading] = useState(true);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -90,7 +91,8 @@ export default function AccountDetailPage() {
           fetch(`/api/contacts?companyId=${accountId}`)
             .then((r) => (r.ok ? r.json() : { contacts: [] }))
             .then((cd) => setContacts(cd.contacts || cd.items || []))
-            .catch((e) => console.warn("account-detail: contacts fetch failed", e));
+            .catch((e) => console.warn("account-detail: contacts fetch failed", e))
+            .finally(() => setContactsLoading(false));
           const props = data.account?.properties as Record<string, unknown> | null;
           if (props) {
             setAiSummary((props.ai_account_summary as string) || null);
@@ -505,7 +507,18 @@ export default function AccountDetailPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
             Contacts ({contacts.length})
           </h2>
-          {contacts.length === 0 ? (
+          {contactsLoading ? (
+            <div className="mt-2 space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Card key={i}>
+                  <CardBody>
+                    <Skeleton className="h-4 rounded" style={{ width: `${60 + (i * 13) % 25}%` }} />
+                    <Skeleton className="mt-1 h-3 rounded" style={{ width: `${40 + (i * 11) % 20}%` }} />
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          ) : contacts.length === 0 ? (
             <p className="mt-2 text-sm text-[var(--color-text-tertiary)]">No contacts linked to this account yet.</p>
           ) : (
             <div className="mt-2 space-y-2">

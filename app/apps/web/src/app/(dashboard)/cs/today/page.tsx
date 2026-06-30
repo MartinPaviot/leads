@@ -4,10 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Calendar, AlertTriangle, ShieldCheck } from "lucide-react";
 import {
-  AIThinking,
   ConfidenceState,
   type ConfidenceLevel,
 } from "@/components/ai-ui";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * MONACO-PARITY-CS — daily priority queue page.
@@ -104,7 +104,13 @@ export default function CsTodayPage() {
         </button>
       </header>
 
-      {loading && <AIThinking step="Loading today's priority queue…" />}
+      {loading && (
+        <ul className="space-y-2" aria-hidden>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CsTodayCardSkeleton key={i} index={i} />
+          ))}
+        </ul>
+      )}
 
       {error && !loading && (
         <div
@@ -146,6 +152,50 @@ export default function CsTodayPage() {
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * Loading footprint — mirrors the loaded {@link CsTodayCard} box
+ * ('rounded-xl p-4' with the 3px left rail) so the queue's vertical
+ * space is reserved on first load and on refresh, with no reflow when
+ * the real cards swap in. Avatar circle + title line + 5 component
+ * chips, matching the loaded card's anatomy.
+ */
+function CsTodayCardSkeleton({ index = 0 }: { index?: number }) {
+  const chipWidths = [54, 70, 78, 60, 58];
+  return (
+    <li>
+      <div
+        className="skeleton-row flex items-start gap-3 rounded-xl p-4"
+        style={{
+          background: "var(--color-bg-card)",
+          border: "1px solid var(--color-border-default)",
+          borderLeft: "3px solid var(--color-border-default)",
+        }}
+      >
+        {/* Avatar */}
+        <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+
+        <div className="min-w-0 flex-1 space-y-2">
+          {/* Title line */}
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-3.5 rounded" style={{ width: `${44 + ((index * 17) % 30)}%` }} />
+            <Skeleton className="h-4 w-16 rounded-full" />
+          </div>
+
+          {/* Component chip row */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {chipWidths.map((w, i) => (
+              <Skeleton key={i} className="h-4 rounded-full" style={{ width: w }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Right-side tail */}
+        <Skeleton className="h-3 w-10 shrink-0 rounded" />
+      </div>
+    </li>
   );
 }
 

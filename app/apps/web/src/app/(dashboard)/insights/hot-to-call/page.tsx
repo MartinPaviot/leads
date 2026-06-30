@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { Phone, MousePointerClick, Eye, Globe, Flame } from "lucide-react";
@@ -194,22 +195,69 @@ export default function HotToCallPage() {
           </div>
         )}
 
-        {!loading && items.length === 0 && (
-          <EmptyState hours={windowHours} />
+        {/* Four-state list (mirrors the Playbook page's refresh handling):
+            first paint with no data → a card skeleton reserving the list;
+            a window-chip switch / poll with existing cards → keep them but
+            dim + aria-busy + a "Refreshing…" cue (was H2: the chip switch
+            silently kept stale cards with no cue); empty only on a settled
+            fresh fetch. */}
+        {loading && items.length === 0 ? (
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <HotCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : (
+          <>
+            {loading && items.length > 0 && (
+              <p
+                className="mb-2 text-[11px]"
+                style={{ color: "var(--color-text-tertiary)" }}
+              >
+                Refreshing…
+              </p>
+            )}
+            {!loading && items.length === 0 && (
+              <EmptyState hours={windowHours} />
+            )}
+            <div
+              className="space-y-2 transition-opacity"
+              aria-busy={loading && items.length > 0}
+              style={{ opacity: loading && items.length > 0 ? 0.5 : 1 }}
+            >
+              {items.map((item) => (
+                <HotCard
+                  key={item.contactId}
+                  item={item}
+                  onCall={startCall}
+                  dialing={dialingContactId === item.contactId}
+                />
+              ))}
+            </div>
+          </>
         )}
-
-        <div className="space-y-2">
-          {items.map((item) => (
-            <HotCard
-              key={item.contactId}
-              item={item}
-              onCall={startCall}
-              dialing={dialingContactId === item.contactId}
-            />
-          ))}
-        </div>
       </div>
     </div>
+  );
+}
+
+function HotCardSkeleton() {
+  return (
+    <Card>
+      <CardBody>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <Skeleton className="h-3.5 w-40 rounded" />
+            <Skeleton className="mt-1.5 h-2.5 w-56 rounded" />
+            <Skeleton className="mt-2.5 h-3 w-48 rounded" />
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <Skeleton className="h-3 w-24 rounded" />
+            <Skeleton className="h-6 w-16 rounded" />
+          </div>
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 

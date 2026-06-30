@@ -11,7 +11,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Loader2, Target, Check, AlertCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TrendingUp, Target, Check, AlertCircle } from "lucide-react";
 
 interface ForecastData {
   windowDays: number;
@@ -113,8 +114,46 @@ export function RevenueForecast() {
     return (
       <Card>
         <CardBody>
-          <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-            <Loader2 size={14} className="animate-spin" /> Computing the revenue forecast…
+          {/* Header row — icon tile + title/subtitle + confidence badge */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-8 rounded-lg" />
+              <div>
+                <Skeleton className="h-3.5 w-32 rounded" />
+                <Skeleton className="mt-1.5 h-2.5 w-40 rounded" />
+              </div>
+            </div>
+            <Skeleton className="h-5 w-24 rounded-full" />
+          </div>
+
+          {/* Revenue range — the headline number + range caption */}
+          <div className="mt-4 flex items-end gap-3">
+            <Skeleton className="h-7 w-28 rounded" />
+            <Skeleton className="mb-0.5 h-3 w-44 rounded" />
+          </div>
+          <Skeleton className="mt-2 h-3 w-56 rounded" />
+
+          {/* Bottleneck box */}
+          <div className="mt-4 rounded-lg p-3" style={{ background: "var(--color-bg-page)" }}>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 w-32 rounded-full" />
+              <Skeleton className="h-3 w-40 rounded" />
+            </div>
+            <Skeleton className="mt-2 h-3 w-full rounded" />
+            <Skeleton className="mt-1.5 h-3 w-2/3 rounded" />
+          </div>
+
+          {/* Funnel rates */}
+          <div className="mt-4">
+            <Skeleton className="h-2.5 w-24 rounded" />
+            <div className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+              {Array.from({ length: STAGE_ORDER.length }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <Skeleton className="h-3 w-28 rounded" />
+                  <Skeleton className="h-3 w-14 rounded" />
+                </div>
+              ))}
+            </div>
           </div>
         </CardBody>
       </Card>

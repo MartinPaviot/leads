@@ -311,6 +311,7 @@ export default function OpportunitiesPage() {
 
   const fetchDeals = useCallback(async () => {
     try {
+      setLoading(true);
       setDealsError(false);
       const params = new URLSearchParams();
       if (viewDeleted) params.set("deleted", "true");
