@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Factory, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, GitMerge, Trash2, Archive, RotateCcw, Loader2, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { Users, Search, Plus, Zap, X, Upload, Mail, Briefcase, Factory, Phone, Gauge, ExternalLink, Clock, ChevronDown, ChevronUp, History, Trash2, Archive, RotateCcw, Loader2, SlidersHorizontal, Send, type LucideIcon } from "lucide-react";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
 import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
 import type { EntityLocator } from "@/lib/chat/page-actions/registry";
@@ -159,6 +159,20 @@ export default function ContactsPage() {
   // "Score all contacts" (header More menu): true while the tenant-wide
   // ICP-fit run is in flight, so the item can't double-fire.
   const [scoringAll, setScoringAll] = useState(false);
+  // Active, enrollable sequences for the selection bar's "Contacter" menu.
+  // Fetched once; only active sequences WITH steps can actually enroll.
+  const [activeSequences, setActiveSequences] = useState<Array<{ id: string; name: string }>>([]);
+  useEffect(() => {
+    fetch("/api/sequences")
+      .then((r) => (r.ok ? r.json() : { sequences: [] }))
+      .then((d) => {
+        const seqs = (Array.isArray(d) ? d : d.sequences ?? []) as Array<{ id: string; name: string; status?: string; stepCount?: number }>;
+        setActiveSequences(
+          seqs.filter((s) => (s.status ?? "active") === "active" && (s.stepCount ?? 0) > 0).map((s) => ({ id: s.id, name: s.name })),
+        );
+      })
+      .catch(() => {});
+  }, []);
   // Per-column header filters (Notion / Excel style), parity with Accounts.
   const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterState>>({});
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
@@ -700,6 +714,67 @@ export default function ContactsPage() {
     }
   }
 
+  // Score the SELECTION against the ICP profiles (the by-ids variant of
+  // score-all; the same endpoint already accepts contactIds).
+  async function bulkScoreSelected() {
+    const ids = Array.from(selectedRows);
+    if (ids.length === 0) return;
+    toast(`Scoring ${ids.length} contact${ids.length === 1 ? "" : "s"}…`, "info");
+    try {
+      const res = await fetch("/api/score-contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactIds: ids }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; scored?: number };
+      if (!res.ok) {
+        toast(data.error ?? `Scoring failed (${res.status})`, "error");
+        return;
+      }
+      await refetchLoadedContacts();
+      toast(`Scored ${data.scored ?? 0} contact${(data.scored ?? 0) === 1 ? "" : "s"} against your ICP profiles.`, "success");
+    } catch (e) {
+      toast("Scoring failed — network error.", "error");
+      console.warn("contacts: score selected failed", e);
+    }
+  }
+
+  // "Contacter" — enroll the selected contacts into a sequence. The enroll
+  // endpoint applies every gate (no email / deleted / suppressed / anti-ICP /
+  // already-enrolled / anti-collision); sends stay gated downstream by
+  // evaluateSend. Chunked 100/call (the endpoint's per-request cap).
+  async function bulkEnrollInSequence(sequenceId: string, sequenceName: string) {
+    const ids = Array.from(selectedRows);
+    if (ids.length === 0) return;
+    toast(`Enrolling ${ids.length} contact${ids.length === 1 ? "" : "s"} in "${sequenceName}"…`, "info");
+    let enrolled = 0;
+    let skipped = 0;
+    try {
+      for (let i = 0; i < ids.length; i += 100) {
+        const res = await fetch(`/api/sequences/${sequenceId}/enroll`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contactIds: ids.slice(i, i + 100) }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (enrolled === 0) { toast(data?.error || "Couldn't enroll the selection.", "error"); return; }
+          break; // partial run — report what landed
+        }
+        enrolled += data.enrolled ?? 0;
+        skipped += data.skipped ?? 0;
+      }
+      setSelectedRows(new Set());
+      toast(
+        `Enrolled ${enrolled} contact${enrolled === 1 ? "" : "s"} in "${sequenceName}"${skipped > 0 ? ` · ${skipped} skipped (no email / deleted / suppressed / already enrolled).` : "."}`,
+        "success",
+      );
+    } catch (e) {
+      toast("Enrollment request failed — network error.", "error");
+      console.warn("contacts: bulk enroll failed", e);
+    }
+  }
+
   // Header-checkbox "select all": select EVERY contact matching the active
   // search/filters — the server resolves the full id set with the exact WHERE
   // the list and its count use — not just the loaded page. The loaded rows
@@ -1152,34 +1227,20 @@ export default function ContactsPage() {
       {/* Selection bar lives BELOW the filter bar now (see <BulkActionsBar>
           after </FilterBar>) so checking rows can't push the header down. */}
       <PageHeader icon={<Users size={16} />} title="Contacts" subtitle={`${totalContacts}`}>
-        {/* Enrich lives in the selection bar — it only makes sense once
-            contacts are checked. Secondary controls (views, tenant-wide
-            actions) group behind the same More menu as Accounts.
-            "Find duplicates" is gone on purpose (founder rule
-            2026-06-11): duplicates must never exist in the first place —
-            dedup belongs upstream in the import/extract paths, and
-            merging a checked selection stays available in the bulk bar. */}
-        <MoreMenu
-          label="More"
-          items={[
-            {
-              label: "Archive",
-              icon: <Archive size={13} />,
-              checked: viewDeleted,
-              onClick: () => { setViewDeleted((v) => !v); setSelectedRows(new Set()); },
-            },
-            {
-              label: scoringAll ? "Scoring contacts…" : "Score all contacts",
-              hint: "Recompute ICP fit for every contact",
-              icon: <Gauge size={13} />,
-              divider: true,
-              disabled: scoringAll,
-              onClick: () => { void scoreAllContacts(); },
-            },
-          ]}
-        />
+        {/* All per-selection actions live in the selection bar (they only make
+            sense once contacts are checked). The header keeps just the
+            always-on controls: Archive (a one-click view toggle, not a menu),
+            import, create. The old header "More" held only Archive + "Score
+            all" — sparse and pointless up here; "score all" stays reachable via
+            the chat agent (the contacts.scoreAll page-action). "Find
+            duplicates" is gone by founder rule (2026-06-11): dedup belongs
+            upstream — merging is in the chat agent (mergeContacts) for the rare
+            case, no longer a bulk-bar button. */}
         {!viewDeleted && (
           <>
+            <Button variant="outline" size="sm" icon={<Archive size={12} />} onClick={() => { setViewDeleted(true); setSelectedRows(new Set()); }} title="View archived contacts">
+              Archive
+            </Button>
             <Button variant="outline" size="sm" icon={<Upload size={12} />} onClick={() => setShowSmartImport(true)} style={{ color: "var(--color-accent)" }}>
               Smart Import
             </Button>
@@ -1288,9 +1349,11 @@ export default function ContactsPage() {
         </div>
       </FilterBar>
 
-      {/* Selection bar — placed UNDER the filter bar so checking rows never
-          shifts the header. Enrich actions group into one dropdown; Merge +
-          Delete stay visible (Merge is contextual, Delete is destructive). */}
+      {/* Selection bar — under the filter bar so checking rows never shifts the
+          header. "Contacter" (enroll into a sequence) is the headline outreach
+          action; the rest of the per-selection actions group into one "Plus"
+          menu; Delete stays visible (destructive). Merge was removed (founder:
+          dedup is upstream; the chat agent still merges via mergeContacts). */}
       <BulkActionsBar
         count={selectedRows.size}
         countLabel={t("bulk.selected", { n: selectedRows.size })}
@@ -1298,13 +1361,24 @@ export default function ContactsPage() {
         onClear={() => setSelectedRows(new Set())}
         primary={
           viewDeleted ? null : (
-            <MoreMenu
-              label={t("bulk.menu.enrich")}
-              items={[
-                { label: t("bulk.enrich"), icon: <Zap size={13} />, onClick: bulkEnrichSelected },
-                { label: t("bulk.findMobile"), icon: <Phone size={13} />, onClick: bulkFindMobile },
-              ]}
-            />
+            <>
+              <MoreMenu
+                label={t("bulk.menu.contact")}
+                items={
+                  activeSequences.length > 0
+                    ? activeSequences.map((s) => ({ label: s.name, icon: <Send size={13} />, onClick: () => bulkEnrollInSequence(s.id, s.name) }))
+                    : [{ label: t("bulk.contact.noSequence"), icon: <Send size={13} />, onClick: () => router.push("/sequences") }]
+                }
+              />
+              <MoreMenu
+                label={t("bulk.menu.more")}
+                items={[
+                  { label: t("bulk.enrich"), icon: <Zap size={13} />, onClick: bulkEnrichSelected },
+                  { label: t("bulk.findMobile"), icon: <Phone size={13} />, onClick: bulkFindMobile },
+                  { label: t("bulk.score"), icon: <Gauge size={13} />, divider: true, onClick: bulkScoreSelected },
+                ]}
+              />
+            </>
           )
         }
         actions={viewDeleted
@@ -1312,12 +1386,6 @@ export default function ContactsPage() {
               { label: t("bulk.restore"), icon: <RotateCcw size={13} />, onClick: () => restoreContacts(Array.from(selectedRows)) },
             ]
           : [
-              {
-                label: t("bulk.merge"),
-                icon: <GitMerge size={13} />,
-                onClick: bulkMergeSelected,
-                disabled: selectedRows.size < 2,
-              },
               {
                 label: t("bulk.delete"),
                 icon: <Trash2 size={13} />,
