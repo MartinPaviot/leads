@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
-import { ChevronDown, Phone, Loader2 } from "lucide-react";
+import { ChevronDown, Phone } from "lucide-react";
 
 interface Chunk {
   speaker?: string;
@@ -96,21 +96,18 @@ export function ContactCalls({ contactId }: { contactId: string }) {
     });
   }, []);
 
-  // Nothing to show until we know there's at least one call — keep the fiche
-  // clean for contacts never called.
-  if (calls !== null && calls.length === 0) return null;
+  // Nothing to show until we know there's at least one call — and stay silent
+  // while the fetch is in flight, so a never-called contact (the common case on
+  // a LinkedIn-primary tenant) doesn't see a "Calls — Loading…" header flash in
+  // and then collapse. Mirrors the home hot-widget `if (loading) return null`.
+  if (calls === null || calls.length === 0) return null;
 
   return (
     <div className="mt-6">
       <h3 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
-        <Phone size={13} /> Calls{calls ? ` (${calls.length})` : ""}
+        <Phone size={13} /> Calls ({calls.length})
       </h3>
-      {calls === null ? (
-        <div className="mt-3 flex items-center gap-2 text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
-        </div>
-      ) : (
-        <div className="mt-3 space-y-2">
+      <div className="mt-3 space-y-2">
           {calls.map((c) => {
             const open = expanded.has(c.id);
             const hasTranscript = c.transcript.length > 0;
@@ -188,8 +185,7 @@ export function ContactCalls({ contactId }: { contactId: string }) {
               </div>
             );
           })}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
