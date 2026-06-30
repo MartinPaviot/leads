@@ -739,6 +739,13 @@ export function MeetingSchedulerCard({
               />
             )}
           </div>
+          {/* Only the first occurrence is conflict-checked (matches Google/Outlook) —
+              say so, so the single-slot "free" signal doesn't mislead. */}
+          {recurFreq && (
+            <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+              {t("meeting.recurConflictNote")}
+            </p>
+          )}
         </div>
       )}
 

@@ -146,6 +146,10 @@ export function ConversationPane({
   // Imperative handle to push parent-driven edits (booked join link, tone, snippet)
   // INTO the inline composer's textarea — it ignores draft-prop mutations post-mount.
   const composerRef = useRef<EmailComposerHandle>(null);
+  // The scheduler card mounts at the TOP of the (possibly short, when the
+  // composer is open) scrollable thread region; reveal it when it opens so the
+  // action isn't a no-op when the thread is scrolled down.
+  const schedCardRef = useRef<HTMLDivElement>(null);
   const [autoDraftOn, setAutoDraftOn] = useState(false);
   // A2: the user's SENDABLE mailboxes for the composer From selector.
   const [sendableMailboxes, setSendableMailboxes] = useState<SendableMailbox[]>([]);
@@ -436,6 +440,13 @@ export function ConversationPane({
     if (replySignal > 0 && detail && !composer) void openReply();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replySignal]);
+
+  // Reveal the scheduler card when it opens — it mounts at scrollTop 0 of the
+  // reading region, which (with the composer open) is only 2/5 of the pane, so a
+  // scrolled thread would leave it above the fold and Book would look like a no-op.
+  useEffect(() => {
+    if (schedOpen) schedCardRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [schedOpen]);
 
   // B1 Cmd/Ctrl+J: with no composer open, generate a voice-matched draft for a
   // reply-worthy thread (R2.1). When the composer IS open, it owns this key for
@@ -904,7 +915,7 @@ export function ConversationPane({
              fixed header) so its full height + the Confirm button stay reachable
              on a narrow or zoomed viewport (the header doesn't scroll). */}
         {schedOpen && canBook && (
-          <div className="mb-3">
+          <div className="mb-3" ref={schedCardRef}>
             <MeetingSchedulerCard
               contactId={bookContactId}
               contactEmail={bookContactId ? undefined : bookEmail}
