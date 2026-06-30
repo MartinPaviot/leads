@@ -2,10 +2,8 @@ import { db } from "@/db";
 import { activities, contacts, companies, deals } from "@/db/schema";
 import { eq, and, sql, ilike } from "drizzle-orm";
 import { getBotStatus, getBotTranscript, transcriptToText, mapBotStatus } from "@/lib/integrations/recall";
-import { tracedGenerateObject } from "@/lib/ai/traced-ai";
-import { z } from "zod";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { meetingNotesSchema, buildMeetingNotesPrompt } from "@/lib/meetings/notes-schema";
+import { summarizeMeetingTranscript } from "@/lib/meetings/summarize-transcript";
 
 /**
  * Verify a Recall.ai webhook signature.
@@ -228,17 +226,14 @@ async function processTranscriptFromBot(
   const meetingTitle = (existingMeta.summary as string) || "Meeting";
   const meetingDate = (existingMeta.startTime as string) || new Date().toISOString();
 
-  const { object: rawNotes } = await tracedGenerateObject({
+  const notes = await summarizeMeetingTranscript({
+    transcriptText,
     model,
-    schema: meetingNotesSchema,
-    prompt: buildMeetingNotesPrompt({
-      transcript: transcriptText.slice(0, 15000),
-      meetingTitle,
-      meetingDate,
-    }),
-    _trace: { agentId: "recall-transcript-processing", tenantId },
+    meetingTitle,
+    meetingDate,
+    tenantId,
+    traceAgentId: "recall-transcript-processing",
   });
-  const notes = rawNotes as z.infer<typeof meetingNotesSchema>;
 
   // 3. Match participants to contacts
   const attendeeEmails = ((existingMeta.attendees as Array<{ email: string }>) || []).map((a) => a.email).filter(Boolean);

@@ -14,11 +14,9 @@
 import { db } from "@/db";
 import { activities, contacts, deals } from "@/db/schema";
 import { and, eq, ilike } from "drizzle-orm";
-import { tracedGenerateObject } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
-import { z } from "zod";
-import { meetingNotesSchema, buildMeetingNotesPrompt } from "@/lib/meetings/notes-schema";
+import { summarizeMeetingTranscript } from "./summarize-transcript";
 
 export interface ApplyTranscriptInput {
   tenantId: string;
@@ -82,17 +80,14 @@ export async function applyTranscript(
     input.meetingTitle || (meta.title as string) || (meta.summary as string) || "Meeting";
   const meetingDate = input.meetingDate || (meta.startTime as string) || new Date().toISOString();
 
-  const { object: rawNotes } = await tracedGenerateObject({
+  const notes = await summarizeMeetingTranscript({
+    transcriptText,
     model,
-    schema: meetingNotesSchema,
-    prompt: buildMeetingNotesPrompt({
-      transcript: transcriptText.slice(0, 15000),
-      meetingTitle,
-      meetingDate,
-    }),
-    _trace: { agentId: `apply-transcript:${source}`, tenantId },
+    meetingTitle,
+    meetingDate,
+    tenantId,
+    traceAgentId: `apply-transcript:${source}`,
   });
-  const notes = rawNotes as z.infer<typeof meetingNotesSchema>;
 
   // Match participants to contacts (email first, then name).
   const attendeeEmails =
