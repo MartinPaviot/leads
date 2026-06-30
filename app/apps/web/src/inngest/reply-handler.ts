@@ -190,7 +190,7 @@ ADDITIONAL RULES:
 - Subject: "Re: ${lastEmail?.subject || "our conversation"}"
 - Do NOT restate the product pitch — they already know
 - Match the tone: "${ctx.aiTone}"`,
-          _trace: { agentId: "follow-up-email", tenantId, inputPreview: `Positive reply from ${ctx.contact.fullName}` },
+          _trace: { agentId: "follow-up-email", tenantId, contactId: contact.id, companyId: contact.companyId ?? undefined, inputPreview: `Positive reply from ${ctx.contact.fullName}` },
         });
         return object as { subject: string; body: string };
       });
@@ -293,7 +293,7 @@ ADDITIONAL RULES:
 - Keep it under 120 words
 - Subject: "Re: ${lastEmail?.subject || "our conversation"}"
 - Tone: "${ctx.aiTone}" — empathetic but confident`,
-          _trace: { agentId: "follow-up-email", tenantId, inputPreview: `Objection (${objectionType}) from ${ctx.contact.fullName}` },
+          _trace: { agentId: "follow-up-email", tenantId, contactId: contact.id, companyId: contact.companyId ?? undefined, inputPreview: `Objection (${objectionType}) from ${ctx.contact.fullName}` },
         });
         return object as { subject: string; body: string };
       });

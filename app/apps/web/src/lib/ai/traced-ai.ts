@@ -17,6 +17,7 @@ import { recordTrace, type TraceContext, AGENT_REGISTRY } from "../observability
 import { getActivePrompt, getFewShotExamples } from "../evals/flywheel";
 import { getPlaybookPromptBlock } from "../playbook/get-playbook";
 import { getCoachingPromptBlock } from "../coaching/get-coaching-guidance";
+import { getObjectionsPromptBlock } from "../emails/get-objections";
 import { enforceLlmBudget } from "../billing/llm-budget";
 import logger from "../observability/logger";
 import { isAiDisabled } from "./ai-provider";
@@ -42,6 +43,12 @@ interface TraceMetadata {
   orchestratorRouted?: boolean;
   orchestratorSpecialists?: string;
   orchestratorConfidence?: number;
+  // Entity the call is about — lets the learned-context seam fetch
+  // per-entity context (this contact's open objections, this company's
+  // win/loss lessons) for drafting agents. Optional; absent → tenant-only.
+  contactId?: string;
+  dealId?: string;
+  companyId?: string;
   // Extensible: allow additional trace fields without type errors
   [key: string]: string | number | boolean | undefined;
 }
@@ -111,6 +118,7 @@ export async function applyLearnedContext(
   agentId: string,
   aiParams: any,
   tenantId?: string,
+  entity?: { contactId?: string; companyId?: string; dealId?: string },
 ): Promise<void> {
   const activePrompt = await getActivePrompt(agentId).catch(() => null);
   if (activePrompt?.prompt && !aiParams.system) {
@@ -123,16 +131,21 @@ export async function applyLearnedContext(
     (await getFewShotExamples(agentId).catch(() => []));
   injectFewShotExamples(aiParams, examples);
 
-  // Append tenant-scoped learned context for outbound-drafting agents:
-  // the playbook (what's worked) + recent coaching (what to improve).
-  // Both ride at the END of system so the stable prefix still prompt-
-  // caches, and each is a no-op when the tenant has nothing to add.
+  // Append learned context for outbound-drafting agents, at the END of
+  // system so the stable prefix still prompt-caches and each piece is a
+  // no-op when there's nothing to add:
+  //  - playbook + coaching: tenant-scoped (what's worked / to improve);
+  //  - objections: per-CONTACT (open concerns to pre-empt) when a
+  //    contactId is supplied.
   if (tenantId && DRAFTING_AGENT_IDS.has(agentId)) {
-    const [playbook, coaching] = await Promise.all([
+    const [playbook, coaching, objections] = await Promise.all([
       getPlaybookPromptBlock(tenantId).catch(() => ""),
       getCoachingPromptBlock(tenantId).catch(() => ""),
+      entity?.contactId
+        ? getObjectionsPromptBlock(tenantId, entity.contactId).catch(() => "")
+        : Promise.resolve(""),
     ]);
-    for (const block of [playbook, coaching]) {
+    for (const block of [playbook, coaching, objections]) {
       if (block) {
         aiParams.system = aiParams.system ? `${aiParams.system}\n\n${block}` : block;
       }
@@ -158,7 +171,11 @@ export async function tracedGenerateText(
   await enforceLlmBudget(_trace.tenantId);
 
   // Inject the flywheel's learned prompt + few-shot examples + playbook.
-  await applyLearnedContext(_trace.agentId, aiParams as any, _trace.tenantId);
+  await applyLearnedContext(_trace.agentId, aiParams as any, _trace.tenantId, {
+    contactId: _trace.contactId,
+    companyId: _trace.companyId,
+    dealId: _trace.dealId,
+  });
 
   try {
     const result = await generateText(aiParams);
@@ -220,7 +237,11 @@ export async function tracedGenerateObject(
 
   await enforceLlmBudget(_trace.tenantId);
 
-  await applyLearnedContext(_trace.agentId, aiParams, _trace.tenantId);
+  await applyLearnedContext(_trace.agentId, aiParams, _trace.tenantId, {
+    contactId: _trace.contactId,
+    companyId: _trace.companyId,
+    dealId: _trace.dealId,
+  });
 
   try {
     const result = await generateObject(aiParams as any);
@@ -273,7 +294,11 @@ export async function tracedStreamText(
   await enforceLlmBudget(_trace.tenantId);
 
   // Inject the flywheel's learned prompt + few-shot examples + playbook.
-  await applyLearnedContext(_trace.agentId, aiParams as any, _trace.tenantId);
+  await applyLearnedContext(_trace.agentId, aiParams as any, _trace.tenantId, {
+    contactId: _trace.contactId,
+    companyId: _trace.companyId,
+    dealId: _trace.dealId,
+  });
 
   const originalOnFinish = (aiParams as any).onFinish;
 

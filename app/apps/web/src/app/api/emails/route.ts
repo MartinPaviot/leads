@@ -158,7 +158,7 @@ RULES:
       providerOptions: {
         anthropic: { cacheControl: { type: "ephemeral" } },
       },
-      _trace: { agentId: "draft-email", tenantId: authCtx.tenantId, inputPreview: `Draft email for ${contactName} at ${company?.name || "unknown"}` },
+      _trace: { agentId: "draft-email", tenantId: authCtx.tenantId, contactId, companyId: company?.id, inputPreview: `Draft email for ${contactName} at ${company?.name || "unknown"}` },
     });
     const result = object as any;
 

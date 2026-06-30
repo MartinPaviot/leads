@@ -195,7 +195,7 @@ RULES:
           model,
           schema: followUpSchema,
           prompt,
-          _trace: { agentId: "follow-up-email", tenantId },
+          _trace: { agentId: "follow-up-email", tenantId, contactId: input.contactId, companyId: contact.companyId ?? undefined },
         });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const result = object as any;

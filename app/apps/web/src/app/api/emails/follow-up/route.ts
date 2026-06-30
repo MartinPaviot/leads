@@ -96,7 +96,7 @@ RULES:
       providerOptions: {
         anthropic: { cacheControl: { type: "ephemeral" } },
       },
-      _trace: { agentId: "follow-up-email", tenantId: authCtx.tenantId },
+      _trace: { agentId: "follow-up-email", tenantId: authCtx.tenantId, contactId, companyId: contact.companyId ?? undefined },
     });
     const result = object as any;
 

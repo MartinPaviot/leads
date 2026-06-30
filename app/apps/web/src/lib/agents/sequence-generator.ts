@@ -453,6 +453,8 @@ RULES:
       _trace: {
         agentId: "send-sequence-step",
         tenantId,
+        contactId: ctx.contact.id,
+        companyId: ctx.company?.id,
         inputPreview: `Personalize step for ${ctx.contact.fullName} at ${ctx.company?.name || "unknown"}`,
       },
     }] as never,

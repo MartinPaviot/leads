@@ -2,16 +2,23 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the flywheel so applyLearnedContext is exercised without a DB.
 // vi.hoisted keeps these defined before the hoisted vi.mock factory runs.
-const { getActivePrompt, getFewShotExamples, getPlaybookPromptBlock, getCoachingPromptBlock } =
-  vi.hoisted(() => ({
-    getActivePrompt: vi.fn(),
-    getFewShotExamples: vi.fn(),
-    getPlaybookPromptBlock: vi.fn(),
-    getCoachingPromptBlock: vi.fn(),
-  }));
+const {
+  getActivePrompt,
+  getFewShotExamples,
+  getPlaybookPromptBlock,
+  getCoachingPromptBlock,
+  getObjectionsPromptBlock,
+} = vi.hoisted(() => ({
+  getActivePrompt: vi.fn(),
+  getFewShotExamples: vi.fn(),
+  getPlaybookPromptBlock: vi.fn(),
+  getCoachingPromptBlock: vi.fn(),
+  getObjectionsPromptBlock: vi.fn(),
+}));
 vi.mock("@/lib/evals/flywheel", () => ({ getActivePrompt, getFewShotExamples }));
 vi.mock("@/lib/playbook/get-playbook", () => ({ getPlaybookPromptBlock }));
 vi.mock("@/lib/coaching/get-coaching-guidance", () => ({ getCoachingPromptBlock }));
+vi.mock("@/lib/emails/get-objections", () => ({ getObjectionsPromptBlock }));
 
 // Stub the infra siblings traced-ai imports at module load so the unit
 // under test stays hermetic (these are never called by the functions we
@@ -30,9 +37,11 @@ beforeEach(() => {
   getFewShotExamples.mockReset();
   getPlaybookPromptBlock.mockReset();
   getCoachingPromptBlock.mockReset();
-  // Default: no entries -> both blocks empty (the common cold-start case).
+  getObjectionsPromptBlock.mockReset();
+  // Default: no entries -> all blocks empty (the common cold-start case).
   getPlaybookPromptBlock.mockResolvedValue("");
   getCoachingPromptBlock.mockResolvedValue("");
+  getObjectionsPromptBlock.mockResolvedValue("");
 });
 
 describe("injectFewShotExamples", () => {
@@ -239,6 +248,51 @@ describe("applyLearnedContext — coaching injection", () => {
 
     const params: Record<string, unknown> = { system: "BASE", prompt: "q" };
     await expect(applyLearnedContext("draft-email", params, "tenant-1")).resolves.toBeUndefined();
+    expect(params.system).toBe("BASE");
+  });
+});
+
+describe("applyLearnedContext — per-contact objection injection", () => {
+  beforeEach(() => {
+    getActivePrompt.mockResolvedValue(null);
+    getFewShotExamples.mockResolvedValue([]);
+  });
+
+  it("appends the contact's objections after playbook + coaching when a contactId is supplied", async () => {
+    getPlaybookPromptBlock.mockResolvedValue("PLAYBOOK BLOCK");
+    getCoachingPromptBlock.mockResolvedValue("COACHING BLOCK");
+    getObjectionsPromptBlock.mockResolvedValue("OBJECTIONS BLOCK");
+
+    const params: Record<string, unknown> = { system: "BASE", prompt: "write a cold email" };
+    await applyLearnedContext("draft-email", params, "tenant-1", { contactId: "c1", companyId: "co1" });
+
+    expect(getObjectionsPromptBlock).toHaveBeenCalledWith("tenant-1", "c1");
+    expect(params.system).toBe("BASE\n\nPLAYBOOK BLOCK\n\nCOACHING BLOCK\n\nOBJECTIONS BLOCK");
+  });
+
+  it("does not fetch objections when no contactId is supplied", async () => {
+    const params: Record<string, unknown> = { system: "BASE", prompt: "q" };
+    await applyLearnedContext("draft-email", params, "tenant-1", { companyId: "co1" });
+
+    expect(getObjectionsPromptBlock).not.toHaveBeenCalled();
+    expect(params.system).toBe("BASE");
+  });
+
+  it("does not fetch objections for a non-drafting agent even with a contactId", async () => {
+    const params: Record<string, unknown> = { system: "BASE", prompt: "classify" };
+    await applyLearnedContext("process-reply", params, "tenant-1", { contactId: "c1" });
+
+    expect(getObjectionsPromptBlock).not.toHaveBeenCalled();
+    expect(params.system).toBe("BASE");
+  });
+
+  it("never throws on the hot path when the objection lookup fails", async () => {
+    getObjectionsPromptBlock.mockRejectedValue(new Error("db down"));
+
+    const params: Record<string, unknown> = { system: "BASE", prompt: "q" };
+    await expect(
+      applyLearnedContext("draft-email", params, "tenant-1", { contactId: "c1" }),
+    ).resolves.toBeUndefined();
     expect(params.system).toBe("BASE");
   });
 });
