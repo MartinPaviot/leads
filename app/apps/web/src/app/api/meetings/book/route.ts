@@ -47,6 +47,16 @@ const bookMeetingSchema = z
     // Extra invitees beyond the prospect (founder, colleagues) + a free agenda.
     attendees: z.array(z.string().email()).max(20).optional(),
     agenda: z.string().max(2000).optional(),
+    // Physical location/room, a reminder lead-time in minutes, and a recurrence
+    // (structured subset — freq + optional occurrence count; see recurrence.ts).
+    location: z.string().max(500).optional(),
+    reminderMinutes: z.number().int().min(0).max(40320).optional(),
+    recurrence: z
+      .object({
+        freq: z.enum(["daily", "weekly", "monthly"]),
+        count: z.number().int().min(2).max(52).optional(),
+      })
+      .optional(),
   })
   // One of the two identity inputs must be present.
   .refine((d) => Boolean(d.contactId || d.contactEmail), {
@@ -80,6 +90,9 @@ export async function POST(req: Request) {
       conferencing,
       attendees,
       agenda,
+      location,
+      reminderMinutes,
+      recurrence,
     } = parsed.data;
 
     // Resolve the contact (always tenant-scoped, soft-deleted excluded). Three
@@ -213,6 +226,9 @@ export async function POST(req: Request) {
         // Don't re-invite the prospect; allAttendees dedups, but skip the obvious case.
         attendees: attendees?.filter((e) => e.toLowerCase() !== contact.email!.toLowerCase()).map((email) => ({ email })),
         agenda,
+        location,
+        reminderMinutes,
+        recurrence,
       });
     } catch (err) {
       if (err instanceof CalendarNotConnectedError) {

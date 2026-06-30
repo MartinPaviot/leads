@@ -23,6 +23,10 @@ export interface IcsEventInput {
   url?: string | null;
   organizer: IcsPerson;
   attendees: IcsPerson[];
+  /** RRULE body (no "RRULE:" prefix), e.g. "FREQ=WEEKLY;COUNT=8". See recurrence.ts. */
+  recurrenceRule?: string | null;
+  /** Minutes before start for a DISPLAY VALARM. Omitted = no alarm. */
+  reminderMinutes?: number | null;
   /** REQUEST = invitation, PUBLISH = plain object, REPLY = an attendee's RSVP. */
   method?: "REQUEST" | "PUBLISH" | "REPLY";
   /**
@@ -103,6 +107,8 @@ export function buildIcs(input: IcsEventInput): string {
     url,
     organizer,
     attendees,
+    recurrenceRule,
+    reminderMinutes,
     method = "REQUEST",
     attendeePartstat,
     sequence = 0,
@@ -124,6 +130,9 @@ export function buildIcs(input: IcsEventInput): string {
   if (description) lines.push(`DESCRIPTION:${escapeIcsText(description)}`);
   if (location) lines.push(`LOCATION:${escapeIcsText(location)}`);
   if (url) lines.push(`URL:${url}`); // URI value — not TEXT-escaped
+  // RRULE — recurrenceRule is an enumerated/bounded body (recurrence.ts), so it
+  // carries no user free-text and needs no escaping.
+  if (recurrenceRule) lines.push(`RRULE:${recurrenceRule}`);
   lines.push(personLine("ORGANIZER", organizer));
   // A REPLY carries the responder's PARTSTAT; a REQUEST/PUBLISH invites them.
   const attendeeParams = attendeePartstat
@@ -135,6 +144,14 @@ export function buildIcs(input: IcsEventInput): string {
   lines.push(`SEQUENCE:${sequence}`);
   // STATUS belongs on the organizer's object, not on an attendee's REPLY.
   if (method !== "REPLY") lines.push("STATUS:CONFIRMED");
+  // A DISPLAY reminder (VALARM) fired `reminderMinutes` before start.
+  if (typeof reminderMinutes === "number" && reminderMinutes >= 0) {
+    lines.push("BEGIN:VALARM");
+    lines.push(`TRIGGER:-PT${Math.floor(reminderMinutes)}M`);
+    lines.push("ACTION:DISPLAY");
+    lines.push("DESCRIPTION:Reminder");
+    lines.push("END:VALARM");
+  }
   lines.push("END:VEVENT");
   lines.push("END:VCALENDAR");
 

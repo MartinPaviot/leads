@@ -66,4 +66,26 @@ describe("ics — iCalendar builder", () => {
   it("toIcsUtc is stable regardless of local offset", () => {
     expect(toIcsUtc(new Date("2026-01-02T03:04:05.000Z"))).toBe("20260102T030405Z");
   });
+
+  it("emits an RRULE line when recurrenceRule is set (inside the VEVENT), none when absent", () => {
+    const ics = unfold(buildIcs({ ...base, recurrenceRule: "FREQ=WEEKLY;COUNT=8" }));
+    expect(ics).toContain("RRULE:FREQ=WEEKLY;COUNT=8");
+    expect(ics.indexOf("RRULE:")).toBeLessThan(ics.indexOf("END:VEVENT"));
+    expect(buildIcs({ ...base })).not.toContain("RRULE:");
+  });
+
+  it("emits a DISPLAY VALARM (TRIGGER N min before start) when reminderMinutes is set", () => {
+    const ics = unfold(buildIcs({ ...base, reminderMinutes: 30 }));
+    expect(ics).toContain("BEGIN:VALARM");
+    expect(ics).toContain("TRIGGER:-PT30M");
+    expect(ics).toContain("ACTION:DISPLAY");
+    expect(ics).toContain("END:VALARM");
+    // The VALARM is a sub-component of the VEVENT (before END:VEVENT).
+    expect(ics.indexOf("BEGIN:VALARM")).toBeLessThan(ics.indexOf("END:VEVENT"));
+  });
+
+  it("omits VALARM with no reminder; a 0-minute reminder is still valid (-PT0M)", () => {
+    expect(buildIcs({ ...base })).not.toContain("VALARM");
+    expect(unfold(buildIcs({ ...base, reminderMinutes: 0 }))).toContain("TRIGGER:-PT0M");
+  });
 });

@@ -27,6 +27,7 @@ import { buildIcs } from "./ics";
 import { sendViaSmtp } from "./smtp-send";
 import { createSovereignMeeting } from "./video-meeting";
 import { createZoomMeeting, zoomConfigured } from "./zoom";
+import { toRRule, toGraphRecurrence, type MeetingRecurrence } from "./recurrence";
 
 export type CalendarProvider = "google" | "microsoft" | "caldav" | "smtp";
 /** "sovereign" = Jitsi visio (default); the rest are opt-in "si besoin". */
@@ -64,6 +65,15 @@ interface EventCore {
   attendees?: Array<{ email: string; name?: string }>;
   /** Free agenda / notes, prepended to the auto join-link line in the invite. */
   agenda?: string;
+  /** Physical location / room. When set it fills the calendar LOCATION field
+   *  (the visio link still rides in the description); otherwise LOCATION is the
+   *  join link so the sovereign visio stays clickable from the calendar. */
+  location?: string;
+  /** Minutes before start for a reminder (Google popup / Graph / ICS VALARM).
+   *  Omitted = the calendar's default (no explicit reminder set by us). */
+  reminderMinutes?: number;
+  /** Recurrence (structured subset, recurrence.ts). Omitted = single meeting. */
+  recurrence?: MeetingRecurrence;
 }
 
 /** The contact + any extra invitees, deduped by lowercased email. */
@@ -131,6 +141,23 @@ function htmlBody(title: string, joinUrl: string, agenda?: string): string {
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+/** The calendar LOCATION value: a physical location if the user gave one, else
+ *  the sovereign join link (so it stays clickable from the calendar's Location).
+ *  For native Meet/Teams pass undefined as joinUrl — only a physical place lands. */
+function locationText(joinUrl: string | undefined, core: EventCore): string | undefined {
+  return core.location?.trim() || joinUrl || undefined;
+}
+/** Google reminders override (a popup N min before start); undefined leaves the
+ *  calendar's default reminders in place. */
+function googleReminders(core: EventCore) {
+  return typeof core.reminderMinutes === "number" && core.reminderMinutes >= 0
+    ? { useDefault: false, overrides: [{ method: "popup", minutes: Math.floor(core.reminderMinutes) }] }
+    : undefined;
+}
+/** Google recurrence array (["RRULE:…"]); undefined = a single (non-recurring) event. */
+function googleRecurrence(core: EventCore): string[] | undefined {
+  return core.recurrence ? [`RRULE:${toRRule(core.recurrence)}`] : undefined;
+}
 /** Native Meet/Teams mint their own join button, so the body/description carries
  *  only the agenda (no "Rejoindre la visio" line). Undefined when there's none. */
 export function nativeAgendaText(agenda?: string): string | undefined {
@@ -163,6 +190,12 @@ export async function bookSovereignMeeting(opts: {
   attendees?: Array<{ email: string; name?: string }>;
   /** Free agenda / notes added to the invite body. */
   agenda?: string;
+  /** Physical location / room (else the join link fills LOCATION). */
+  location?: string;
+  /** Minutes before start for a reminder; omitted = calendar default. */
+  reminderMinutes?: number;
+  /** Recurrence (structured subset); omitted = single meeting. */
+  recurrence?: MeetingRecurrence;
 }): Promise<BookResult> {
   const requested = opts.conferencing ?? "sovereign";
   const meeting = createSovereignMeeting({ prefix: opts.roomPrefix ?? "elevay" });
@@ -174,6 +207,9 @@ export async function bookSovereignMeeting(opts: {
     title: opts.title,
     attendees: opts.attendees,
     agenda: opts.agenda,
+    location: opts.location,
+    reminderMinutes: opts.reminderMinutes,
+    recurrence: opts.recurrence,
   };
 
   // 1. The user's explicitly-connected IMAP/SMTP mailbox (Zimbra / Infomaniak /
@@ -262,9 +298,12 @@ async function writeGoogleEvent(
       requestBody: {
         summary: core.title,
         description: nativeAgendaText(core.agenda),
+        location: locationText(undefined, core),
         start,
         end: endTime,
         attendees,
+        reminders: googleReminders(core),
+        recurrence: googleRecurrence(core),
         conferenceData: {
           createRequest: {
             requestId: `elevay-${Date.now()}`,
@@ -291,10 +330,12 @@ async function writeGoogleEvent(
     requestBody: {
       summary: core.title,
       description: descriptionText(wopts.link, core.agenda),
-      location: wopts.link,
+      location: locationText(wopts.link, core),
       start,
       end: endTime,
       attendees,
+      reminders: googleReminders(core),
+      recurrence: googleRecurrence(core),
     },
   });
   return {
@@ -324,19 +365,26 @@ async function writeMicrosoftEvent(
       emailAddress: { address: a.email, name: a.name },
       type: "required",
     })),
+    // Reminder (Graph default applies when we don't set one) + recurrence.
+    ...(typeof core.reminderMinutes === "number" && core.reminderMinutes >= 0
+      ? { isReminderOn: true, reminderMinutesBeforeStart: Math.floor(core.reminderMinutes) }
+      : {}),
+    ...(core.recurrence ? { recurrence: toGraphRecurrence(core.recurrence, core.startTime) } : {}),
   };
 
   const requestBody = wopts.native
     ? {
         ...base,
         body: { contentType: "HTML", content: nativeHtmlBody(core.title, core.agenda) },
+        // Teams mints the join; only a physical place (if any) goes in location.
+        ...(core.location?.trim() ? { location: { displayName: core.location.trim() } } : {}),
         isOnlineMeeting: true,
         onlineMeetingProvider: "teamsForBusiness",
       }
     : {
         ...base,
         body: { contentType: "HTML", content: htmlBody(core.title, wopts.link, core.agenda) },
-        location: { displayName: wopts.link },
+        location: { displayName: locationText(wopts.link, core) },
       };
 
   const res = await fetch("https://graph.microsoft.com/v1.0/me/events", {
@@ -433,10 +481,12 @@ async function writeCalDavEvent(
     end,
     summary: core.title,
     description: descriptionText(link, core.agenda),
-    location: link,
+    location: locationText(link, core),
     url: link,
     organizer: { email: box.email, name: box.displayName },
     attendees: allAttendees(core),
+    recurrenceRule: core.recurrence ? toRRule(core.recurrence) : null,
+    reminderMinutes: core.reminderMinutes ?? null,
     method: "REQUEST",
   });
 
@@ -502,10 +552,12 @@ async function writeSmtpIcsEvent(
     end,
     summary: core.title,
     description: descriptionText(link, core.agenda),
-    location: link,
+    location: locationText(link, core),
     url: link,
     organizer: { email: box.email, name: box.displayName },
     attendees: allAttendees(core),
+    recurrenceRule: core.recurrence ? toRRule(core.recurrence) : null,
+    reminderMinutes: core.reminderMinutes ?? null,
     method: "REQUEST",
   });
 

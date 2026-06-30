@@ -37,6 +37,22 @@ export function clampDurationMinutes(raw: string): number {
   return Math.min(480, Math.max(5, Math.round(Number(raw) || 30)));
 }
 
+/** Reminder lead-time chips (null = the calendar's default, i.e. none set by us). */
+const REMINDER_OPTIONS: Array<{ label: string; minutes: number | null }> = [
+  { label: "meeting.reminderNone", minutes: null },
+  { label: "meeting.reminder10m", minutes: 10 },
+  { label: "meeting.reminder30m", minutes: 30 },
+  { label: "meeting.reminder1h", minutes: 60 },
+  { label: "meeting.reminder1d", minutes: 1440 },
+];
+/** Recurrence frequency chips (null = a single, non-recurring meeting). */
+const RECUR_OPTIONS: Array<{ label: string; freq: "daily" | "weekly" | "monthly" | null }> = [
+  { label: "meeting.recurNone", freq: null },
+  { label: "meeting.recurDaily", freq: "daily" },
+  { label: "meeting.recurWeekly", freq: "weekly" },
+  { label: "meeting.recurMonthly", freq: "monthly" },
+];
+
 /** The next `n` business days (skipping weekends), local midnight. */
 function nextBusinessDays(n: number): Date[] {
   const days: Date[] = [];
@@ -79,6 +95,12 @@ export interface BookMeetingSlot {
   attendees?: string[];
   /** Free agenda / notes added to the invite. */
   agenda?: string;
+  /** Physical location / room (else the join link fills LOCATION). */
+  location?: string;
+  /** Reminder lead-time in minutes before start (popup / VALARM / Graph). */
+  reminderMinutes?: number;
+  /** Recurrence (structured subset): freq + optional occurrence count. */
+  recurrence?: { freq: "daily" | "weekly" | "monthly"; count?: number };
 }
 
 export interface BookMeetingResult {
@@ -116,6 +138,9 @@ export async function bookMeetingRequest(slot: BookMeetingSlot): Promise<BookMee
         conferencing: slot.conferencing ?? "sovereign",
         attendees: slot.attendees && slot.attendees.length > 0 ? slot.attendees : undefined,
         agenda: slot.agenda?.trim() || undefined,
+        location: slot.location?.trim() || undefined,
+        reminderMinutes: typeof slot.reminderMinutes === "number" ? slot.reminderMinutes : undefined,
+        recurrence: slot.recurrence,
       }),
     });
     const data = (await res.json().catch(() => ({}))) as {
@@ -193,6 +218,12 @@ export function MeetingSchedulerCard({
   const [attendees, setAttendees] = useState<string[]>([]);
   const [attendeeInput, setAttendeeInput] = useState("");
   const [agenda, setAgenda] = useState("");
+  // Location / reminder / recurrence (the "vrai meeting" params). reminderMinutes
+  // null = the calendar default; recurFreq null = a single (non-recurring) meeting.
+  const [meetLocation, setMeetLocation] = useState("");
+  const [reminderMinutes, setReminderMinutes] = useState<number | null>(null);
+  const [recurFreq, setRecurFreq] = useState<"daily" | "weekly" | "monthly" | null>(null);
+  const [recurCount, setRecurCount] = useState("");
   const [booking, setBooking] = useState(false);
   // Title/duration/video live behind a quiet "Détails" disclosure (Visio is the
   // right default ~always); the manual datetime picker behind a fallback link.
@@ -364,6 +395,11 @@ export function MeetingSchedulerCard({
       conferencing,
       attendees,
       agenda,
+      location: meetLocation,
+      reminderMinutes: reminderMinutes ?? undefined,
+      recurrence: recurFreq
+        ? { freq: recurFreq, count: recurCount && Number(recurCount) >= 2 ? Number(recurCount) : undefined }
+        : undefined,
     });
     setBooking(false);
     if (!r.ok) {
@@ -634,6 +670,63 @@ export function MeetingSchedulerCard({
             className="w-full resize-none rounded-md px-2 py-1 text-[13px] outline-none"
             style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
           />
+          {/* Lieu — a physical place / room; if empty, the visio link fills LOCATION. */}
+          <input
+            value={meetLocation}
+            onChange={(e) => setMeetLocation(e.target.value)}
+            placeholder={t("meeting.locationPlaceholder")}
+            className="w-full rounded-md px-2 py-1 text-[13px] outline-none"
+            style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+          />
+          {/* Rappel — a popup/VALARM N minutes before start. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{t("meeting.reminder")}</span>
+            {REMINDER_OPTIONS.map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => setReminderMinutes(opt.minutes)}
+                aria-pressed={reminderMinutes === opt.minutes}
+                className="rounded-md px-2 py-0.5 text-[12px] transition-colors"
+                style={reminderMinutes === opt.minutes
+                  ? { background: "var(--color-accent)", color: "#fff" }
+                  : { background: "var(--color-bg-page)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-default)" }}
+              >
+                {t(opt.label)}
+              </button>
+            ))}
+          </div>
+          {/* Récurrence — frequency chips + an optional occurrence count. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{t("meeting.recurrence")}</span>
+            {RECUR_OPTIONS.map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => setRecurFreq(opt.freq)}
+                aria-pressed={recurFreq === opt.freq}
+                className="rounded-md px-2 py-0.5 text-[12px] transition-colors"
+                style={recurFreq === opt.freq
+                  ? { background: "var(--color-accent)", color: "#fff" }
+                  : { background: "var(--color-bg-page)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-default)" }}
+              >
+                {t(opt.label)}
+              </button>
+            ))}
+            {recurFreq && (
+              <input
+                type="number"
+                min={2}
+                max={52}
+                value={recurCount}
+                onChange={(e) => setRecurCount(e.target.value)}
+                placeholder={t("meeting.recurrenceCount")}
+                aria-label={t("meeting.recurrenceCount")}
+                className="w-32 rounded-md px-1.5 py-0.5 text-[12px] outline-none"
+                style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+              />
+            )}
+          </div>
         </div>
       )}
 

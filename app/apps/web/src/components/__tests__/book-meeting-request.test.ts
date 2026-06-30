@@ -63,6 +63,27 @@ describe("bookMeetingRequest", () => {
     expect(body.agenda).toBeUndefined();
   });
 
+  it("forwards location (trimmed), reminderMinutes and recurrence; drops the empties", async () => {
+    await bookMeetingRequest({
+      contactId: "ct-1",
+      startTime: "2026-07-01T09:00:00.000Z",
+      location: "  Bureau Paris 11e  ",
+      reminderMinutes: 30,
+      recurrence: { freq: "weekly", count: 8 },
+    });
+    let body = bodyOfLastCall();
+    expect(body.location).toBe("Bureau Paris 11e"); // trimmed
+    expect(body.reminderMinutes).toBe(30);
+    expect(body.recurrence).toEqual({ freq: "weekly", count: 8 });
+
+    // A blank location is dropped; absent reminder/recurrence stay undefined.
+    await bookMeetingRequest({ contactId: "ct-1", startTime: "2026-07-01T09:00:00.000Z", location: "   " });
+    body = bodyOfLastCall();
+    expect(body.location).toBeUndefined();
+    expect(body.reminderMinutes).toBeUndefined();
+    expect(body.recurrence).toBeUndefined();
+  });
+
   it("forwards contactId when a contact is linked", async () => {
     await bookMeetingRequest({
       contactId: "ct-1",
