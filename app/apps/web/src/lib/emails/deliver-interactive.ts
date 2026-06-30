@@ -312,11 +312,14 @@ export async function deliverInteractiveEmail(
       logger.warn?.("deliver-interactive: activity record failed (non-fatal)", { err });
     }
 
-    // P3 — outcome→learn loop (lib/outcomes/reply-flywheel.ts): only for a
-    // real human send to a known contact via the composer (queue/cron sends
-    // never call this function at all, so autopilot volume is untouched).
-    // Fire-and-forget, fail-soft — never blocks or fails the send.
-    if (input.source === "composer") {
+    // P3 — outcome→learn loop (lib/outcomes/reply-flywheel.ts): for a real
+    // human-approved send to a known contact via the composer or the P2
+    // follow-up-nudge send button (queue/cron sends never call this function
+    // at all, so autopilot volume is untouched). A nudge that lands a
+    // positive reply is exactly the kind of "this worked" signal the
+    // few-shot pool should learn from. Fire-and-forget, fail-soft — never
+    // blocks or fails the send.
+    if (input.source === "composer" || input.source === "followup_nudge") {
       void watchReplyOutcome({ tenantId, contactId: input.contactId, replyBody: body }).catch(() => {});
     }
   }

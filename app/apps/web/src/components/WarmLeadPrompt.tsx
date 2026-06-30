@@ -50,7 +50,11 @@ export function WarmLeadPrompt() {
       .then((r) => (r.ok ? r.json() : { leads: [] }))
       .then((data) => {
         if (cancelled) return;
-        setLeads((data as { leads: WarmLead[] }).leads);
+        // Defensive: a malformed/unexpected response must degrade to "no
+        // leads", never crash the dashboard render (found while wiring
+        // FollowUpsReadyCard.tsx, which had the same latent gap).
+        const leads = (data as { leads?: WarmLead[] })?.leads;
+        setLeads(Array.isArray(leads) ? leads : []);
       })
       .catch(() => {
         /* empty state */

@@ -226,6 +226,74 @@ export const sequenceDrafts = pgTable(
   ],
 );
 
+// P2 (inbox deal-closer roadmap) — proactive follow-up nudges. A daily cron
+// drafts a grounded nudge for every thread `followup-due.ts#isFollowupDue`
+// flags, but NEVER sends it — every row starts (and most end) at
+// pending_review; only an explicit founder action moves it to sent. This
+// mirrors sequenceDrafts' proven shape (snapshot-at-generation, optimistic
+// lock, status enum) scoped down for a single-recipient inbox draft instead
+// of a sequence step — sequenceDrafts' sequenceId/stepId/enrollmentId are all
+// NOT NULL and read directly in the approve route to advance an enrollment,
+// so wedging a follow-up nudge in there would mean nullable-ifying core
+// columns + branching that route; a small parallel table is the safer, much
+// smaller diff. See lib/inbox/followup-nudge.ts for the pure dedupe/staleness
+// logic and inngest/followup-nudge-cron.ts for the daily producer.
+export const inboxFollowupNudgeStatusEnum = pgEnum("inbox_followup_nudge_status", [
+  "pending_review",
+  "sent",
+  "dismissed",
+  "expired",
+]);
+
+export const inboxFollowupNudges = pgTable(
+  "inbox_followup_nudges",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: text("tenant_id").notNull(),
+    /** The inbox owner (auth_user.id — same space as connected_mailboxes.user_id
+     *  / authCtx.userId). The inbox is PERSONAL, so nudges are scoped per-owner
+     *  exactly like the conversation list itself (lib/inbox/user-scope.ts). */
+    userId: text("user_id").notNull(),
+    conversationKey: text("conversation_key").notNull(),
+    contactId: text("contact_id"),
+    /** Snapshot at generation time, same philosophy as sequenceDrafts.subject/
+     *  bodyText — the founder reviews what they see, not a live re-render. */
+    toAddress: text("to_address").notNull(),
+    subject: text("subject").notNull(),
+    bodyText: text("body_text").notNull(),
+    /** 1-based escalation rung (followup-due.ts#FollowupDue.stage at draft
+     *  time) — fed into the nudge prompt as escalation GUIDANCE (how direct
+     *  to be), never a rigid hardcoded template. The dedupe unique index below
+     *  means at most one row ever exists per (conversation, stage): once a
+     *  rung is drafted (sent, dismissed, OR expired), it is never re-drafted —
+     *  only a later rung (the thread aging further) gets a new row. */
+    stage: integer("stage").notNull(),
+    status: inboxFollowupNudgeStatusEnum("status").notNull().default("pending_review"),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
+    /** A stale unreviewed draft (the prospect replied, or the thread moved on)
+     *  auto-expires instead of lingering — see reconcileStaleNudges. Also a
+     *  hard backstop: an unreviewed draft older than this is no longer shown
+     *  even if reconciliation somehow missed it. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /** Optimistic-lock counter, same pattern as sequenceDrafts.version — the
+     *  send/dismiss routes reject an update whose version doesn't match. */
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("ifn_tenant_user_status_idx").on(table.tenantId, table.userId, table.status),
+    index("ifn_conversation_idx").on(table.conversationKey),
+    // Dedupe: at most one row EVER per (tenant, user, conversation, stage) —
+    // not partial-on-status, so a dismissed/expired/sent rung is never
+    // re-drafted by a later cron run.
+    uniqueIndex("ifn_dedupe_idx").on(table.tenantId, table.userId, table.conversationKey, table.stage),
+  ],
+);
+
 // === OUTBOUND EMAIL TABLES ===
 
 export const mailboxStatusEnum = pgEnum("mailbox_status", [

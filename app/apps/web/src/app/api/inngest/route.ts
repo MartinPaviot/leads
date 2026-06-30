@@ -78,6 +78,8 @@ import { outcomeDetectorCron } from "@/inngest/outcome-detector";
 import { weeklyTrustRecalculation } from "@/inngest/trust-recalculator";
 // P3 — inbox-deal-closer roadmap: outcome→learn loop for inbox replies
 import { replyFlywheelListener } from "@/inngest/reply-flywheel-listener";
+// P2 — inbox-deal-closer roadmap: proactive follow-up nudges
+import { followupNudgeDaily } from "@/inngest/followup-nudge-cron";
 // Campaign Engine 1000x
 import { replyAgent } from "@/inngest/reply-agent";
 import { campaignDecisionEngine, bridgeTrackingEvents } from "@/inngest/campaign-decision-engine";
@@ -308,6 +310,10 @@ export const { GET, POST, PUT } = serve({
     // gets promoted into the inbox-compose-reply few-shot pool. See
     // lib/outcomes/reply-flywheel.ts for the full design.
     replyFlywheelListener,
+    // P2: daily proactive follow-up nudges — drafts (never sends) a gentle
+    // re-surface on an awaiting-their-reply thread that's gone quiet past
+    // the escalation ladder. See lib/inbox/followup-nudge-draft.ts.
+    followupNudgeDaily,
     // Campaign Engine 1000x
     replyAgent,
     campaignDecisionEngine,

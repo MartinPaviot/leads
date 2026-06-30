@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { OnboardingV2Wrapper } from "@/components/onboarding-v2-wrapper";
 import { useFlag } from "@/components/flags-provider";
 import { WarmLeadPrompt } from "@/components/WarmLeadPrompt";
+import { FollowUpsReadyCard } from "@/components/FollowUpsReadyCard";
 import { TAMRevealNotification } from "@/components/TAMRevealNotification";
 import { ScalingPathPrompt } from "@/components/ScalingPathPrompt";
 import { VisitorIdCapBanner } from "@/components/visitor-id-cap-banner";
@@ -213,6 +214,7 @@ export default function DashboardPage() {
           )}
 
           {/* Conditional prompts (gated so they don't race the card). */}
+          {!showOnboarding && <FollowUpsReadyCard />}
           {warmLeadPrompt && !showOnboarding && <WarmLeadPrompt />}
           {scalingPathReason && !showOnboarding && (
             <ScalingPathPrompt
