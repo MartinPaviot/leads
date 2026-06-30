@@ -73,7 +73,9 @@ export function toHostedAuthBody(p: HostedAuthParams): Record<string, unknown> {
   return body;
 }
 
-async function unipileFetch<T>(cfg: UnipileConfig, method: string, path: string, body?: unknown): Promise<T> {
+// Exported so the per-tag client modules (accounts-lifecycle, messaging-extra,
+// email, calendar, recruiter) reuse one transport + error contract.
+export async function unipileFetch<T>(cfg: UnipileConfig, method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${unipileApiBase(cfg.dsn)}${path}`, {
     method,
     headers: {
@@ -88,6 +90,58 @@ async function unipileFetch<T>(cfg: UnipileConfig, method: string, path: string,
     throw new UnipileApiError(`Unipile ${method} ${path} -> ${res.status}: ${text.slice(0, 300)}`, res.status);
   }
   return (await res.json()) as T;
+}
+
+/** A file part for multipart endpoints (POST /chats, /posts, /emails, …). */
+export interface UnipileFilePart {
+  filename: string;
+  content: Blob | Buffer | Uint8Array;
+  contentType?: string;
+}
+
+/**
+ * Multipart transport for the FORM endpoints (attachments / voice / video).
+ * Scalars and string[]s are appended as repeated fields; `files` entries are
+ * appended under their field name. Nested objects are JSON-stringified.
+ */
+export async function unipileMultipart<T>(
+  cfg: UnipileConfig,
+  method: string,
+  path: string,
+  fields: Record<string, unknown>,
+  files: Array<{ field: string; part: UnipileFilePart }> = [],
+): Promise<T> {
+  const form = new FormData();
+  for (const [k, v] of Object.entries(fields)) {
+    if (v == null) continue;
+    if (Array.isArray(v)) for (const item of v) form.append(k, typeof item === "object" ? JSON.stringify(item) : String(item));
+    else if (typeof v === "object") form.append(k, JSON.stringify(v));
+    else form.append(k, String(v));
+  }
+  for (const { field, part } of files) {
+    const blob = part.content instanceof Blob ? part.content : new Blob([part.content as unknown as BlobPart], { type: part.contentType });
+    form.append(field, blob, part.filename);
+  }
+  const res = await fetch(`${unipileApiBase(cfg.dsn)}${path}`, {
+    method,
+    headers: { "X-API-KEY": cfg.apiKey, accept: "application/json" }, // let fetch set the multipart boundary
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new UnipileApiError(`Unipile ${method} ${path} -> ${res.status}: ${text.slice(0, 300)}`, res.status);
+  }
+  return (await res.json()) as T;
+}
+
+/** Binary fetch for attachment/picture/resume download endpoints (returns bytes). */
+export async function unipileFetchBinary(cfg: UnipileConfig, path: string): Promise<ArrayBuffer> {
+  const res = await fetch(`${unipileApiBase(cfg.dsn)}${path}`, { method: "GET", headers: { "X-API-KEY": cfg.apiKey } });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new UnipileApiError(`Unipile GET ${path} -> ${res.status}: ${text.slice(0, 200)}`, res.status);
+  }
+  return res.arrayBuffer();
 }
 
 export interface HostedAuthResponse {
@@ -799,13 +853,14 @@ export function reactToUnipilePost(
   });
 }
 
-/** POST /posts/{id}/comments — comment on a post (warm-up touch). Body modeled in the OpenAPI. */
+/** POST /posts/{id}/comments — comment on a post (warm-up touch). The OpenAPI
+ * models this as multipart/form-data (it accepts attachments), so send a form. */
 export function commentOnUnipilePost(
   cfg: UnipileConfig,
   postId: string,
   opts: { accountId: string; text: string },
 ): Promise<{ object?: string; comment_id?: string }> {
-  return unipileFetch(cfg, "POST", `/posts/${encodeURIComponent(postId)}/comments`, {
+  return unipileMultipart(cfg, "POST", `/posts/${encodeURIComponent(postId)}/comments`, {
     account_id: opts.accountId,
     text: opts.text,
   });
