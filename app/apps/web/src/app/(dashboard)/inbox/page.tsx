@@ -1013,6 +1013,11 @@ export default function InboxPage() {
         return;
       }
 
+      // While the inline composer owns the reading pane, global thread shortcuts
+      // (e/s/j/k/l/b/x) must NOT act on the still-selected but hidden thread. The
+      // composer keeps its own Escape + Cmd/Ctrl+J listeners, so nothing is lost.
+      if (composeOpen) return;
+
       // Mailbox quick-switch (INBOX-K05): `m` arms a brief window; the next key
       // is consumed here (so it can't also trigger j/k) and resolved to a box.
       // Only meaningful with a chooser, i.e. 2+ connected mailboxes.
@@ -1099,7 +1104,7 @@ export default function InboxPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tab, selectedKey, handleTriage, conversations, selection, handleToggleSelect, handleBulkTriage, mailboxes]);
+  }, [tab, selectedKey, composeOpen, handleTriage, conversations, selection, handleToggleSelect, handleBulkTriage, mailboxes]);
 
   const hasMore = tab !== "outbound" && conversations.length < total;
   const bundleTotal = bundles.reduce((n, b) => n + b.count, 0);
@@ -1226,7 +1231,18 @@ export default function InboxPage() {
             right of the title/conversation-count — frees the content column. */}
         {mailboxConnected && (
           <>
-            <Button size="sm" onClick={() => setComposeOpen(true)} className="shrink-0 gap-1.5" title={t("inbox.compose.title")}>
+            <Button
+              size="sm"
+              onClick={() => {
+                // Compose renders in the reading-pane column, which only exists on
+                // a mail lane — not the Outbound/Bundles tables. Switch to the inbox
+                // lane first so the composer (and a coherent list behind it) shows.
+                if (tab === "outbound" || tab === "bundles") setTab("attention");
+                setComposeOpen(true);
+              }}
+              className="shrink-0 gap-1.5"
+              title={t("inbox.compose.title")}
+            >
               <PenSquare size={14} /> {t("inbox.compose.label")}
             </Button>
             {/* Width shrinks with the viewport so a half-screen window doesn't
@@ -1334,11 +1350,11 @@ export default function InboxPage() {
             actionVariant="gradient"
           />
         </div>
-      ) : !composeOpen && tab === "outbound" && !customLaneId ? (
+      ) : tab === "outbound" && !customLaneId ? (
         <div className="flex-1 overflow-hidden">
           <OutboundTable apiRef={outboundApiRef} />
         </div>
-      ) : !composeOpen && tab === "bundles" && !customLaneId ? (
+      ) : tab === "bundles" && !customLaneId ? (
         <div className="flex flex-1 overflow-hidden">
           <BundlesView bundles={bundles} onClear={handleClearBundle} clearing={clearingBundle} />
         </div>
@@ -1490,7 +1506,10 @@ export default function InboxPage() {
               >
                 <ChevronLeft size={15} /> Inbox
               </button>
-              <div className="min-h-0 flex-1">
+              {/* flex flex-col so the inline composer's `flex-1 min-h-0` is honored
+                  (body scrolls, Send footer pinned in-pane); ConversationPane's
+                  `h-full` root stretches fine here too. */}
+              <div className="flex min-h-0 flex-1 flex-col">
               {composeOpen ? (
                 // New email — composed IN the page (inline), like a reply, not a
                 // slide-over drawer. The inline composer carries its own header

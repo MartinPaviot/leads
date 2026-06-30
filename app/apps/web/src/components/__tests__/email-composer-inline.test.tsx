@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, act } from "@testing-library/react";
+import { render, cleanup, act, fireEvent } from "@testing-library/react";
 
 /**
  * EmailComposerPanel renders two ways from ONE component:
@@ -52,6 +52,28 @@ describe("EmailComposerPanel — inline vs drawer", () => {
     expect(document.querySelector('[style*="overlay-fade-in"]')).toBeNull();
     // The composer body renders INSIDE the caller's container (not portalled away).
     expect(container.querySelector("textarea")).not.toBeNull();
+  });
+
+  it("flushes the in-progress draft to localStorage on unmount (no lost keystrokes on close)", async () => {
+    const store: Record<string, string> = {};
+    const setItem = vi.fn((k: string, v: string) => { store[k] = v; });
+    vi.stubGlobal("localStorage", { getItem: (k: string) => store[k] ?? null, setItem, removeItem: () => {}, clear: () => {} });
+
+    let result!: ReturnType<typeof render>;
+    await act(async () => {
+      result = render(<EmailComposerPanel draft={{ to: "", subject: "", body: "" }} inline onClose={() => {}} />);
+    });
+    await flush();
+    const textarea = result.container.querySelector("textarea")!;
+    await act(async () => {
+      fireEvent.change(textarea, { target: { value: "Bonjour, dernier mot tapé" } });
+    });
+    // Unmount immediately (before the 800ms debounce fires) — the flush-on-unmount
+    // must still persist the latest body so a click-away close loses nothing.
+    setItem.mockClear();
+    await act(async () => { result.unmount(); });
+    expect(setItem).toHaveBeenCalled();
+    expect(JSON.stringify(store)).toContain("dernier mot");
   });
 
   it("drawer (default): portals a slide-over + backdrop to <body>", async () => {

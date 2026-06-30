@@ -311,6 +311,28 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [], inl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toEmails, ccEmails, bccEmails, editSubject, editBody, sent, storageKey, fromMailboxId]);
 
+  // Flush-on-unmount: the auto-save above is debounced 800ms and its cleanup just
+  // clears the timer, so closing the composer right after typing (e.g. clicking
+  // another thread, which unmounts it) would drop the last keystrokes. Keep a ref
+  // to the current draft and persist it synchronously on unmount. localStorage is
+  // the source the restore-on-open reads, so this alone preserves the text.
+  const flushRef = useRef<() => void>(() => {});
+  flushRef.current = () => {
+    if (sent) return;
+    const hasContent = Boolean(editBody.trim() || editSubject.trim() || toEmails.length);
+    if (!hasContent) return;
+    saveDraftToStorage(storageKey, {
+      to: toEmails,
+      cc: ccEmails,
+      bcc: bccEmails,
+      subject: editSubject,
+      body: editBody,
+      contactId: draft.contactId,
+      dealId: draft.dealId,
+    });
+  };
+  useEffect(() => () => flushRef.current(), []);
+
   // Focus body on mount
   useEffect(() => {
     if (mounted) {
