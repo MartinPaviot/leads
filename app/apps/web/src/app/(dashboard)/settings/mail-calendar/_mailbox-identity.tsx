@@ -95,9 +95,15 @@ export function MailboxIdentitySection() {
     }
   }
 
-  // While loading, reserve the section's footprint with one skeleton card sized
-  // to a mailbox-identity card, so real data swaps in without reflow.
-  if (loading) {
+  // Hide-when-empty section: during the initial load we don't yet know whether
+  // any mailbox exists, so stay invisible rather than flash a skeleton card that
+  // then collapses to null once an empty result lands.
+  if (loading && boxes.length === 0 && !loadError) return null;
+
+  // On a re-load over mailboxes already known to exist, reserve the section's
+  // footprint with one skeleton card sized to a mailbox-identity card, so real
+  // data swaps in without reflow.
+  if (loading && boxes.length > 0) {
     return (
       <section className="mt-10">
         <h2 className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>

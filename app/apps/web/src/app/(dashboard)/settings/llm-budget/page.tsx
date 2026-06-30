@@ -33,13 +33,16 @@ export default function LlmBudgetPage() {
   const [data, setData] = useState<BudgetResponse | null>(null);
   const [capInput, setCapInput] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await fetch("/api/settings/llm-budget");
       if (!res.ok) {
+        setLoadError(true);
         toast("Couldn't load LLM budget", "error");
         return;
       }
@@ -48,6 +51,7 @@ export default function LlmBudgetPage() {
       setCapInput(payload.status.capUsd > 0 ? String(payload.status.capUsd) : "");
     } catch (err) {
       console.warn("llm-budget: load failed", err);
+      setLoadError(true);
       toast("Couldn't load LLM budget", "error");
     } finally {
       setLoading(false);
@@ -98,7 +102,17 @@ export default function LlmBudgetPage() {
       />
 
       <div>
-        {loading || !status ? (
+        {loadError && !status ? (
+          // Was a stuck skeleton: on a failed initial fetch loading clears but
+          // status stays null, so without this branch the skeleton pulsed forever
+          // with no way to recover. This is not a reset — the request failed.
+          <div role="alert">
+            <p className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+              Couldn&apos;t load your LLM budget. This is not a reset — the request failed.
+            </p>
+            <Button size="sm" onClick={() => void load()} className="mt-3">Retry</Button>
+          </div>
+        ) : loading || !status ? (
           // Footprint skeleton: 3-up KPI row + cap card + feature card,
           // matching the loaded layout so swapping to data causes no reflow.
           <>
@@ -124,7 +138,7 @@ export default function LlmBudgetPage() {
                     ${status.spentUsd.toFixed(2)}
                   </p>
                   <p className="mt-1 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                    {data.breakdown.totalTokens.toLocaleString()} tokens · since {new Date(data.monthStart).toLocaleDateString()}
+                    {data!.breakdown.totalTokens.toLocaleString()} tokens · since {new Date(data!.monthStart).toLocaleDateString()}
                   </p>
                 </CardBody>
               </Card>
@@ -212,7 +226,7 @@ export default function LlmBudgetPage() {
                   <h2 className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Spend by feature</h2>
                   <div className="mt-3 space-y-2">
                     {byFeatureEntries.map(([feature, cost]) => {
-                      const pct = data.breakdown.totalCost > 0 ? (cost / data.breakdown.totalCost) * 100 : 0;
+                      const pct = data!.breakdown.totalCost > 0 ? (cost / data!.breakdown.totalCost) * 100 : 0;
                       return (
                         <div key={feature} className="flex items-center gap-3">
                           <span className="w-32 truncate text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{feature}</span>

@@ -27,6 +27,7 @@ import { SequenceDraftPreview } from "@/components/sequence-draft-preview";
 import { SequenceDraftRejectModal } from "@/components/sequence-draft-reject-modal";
 import { useToast } from "@/components/ui/toast";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
 import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 
@@ -56,6 +57,9 @@ export default function ReviewQueuePage() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  // A failed load must not masquerade as an empty queue ("Nothing to
+  // review here.") — track it so we can show a distinct error + Retry.
+  const [loadError, setLoadError] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   // B5b — multi-select bulk approve. Selection lives at this level so
   // the action bar + the list share the same source of truth.
@@ -67,20 +71,29 @@ export default function ReviewQueuePage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchDrafts = useCallback(
-    async (opts?: { append?: boolean; cursor?: string | null; status?: string }) => {
+    async (opts?: { append?: boolean; cursor?: string | null; status?: string; silent?: boolean }) => {
       const filterStatus = opts?.status ?? status;
       const useCursor = opts?.cursor ?? null;
-      setLoading(true);
+      // `silent` = the 30s background poll: refresh the list in place, never flip
+      // the skeleton or the error state (a transient poll blip must not blank a
+      // settled queue or flash an error over live rows).
+      if (!opts?.silent) {
+        setLoading(true);
+        setLoadError(false);
+      }
       try {
         const params = new URLSearchParams({ status: filterStatus, limit: "50" });
         if (useCursor) params.set("cursor", useCursor);
         if (sequenceIdParam) params.set("sequenceId", sequenceIdParam);
         const res = await fetch(`/api/sequences/drafts?${params.toString()}`);
         if (!res.ok) {
+          if (opts?.silent) return;
+          setLoadError(true);
           toast("Failed to load drafts", "error");
           return;
         }
         const data = await res.json();
+        setLoadError(false);
         const incoming: DraftListItem[] = data.drafts ?? [];
         setDrafts((prev) => (opts?.append ? [...prev, ...incoming] : incoming));
         setHasMore(!!data.nextCursor);
@@ -99,9 +112,11 @@ export default function ReviewQueuePage() {
           }
         }
       } catch (err) {
+        if (opts?.silent) return;
+        setLoadError(true);
         toast(err instanceof Error ? err.message : "Network error", "error");
       } finally {
-        setLoading(false);
+        if (!opts?.silent) setLoading(false);
       }
     },
     [status, selectedDraftId, sequenceIdParam, toast],
@@ -118,7 +133,7 @@ export default function ReviewQueuePage() {
     }
     if (status === "pending_approval") {
       pollRef.current = setInterval(() => {
-        fetchDrafts({ append: false, cursor: null, status: "pending_approval" });
+        fetchDrafts({ append: false, cursor: null, status: "pending_approval", silent: true });
       }, POLL_INTERVAL_MS);
     }
     return () => {
@@ -487,13 +502,17 @@ export default function ReviewQueuePage() {
               setSelectedIds(new Set());
               // Drop the previous status' rows immediately so the list shows
               // its loading skeleton instead of stale drafts during the refetch.
+              // Flip loading in the same batch so the skeleton paints on the
+              // first frame — without it, one frame renders a false-empty list.
               setDrafts([]);
+              setLoading(true);
             }}
             hasMore={hasMore}
             onLoadMore={() =>
               fetchDrafts({ append: true, cursor, status })
             }
             loading={loading}
+            loadError={loadError}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelectOne}
             onToggleSelectAll={toggleSelectAllVisible}
@@ -509,6 +528,16 @@ export default function ReviewQueuePage() {
               onReject={() => setRejectModalOpen(true)}
               onEditSaved={handleEditSaved}
             />
+          ) : drafts.length === 0 && loadError ? (
+            <div className="flex h-full items-center justify-center p-6">
+              <EmptyState
+                variant="error"
+                title="Couldn't load the review queue"
+                description="Something went wrong loading your drafts. They're safe — try again."
+                actionLabel="Retry"
+                onAction={() => fetchDrafts({ append: false, cursor: null, status })}
+              />
+            </div>
           ) : (
             <div
               className="flex h-full items-center justify-center p-6 text-center"
