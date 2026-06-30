@@ -1,7 +1,10 @@
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { db } from "@/db";
-import { contacts } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { contacts, deals } from "@/db/schema";
+import { and, eq, desc, isNull } from "drizzle-orm";
+import { buildEnrichedContext } from "@/lib/context/enriched-prospect-context";
+import { loadReplyKnowledgeBlock, knowledgeSection } from "@/lib/inbox/reply-knowledge";
+import { buildReplyContextBrief } from "@/lib/inbox/reply-context";
 import { buildConversations } from "@/lib/inbox/conversations";
 import { loadConversationRows } from "@/lib/inbox/load";
 import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
@@ -109,7 +112,44 @@ export async function POST(req: Request) {
       : "";
     const instructions = [stylePrompt, voice, memory, mailboxVoice].filter(Boolean).join("\n\n");
 
-    const result: ReplyDraft = await composeReply(messages, { instructions, mode });
+    // P0 — ground the draft in SUBSTANCE, not just voice. (1) the tenant's product
+    // knowledge (pricing / capabilities / objection rebuttals — "" until seeded,
+    // then it lights up on its own), and (2) a compact deal/account brief (open
+    // objections, pending next steps, budget/champion signals, competitors, deal
+    // stage). Both additive + fail-soft: a stranger thread with no contact/KB
+    // degrades to exactly the prior voice-only draft. This is what lets the reply
+    // ANSWER "pricing for 8 seats?" instead of always deferring to a call.
+    const contactId = conversation.contactId ?? null;
+    const [knowledge, accountBrief] = await Promise.all([
+      loadReplyKnowledgeBlock(authCtx.tenantId),
+      (async () => {
+        if (!contactId) return "";
+        try {
+          const [deal] = await db
+            .select({ id: deals.id, stage: deals.stage })
+            .from(deals)
+            .where(and(eq(deals.tenantId, authCtx.tenantId), eq(deals.contactId, contactId), isNull(deals.deletedAt)))
+            .orderBy(desc(deals.updatedAt))
+            .limit(1);
+          const enriched = await buildEnrichedContext(
+            contactId,
+            authCtx.tenantId,
+            deal?.id ? { dealId: deal.id } : undefined,
+          ).catch(() => null);
+          return buildReplyContextBrief(enriched, deal?.stage ?? null);
+        } catch {
+          // Account grounding is additive — never fail a draft over it.
+          return "";
+        }
+      })(),
+    ]);
+    const groundedInstructions = [instructions, knowledgeSection(knowledge)].filter(Boolean).join("\n\n");
+
+    const result: ReplyDraft = await composeReply(messages, {
+      instructions: groundedInstructions,
+      context: accountBrief || undefined,
+      mode,
+    });
     return Response.json(result);
   } catch (error) {
     console.error("Failed to compose reply:", error);

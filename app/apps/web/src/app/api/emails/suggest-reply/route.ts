@@ -3,6 +3,7 @@ import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
+import { loadReplyKnowledgeBlock, knowledgeSection } from "@/lib/inbox/reply-knowledge";
 import { z } from "zod";
 
 const suggestReplySchema = z.object({
@@ -42,13 +43,18 @@ export async function POST(req: Request) {
       return Response.json({ error: "emailContent required" }, { status: 400 });
     }
 
+    // Product facts the replies may cite (pricing/capabilities/objections). Empty
+    // until the tenant seeds a KB — then the replies can ANSWER pricing questions
+    // instead of inventing figures. Paired with the anti-fabrication rule below.
+    const knowledge = knowledgeSection(await loadReplyKnowledgeBlock(authCtx.tenantId));
+
     const prompt = `Generate 3 reply options for this incoming email. Each reply should have a different tone and serve a different purpose.
 
 FROM: ${senderName || "Unknown"} <${senderEmail || "unknown"}>
 
 EMAIL CONTENT:
 ${emailContent}
-
+${knowledge ? `\n${knowledge}\n` : ""}
 Generate exactly 3 replies:
 1. "brief" — A short, friendly reply that moves things forward (2-3 sentences max). Must include a concrete next step.
 2. "detailed" — A thorough response addressing every question or topic raised. Shows you read carefully.
@@ -56,10 +62,10 @@ Generate exactly 3 replies:
 
 <examples>
 <example>
-INCOMING: "Hi, can you send me your pricing? We're evaluating tools this quarter."
-BRIEF: "Hi Sarah, our Pro plan starts at $299/mo for teams up to 20. I'll send the full breakdown with a comparison sheet — should land in your inbox within the hour."
-DETAILED: "Hi Sarah, happy to share pricing details. We have three tiers: Starter ($99/mo, up to 5 users), Pro ($299/mo, up to 20 users, includes API access and priority support), and Enterprise (custom pricing for 20+ users with SSO, dedicated CSM, and SLA guarantees). Since you mentioned you're evaluating this quarter, I can also set up a sandbox environment so your team can test it hands-on. Would a 20-minute walkthrough be helpful? I have availability Thursday or Friday afternoon."
-DECLINE: "Hi Sarah, thanks for reaching out. We're actually at capacity for new onboardings this month — I want to make sure every customer gets proper attention during setup. Can I circle back the first week of next month? In the meantime, here's a self-serve demo that might answer some of your initial questions: [link]"
+INCOMING: "Thanks for the demo last week — can you send a one-pager I can share with my team?"
+BRIEF: "Hi Sarah, sending the one-pager now — it covers the workflows your team saw plus the security overview. Want me to add a short note tailored to your VP, or is the deck enough?"
+DETAILED: "Hi Sarah, glad the demo landed. Attaching the one-pager — it walks through the workflows we covered and the integration list, with a security and compliance summary at the end for your VP. If useful, I can add a short ROI sketch for your team size before you circulate it. Want me to?"
+DECLINE: "Hi Sarah, I'd rather send you something tailored than a generic deck — give me until tomorrow to adapt the one-pager to what your team flagged in the demo, and I'll include a one-paragraph summary you can forward as-is."
 </example>
 </examples>
 
@@ -69,6 +75,7 @@ RULES:
 - Match formality to the incoming email's tone
 - No "I hope this finds you well" or "Thanks for reaching out" openers
 - Every reply must have a clear call-to-action or next step
+- NEVER invent specifics. If they ask for a figure (price, discount, percentage, seat cost, date, metric) and it is NOT in PRODUCT FACTS above, do not make one up — say you'll follow up with the exact number or offer a quick call. Only state pricing/claims that appear in PRODUCT FACTS.
 - Keep the brief reply under 40 words, the detailed reply under 150 words`;
 
     const { object } = await tracedGenerateObject({
