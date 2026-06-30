@@ -101,6 +101,21 @@ interface Account {
 const okResult = (summary: string, data?: unknown): PageActionResult => ({ ok: true, summary, data });
 const errResult = (error: string, summary?: string): PageActionResult => ({ ok: false, error, summary: summary ?? error });
 
+/** Resolve a list from the page's loaded `lists` by id OR (case-insensitive)
+ *  exact name. Pure — used by the list page-actions so the chat can name a list. */
+function resolveLocalList(lists: AccountList[], ref: { listId?: string; listName?: string }): AccountList | null {
+  if (ref.listId) {
+    const byId = lists.find((l) => l.id === ref.listId);
+    if (byId) return byId;
+  }
+  const name = ref.listName?.trim().toLowerCase();
+  if (name) {
+    const byName = lists.find((l) => l.name.toLowerCase() === name);
+    if (byName) return byName;
+  }
+  return null;
+}
+
 /** Type a PageAction against its own params schema, then erase P so heterogeneous
  *  actions live in one PageAction[] (the registry stores PageAction<unknown>). */
 function definePageAction<P>(a: PageAction<P>): PageAction {
@@ -1972,6 +1987,9 @@ export default function AccountsPage() {
   const runEnrichRef = useRef(runEnrich); runEnrichRef.current = runEnrich;
   const selectAllMatchingRef = useRef(selectAllMatching); selectAllMatchingRef.current = selectAllMatching;
   const rowSetExclusionRef = useRef(rowSetExclusion); rowSetExclusionRef.current = rowSetExclusion;
+  const createListFromSelectionRef = useRef(createListFromSelection); createListFromSelectionRef.current = createListFromSelection;
+  const addSelectionToListRef = useRef(addSelectionToList); addSelectionToListRef.current = addSelectionToList;
+  const listsRef = useRef(lists); listsRef.current = lists;
 
   const accountListActions: PageAction[] = useMemo(
     () => [
@@ -2307,6 +2325,65 @@ export default function AccountsPage() {
         run: async (): Promise<PageActionResult> => {
           setShowPersona(true);
           return okResult("Opened the persona search — describe your ideal accounts and save it there.");
+        },
+      }),
+      // ── createListFromSelection (uses the on-screen checkbox selection) ──
+      definePageAction({
+        id: "accounts.createListFromSelection",
+        title: "Create a list from the selected accounts",
+        description:
+          "Create a new account list from the rows currently selected on the page (checkboxes). Pass the list name. " +
+          "Use when the user says 'save these as a list', 'create a list from my selection', 'group the selected accounts'. " +
+          "Requires at least one selected account. (To create a list from a search instead of the on-screen selection, use the createAccountList tool.)",
+        params: z.object({ name: z.string().min(1).max(120) }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async ({ name }): Promise<PageActionResult> => {
+          const n = selectedRef.current.size;
+          if (n === 0) return errResult("No accounts are selected — select some rows first, then create the list.");
+          await createListFromSelectionRef.current(name.trim());
+          return okResult(`Created the list "${name.trim()}" from ${n} selected account${n === 1 ? "" : "s"}.`, { count: n });
+        },
+      }),
+      // ── addSelectionToList (uses the on-screen selection; list by id/name) ──
+      definePageAction({
+        id: "accounts.addSelectionToList",
+        title: "Add the selected accounts to a list",
+        description:
+          "Add the rows currently selected on the page to an existing account list (resolve it by id or exact name). " +
+          "Use when the user says 'add these to my X list', 'put the selection in Hot Leads'. Requires a selection.",
+        params: z.object({
+          listId: z.string().optional(),
+          listName: z.string().optional(),
+        }),
+        mutating: true, reversible: true, cost: "free", confirm: "risky",
+        run: async (p): Promise<PageActionResult> => {
+          const n = selectedRef.current.size;
+          if (n === 0) return errResult("No accounts are selected — select some rows first.");
+          const target = resolveLocalList(listsRef.current, p);
+          if (!target) return errResult("That list wasn't found on this page. Check the list name, or use listAccountLists.");
+          await addSelectionToListRef.current(target.id);
+          return okResult(`Added ${n} selected account${n === 1 ? "" : "s"} to "${target.name}".`, { listId: target.id });
+        },
+      }),
+      // ── switchToList (toggle the active-list view filter) ──
+      definePageAction({
+        id: "accounts.switchToList",
+        title: "Show (or leave) an account list",
+        description:
+          "Scope the accounts view to one list's members (resolve by id or exact name), or pass clear:true to leave the " +
+          "active list. Use when the user says 'show my X list', 'filter to Hot Leads', 'clear the list filter'.",
+        params: z.object({
+          listId: z.string().optional(),
+          listName: z.string().optional(),
+          clear: z.boolean().optional(),
+        }),
+        mutating: false, reversible: true, cost: "free", confirm: "never",
+        run: async (p): Promise<PageActionResult> => {
+          if (p.clear) { setActiveListId(null); return okResult("Left the active list."); }
+          const target = resolveLocalList(listsRef.current, p);
+          if (!target) return errResult("That list wasn't found on this page.");
+          setActiveListId(target.id);
+          return okResult(`Showing only "${target.name}" (${target.count} account${target.count === 1 ? "" : "s"}).`, { listId: target.id });
         },
       }),
     ],
