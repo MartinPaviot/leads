@@ -360,7 +360,24 @@ export type LinkedInParameterType =
   | "SKILL"
   | "PEOPLE"
   | "CONNECTIONS"
-  | "EMPLOYMENT_TYPE";
+  | "EMPLOYMENT_TYPE"
+  // Sales-Navigator-specific resolvable types (verified live on the
+  // SALES_NAVIGATOR service). SALES_INDUSTRY/REGION return the SAME ids as
+  // INDUSTRY/LOCATION there, but the SN search body documents these names, and
+  // LEAD_LISTS/ACCOUNT_LISTS/SAVED_SEARCHES/PERSONA expose the seat's own saved
+  // collections — so a search can be scoped to the founder's existing SN lists.
+  | "SALES_INDUSTRY"
+  | "REGION"
+  | "POSTAL_CODE"
+  | "DEPARTMENT"
+  | "PERSONA"
+  | "GROUPS"
+  | "TECHNOLOGIES"
+  | "LEAD_LISTS"
+  | "ACCOUNT_LISTS"
+  | "SAVED_ACCOUNTS"
+  | "SAVED_SEARCHES"
+  | "RECENT_SEARCHES";
 
 export type LinkedInParameterService = "CLASSIC" | "SALES_NAVIGATOR" | "RECRUITER";
 
@@ -396,6 +413,39 @@ export async function resolveLinkedInParameter(
   return (j.items ?? [])
     .filter((it) => it.id != null)
     .map((it) => ({ id: String(it.id), title: it.title ?? "" }));
+}
+
+/**
+ * List the connected Sales-Nav seat's own saved collections — lead lists,
+ * account lists, saved searches, and buyer personas — so a search can be scoped
+ * to them. These are just `/search/parameters` resolutions with no keyword (the
+ * route returns the seat's full set, verified live). Best-effort per type: a
+ * type the seat doesn't support resolves to `[]` rather than throwing the whole
+ * call. Always SALES_NAVIGATOR-scoped (these types don't exist on Classic).
+ */
+export async function listSalesNavCollections(
+  cfg: UnipileConfig,
+  accountId: string,
+): Promise<{
+  leadLists: LinkedInSearchParameter[];
+  accountLists: LinkedInSearchParameter[];
+  savedSearches: LinkedInSearchParameter[];
+  personas: LinkedInSearchParameter[];
+}> {
+  const one = async (type: LinkedInParameterType): Promise<LinkedInSearchParameter[]> => {
+    try {
+      return await resolveLinkedInParameter(cfg, accountId, type, undefined, "SALES_NAVIGATOR", 50);
+    } catch {
+      return [];
+    }
+  };
+  const [leadLists, accountLists, savedSearches, personas] = await Promise.all([
+    one("LEAD_LISTS"),
+    one("ACCOUNT_LISTS"),
+    one("SAVED_SEARCHES"),
+    one("PERSONA"),
+  ]);
+  return { leadLists, accountLists, savedSearches, personas };
 }
 
 /** A 1st-degree relation as returned by GET /users/relations (verified shape). */

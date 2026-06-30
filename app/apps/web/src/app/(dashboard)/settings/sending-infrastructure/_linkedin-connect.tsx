@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ProviderLogo } from "@/components/ui/provider-logo";
+import { SalesNavSourcing } from "./_salesnav-sourcing";
 
 /**
  * Spec 36 (T6) — connect a LinkedIn / Sales-Navigator seat from WITHIN Elevay.
@@ -42,15 +42,6 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
   const [data, setData] = useState<StatusPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  // Sales-Nav sourcing: paste a search URL / keywords, OR target by ICP criteria
-  // (industries / locations / titles) that we resolve to LinkedIn filter IDs (#2).
-  const [sourceQuery, setSourceQuery] = useState("");
-  const [icpIndustries, setIcpIndustries] = useState("");
-  const [icpLocations, setIcpLocations] = useState("");
-  const [icpTitles, setIcpTitles] = useState("");
-  const [sourcing, setSourcing] = useState(false);
-  const [sourceResult, setSourceResult] = useState<{ accounts: number; contacts: number } | null>(null);
-  const [resolution, setResolution] = useState<Array<{ type: string; label: string; id: string | null; matched: string | null }> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -101,55 +92,6 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
     },
     [toast, origin],
   );
-
-  // POST /api/linkedin/source. Precedence (matches the route): a pasted Sales-Nav
-  // URL wins; else ICP criteria (industries/locations/titles) resolved to LinkedIn
-  // filter IDs server-side; else free-text keywords. Upserts canonical rows.
-  const runSource = useCallback(async () => {
-    const q = sourceQuery.trim();
-    const toList = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
-    const industries = toList(icpIndustries);
-    const locations = toList(icpLocations);
-    const jobTitles = toList(icpTitles);
-    const hasIcp = industries.length > 0 || locations.length > 0 || jobTitles.length > 0;
-    if (!q && !hasIcp) return;
-    setSourcing(true);
-    setSourceResult(null);
-    setResolution(null);
-    try {
-      const isUrl = /^https?:\/\//i.test(q);
-      const payload = isUrl
-        ? { url: q }
-        : hasIcp
-          ? { industries, locations, jobTitles, ...(q ? { keywords: q } : {}) }
-          : { keywords: q };
-      const res = await fetch("/api/linkedin/source", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        accountsUpserted?: number;
-        contactsUpserted?: number;
-        resolution?: Array<{ type: string; label: string; id: string | null; matched: string | null }>;
-        error?: string;
-      };
-      if (body.resolution) setResolution(body.resolution);
-      if (!res.ok) {
-        toast(body.error ?? "LinkedIn sourcing failed", "error");
-        return;
-      }
-      const accounts = body.accountsUpserted ?? 0;
-      const contacts = body.contactsUpserted ?? 0;
-      setSourceResult({ accounts, contacts });
-      toast(`Sourced ${accounts} account${accounts === 1 ? "" : "s"} and ${contacts} contact${contacts === 1 ? "" : "s"} from LinkedIn.`, "success");
-    } catch {
-      toast("LinkedIn sourcing failed", "error");
-    } finally {
-      setSourcing(false);
-    }
-  }, [sourceQuery, icpIndustries, icpLocations, icpTitles, toast]);
-  const canSource = !!(sourceQuery.trim() || icpIndustries.trim() || icpLocations.trim() || icpTitles.trim());
 
   const account = data?.account ?? null;
   const connected = account?.status === "connected";
@@ -210,63 +152,7 @@ export function LinkedInConnect({ origin }: { origin?: "onboarding" | "settings"
                 </Button>
               </div>
 
-              <div className="rounded-md p-3" style={{ border: "1px solid var(--color-border)" }}>
-                <label className="text-[12px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
-                  Source your TAM from Sales Navigator
-                </label>
-                <p className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  Build a precise search in Sales Navigator, then paste its URL here — or type keywords. Results
-                  land in Accounts &amp; Contacts, deduped against your existing CRM, and matched to your network
-                  for warm intros.
-                </p>
-                <div className="mt-2 flex gap-2">
-                  <Input
-                    value={sourceQuery}
-                    onChange={(e) => setSourceQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void runSource();
-                    }}
-                    placeholder="Paste a Sales Navigator search URL, or type keywords"
-                    disabled={sourcing}
-                  />
-                  <Button size="sm" onClick={() => void runSource()} disabled={sourcing || !canSource}>
-                    {sourcing ? "Sourcing…" : "Source"}
-                  </Button>
-                </div>
-
-                <p className="mt-3 text-[11px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>
-                  Or target by ICP — we resolve these to LinkedIn filters (comma-separated)
-                </p>
-                <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <Input value={icpIndustries} onChange={(e) => setIcpIndustries(e.target.value)} placeholder="Industries (e.g. software)" disabled={sourcing} />
-                  <Input value={icpLocations} onChange={(e) => setIcpLocations(e.target.value)} placeholder="Locations (e.g. France, United States)" disabled={sourcing} />
-                  <Input value={icpTitles} onChange={(e) => setIcpTitles(e.target.value)} placeholder="Titles (e.g. Founder, CEO)" disabled={sourcing} />
-                </div>
-
-                {sourceResult && (
-                  <p className="mt-2 text-[11px]" style={{ color: "var(--color-text-secondary)" }}>
-                    Added {sourceResult.accounts} account{sourceResult.accounts === 1 ? "" : "s"} +{" "}
-                    {sourceResult.contacts} contact{sourceResult.contacts === 1 ? "" : "s"}.{" "}
-                    <a href="/accounts" style={{ color: "var(--color-accent)" }}>
-                      View in Accounts
-                    </a>
-                  </p>
-                )}
-                {resolution && resolution.length > 0 && (
-                  <div className="mt-2 space-y-0.5">
-                    {resolution.map((r, i) => (
-                      <p
-                        key={i}
-                        className="text-[11px]"
-                        style={{ color: r.id ? "var(--color-text-tertiary)" : "var(--color-text-muted)" }}
-                      >
-                        {r.type.toLowerCase().replace("_", " ")}: &ldquo;{r.label}&rdquo;{" "}
-                        {r.id ? `→ ${r.matched}` : "→ no LinkedIn match"}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <SalesNavSourcing />
             </div>
           ) : needsReconnect ? (
             <div className="flex flex-wrap items-center gap-3">
