@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth/auth-utils";
-import { db } from "@/db";
-import { linkedinAccount } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
 import { readUnipileConfig, type LinkedInSearchApi, type LinkedInSearchCategory } from "@/lib/providers/unipile/http";
+import { resolveConnectedSeat, apiForSeat } from "@/lib/linkedin/seat";
 import { sourceFromSalesNav } from "@/lib/linkedin/sales-nav-sourcing";
 import { rematchStoredRelations } from "@/lib/sending/linkedin/graph-sync";
 import {
@@ -48,26 +46,9 @@ export async function POST(req: Request) {
     );
   }
 
-  // The connected seat is the search viewer. Prefer this user's connected seat;
-  // fall back to any connected seat in the tenant (a shared SDR seat).
-  const rows = await db
-    .select({
-      id: linkedinAccount.id,
-      status: linkedinAccount.status,
-      unipileAccountId: linkedinAccount.unipileAccountId,
-      seatType: linkedinAccount.seatType,
-      userId: linkedinAccount.userId,
-    })
-    .from(linkedinAccount)
-    .where(eq(linkedinAccount.tenantId, authCtx.tenantId))
-    .orderBy(desc(linkedinAccount.updatedAt));
-
-  const seat =
-    rows.find((r) => r.status === "connected" && r.unipileAccountId && r.userId === authCtx.userId) ??
-    rows.find((r) => r.status === "connected" && r.unipileAccountId) ??
-    null;
-
-  if (!seat || !seat.unipileAccountId) {
+  // The connected seat is the search viewer (filter ids are viewer-scoped).
+  const seat = await resolveConnectedSeat(authCtx.tenantId, authCtx.userId);
+  if (!seat) {
     return NextResponse.json(
       { error: "Connect a LinkedIn / Sales Navigator seat first (Settings → Sending infrastructure)." },
       { status: 400 },
@@ -299,10 +280,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // Run the search with the API tier the seat actually has. A classic seat
-  // can't use the sales_navigator endpoint, so never force it.
-  const api: LinkedInSearchApi =
-    seat.seatType === "sales_navigator" ? "sales_navigator" : seat.seatType === "recruiter" ? "recruiter" : "classic";
+  // Run the search with the API tier the seat actually has.
+  const api: LinkedInSearchApi = apiForSeat(seat.seatType);
   const category: LinkedInSearchCategory = body.category === "companies" ? "companies" : "people";
   const maxResults = Math.min(500, Math.max(1, Number(body.maxResults) || 100));
   const preview = body.preview === true;

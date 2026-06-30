@@ -77,6 +77,7 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   addCompaniesToAccountList: "update", removeCompaniesFromAccountList: "update",
   renameAccountList: "update", deleteAccountList: "action",
   enrollAccountListInSequence: "action", runAutopilotForAccountList: "action",
+  previewLinkedInSearch: "query", sourceFromLinkedIn: "action",
   // create
   createContact: "create", createAccount: "create", createDeal: "create",
   createNote: "create", logActivity: "create", createSequence: "create",

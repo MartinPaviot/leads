@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth/auth-utils";
-import { db } from "@/db";
-import { linkedinAccount } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
 import { readUnipileConfig, listSalesNavCollections } from "@/lib/providers/unipile/http";
+import { resolveConnectedSeat } from "@/lib/linkedin/seat";
 import logger from "@/lib/observability/logger";
 
 /**
@@ -24,22 +22,8 @@ export async function GET() {
   const cfg = readUnipileConfig();
   if (!cfg) return NextResponse.json({ ok: true, leadLists: [], accountLists: [], savedSearches: [], personas: [] });
 
-  const rows = await db
-    .select({
-      status: linkedinAccount.status,
-      unipileAccountId: linkedinAccount.unipileAccountId,
-      userId: linkedinAccount.userId,
-    })
-    .from(linkedinAccount)
-    .where(eq(linkedinAccount.tenantId, authCtx.tenantId))
-    .orderBy(desc(linkedinAccount.updatedAt));
-
-  const seat =
-    rows.find((r) => r.status === "connected" && r.unipileAccountId && r.userId === authCtx.userId) ??
-    rows.find((r) => r.status === "connected" && r.unipileAccountId) ??
-    null;
-
-  if (!seat?.unipileAccountId) {
+  const seat = await resolveConnectedSeat(authCtx.tenantId, authCtx.userId);
+  if (!seat) {
     return NextResponse.json({ ok: true, leadLists: [], accountLists: [], savedSearches: [], personas: [] });
   }
 

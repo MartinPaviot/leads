@@ -98,6 +98,9 @@ const TOOL_GROUPS: Record<string, string> = {
   deleteAccountList: "action",
   enrollAccountListInSequence: "action",
   runAutopilotForAccountList: "action",
+  // LinkedIn / Sales-Nav sourcing
+  previewLinkedInSearch: "query",
+  sourceFromLinkedIn: "action",
 
   // create (create.ts)
   createContact: "create",

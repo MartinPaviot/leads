@@ -25,6 +25,7 @@ import { buildKnowledgeTools } from "./knowledge";
 import { buildCustomSkillTools } from "./custom-skills";
 import { buildPageActionTools } from "./page-actions";
 import { buildAccountListTools } from "./account-lists";
+import { buildLinkedInSourcingTools } from "./linkedin-sourcing";
 
 export type { ToolContext } from "./context";
 export { makeTool } from "./context";
@@ -57,5 +58,6 @@ export function buildAllChatTools(ctx: ToolContext) {
     ...buildCustomSkillTools(ctx),
     ...buildPageActionTools(ctx),
     ...buildAccountListTools(ctx),
+    ...buildLinkedInSourcingTools(ctx),
   };
 }
