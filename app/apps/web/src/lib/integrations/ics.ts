@@ -8,6 +8,80 @@
  * (§3.3.11) and 75-octet line folding (§3.1).
  */
 
+import { toIcsLocal } from "./tz";
+
+/**
+ * VTIMEZONE blocks copied VERBATIM from real Google/Apple .ics exports — NEVER
+ * algorithmically synthesized. A conformant client PREFERS an embedded VTIMEZONE
+ * over its own tz database, so a subtly-wrong block would silently corrupt the
+ * absolute time of every occurrence (worse than the DST drift we're fixing).
+ *
+ * Only the zones Elevay organizers actually use (EU/CH/UK); every other zone
+ * falls back to UTC for recurring ICS (the drift, but never a broken invite).
+ * To extend: paste a real export's VTIMEZONE for the zone — do not hand-derive.
+ *
+ * The EU last-Sunday-of-March / last-Sunday-of-October rule is decades-stable.
+ */
+const VTIMEZONE_BLOCKS: Record<string, string> = {
+  "Europe/Paris": [
+    "BEGIN:VTIMEZONE",
+    "TZID:Europe/Paris",
+    "BEGIN:DAYLIGHT",
+    "TZOFFSETFROM:+0100",
+    "TZOFFSETTO:+0200",
+    "TZNAME:CEST",
+    "DTSTART:19700329T020000",
+    "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU",
+    "END:DAYLIGHT",
+    "BEGIN:STANDARD",
+    "TZOFFSETFROM:+0200",
+    "TZOFFSETTO:+0100",
+    "TZNAME:CET",
+    "DTSTART:19701025T030000",
+    "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU",
+    "END:STANDARD",
+    "END:VTIMEZONE",
+  ].join("\n"),
+  "Europe/Zurich": [
+    "BEGIN:VTIMEZONE",
+    "TZID:Europe/Zurich",
+    "BEGIN:DAYLIGHT",
+    "TZOFFSETFROM:+0100",
+    "TZOFFSETTO:+0200",
+    "TZNAME:CEST",
+    "DTSTART:19700329T020000",
+    "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU",
+    "END:DAYLIGHT",
+    "BEGIN:STANDARD",
+    "TZOFFSETFROM:+0200",
+    "TZOFFSETTO:+0100",
+    "TZNAME:CET",
+    "DTSTART:19701025T030000",
+    "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU",
+    "END:STANDARD",
+    "END:VTIMEZONE",
+  ].join("\n"),
+  "Europe/London": [
+    "BEGIN:VTIMEZONE",
+    "TZID:Europe/London",
+    "BEGIN:DAYLIGHT",
+    "TZOFFSETFROM:+0000",
+    "TZOFFSETTO:+0100",
+    "TZNAME:BST",
+    "DTSTART:19700329T010000",
+    "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU",
+    "END:DAYLIGHT",
+    "BEGIN:STANDARD",
+    "TZOFFSETFROM:+0100",
+    "TZOFFSETTO:+0000",
+    "TZNAME:GMT",
+    "DTSTART:19701025T020000",
+    "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU",
+    "END:STANDARD",
+    "END:VTIMEZONE",
+  ].join("\n"),
+};
+
 export interface IcsPerson {
   email: string;
   name?: string | null;
@@ -27,6 +101,11 @@ export interface IcsEventInput {
   recurrenceRule?: string | null;
   /** Minutes before start for a DISPLAY VALARM. Omitted = no alarm. */
   reminderMinutes?: number | null;
+  /** Organizer IANA zone for a RECURRING series — emits DTSTART;TZID + a VTIMEZONE
+   *  so occurrences hold their local wall-clock across DST. Only honoured when a
+   *  recurrenceRule is set AND the zone is in VTIMEZONE_BLOCKS; otherwise (and for
+   *  every single event) DTSTART stays UTC, byte-identical to before. */
+  timeZone?: string | null;
   /** REQUEST = invitation, PUBLISH = plain object, REPLY = an attendee's RSVP. */
   method?: "REQUEST" | "PUBLISH" | "REPLY";
   /**
@@ -109,10 +188,19 @@ export function buildIcs(input: IcsEventInput): string {
     attendees,
     recurrenceRule,
     reminderMinutes,
+    timeZone,
     method = "REQUEST",
     attendeePartstat,
     sequence = 0,
   } = input;
+
+  // Zoned (DTSTART;TZID + a VTIMEZONE) ONLY for a recurring event whose organizer
+  // zone is in the verified table; singles + unknown zones stay UTC (identical
+  // bytes). The VTIMEZONE lets the series hold its local wall-clock across DST.
+  const tzBlock = recurrenceRule && timeZone ? VTIMEZONE_BLOCKS[timeZone] : undefined;
+  const localStart = tzBlock && timeZone ? toIcsLocal(start, timeZone) : null;
+  const localEnd = tzBlock && timeZone ? toIcsLocal(end, timeZone) : null;
+  const zoned = Boolean(tzBlock && localStart && localEnd);
 
   const lines: string[] = [
     "BEGIN:VCALENDAR",
@@ -120,13 +208,17 @@ export function buildIcs(input: IcsEventInput): string {
     `PRODID:${PRODID}`,
     "CALSCALE:GREGORIAN",
     `METHOD:${method}`,
+  ];
+  // VTIMEZONE is a top-level component and MUST precede the VEVENT referencing it.
+  if (zoned && tzBlock) lines.push(...tzBlock.split("\n"));
+  lines.push(
     "BEGIN:VEVENT",
     `UID:${uid}`,
-    `DTSTAMP:${toIcsUtc(new Date())}`,
-    `DTSTART:${toIcsUtc(start)}`,
-    `DTEND:${toIcsUtc(end)}`,
+    `DTSTAMP:${toIcsUtc(new Date())}`, // DTSTAMP is always UTC (RFC 5545 §3.8.7.2)
+    zoned ? `DTSTART;TZID=${timeZone}:${localStart}` : `DTSTART:${toIcsUtc(start)}`,
+    zoned ? `DTEND;TZID=${timeZone}:${localEnd}` : `DTEND:${toIcsUtc(end)}`,
     `SUMMARY:${escapeIcsText(summary)}`,
-  ];
+  );
   if (description) lines.push(`DESCRIPTION:${escapeIcsText(description)}`);
   if (location) lines.push(`LOCATION:${escapeIcsText(location)}`);
   if (url) lines.push(`URL:${url}`); // URI value — not TEXT-escaped

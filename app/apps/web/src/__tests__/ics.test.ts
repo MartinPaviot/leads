@@ -88,4 +88,36 @@ describe("ics — iCalendar builder", () => {
     expect(buildIcs({ ...base })).not.toContain("VALARM");
     expect(unfold(buildIcs({ ...base, reminderMinutes: 0 }))).toContain("TRIGGER:-PT0M");
   });
+
+  it("recurring + a table zone emits TZID + a VTIMEZONE (before VEVENT) and a LOCAL DTSTART", () => {
+    const ics = unfold(buildIcs({ ...base, recurrenceRule: "FREQ=WEEKLY;COUNT=8", timeZone: "Europe/Paris" }));
+    expect(ics).toContain("BEGIN:VTIMEZONE");
+    expect(ics).toContain("TZID:Europe/Paris");
+    // VTIMEZONE is a top-level component, before the VEVENT that references it.
+    expect(ics.indexOf("BEGIN:VTIMEZONE")).toBeLessThan(ics.indexOf("BEGIN:VEVENT"));
+    // base start 08:00Z in June (CEST +2) = 10:00 Paris local.
+    expect(ics).toContain("DTSTART;TZID=Europe/Paris:20260620T100000");
+    expect(ics).not.toContain("DTSTART:20260620T080000Z");
+  });
+
+  it("recurring zoning is DST-stable: a 09:00-local series renders T090000 winter AND summer", () => {
+    const z = { recurrenceRule: "FREQ=WEEKLY", timeZone: "Europe/Paris" } as const;
+    const winter = unfold(buildIcs({ ...base, start: new Date("2026-01-13T08:00:00Z"), end: new Date("2026-01-13T08:45:00Z"), ...z }));
+    const summer = unfold(buildIcs({ ...base, start: new Date("2026-07-06T07:00:00Z"), end: new Date("2026-07-06T07:45:00Z"), ...z }));
+    expect(winter).toContain("DTSTART;TZID=Europe/Paris:20260113T090000");
+    expect(summer).toContain("DTSTART;TZID=Europe/Paris:20260706T090000");
+  });
+
+  it("a SINGLE event with a zone stays UTC (no VTIMEZONE) — an instant is unambiguous", () => {
+    const ics = buildIcs({ ...base, timeZone: "Europe/Paris" }); // no recurrenceRule
+    expect(ics).not.toContain("VTIMEZONE");
+    expect(ics).toContain("DTSTART:20260620T080000Z");
+  });
+
+  it("recurring + a zone NOT in the table falls back to UTC (never a malformed/zoned invite)", () => {
+    const ics = buildIcs({ ...base, recurrenceRule: "FREQ=WEEKLY", timeZone: "Mars/Olympus" });
+    expect(ics).not.toContain("VTIMEZONE");
+    expect(ics).not.toContain("TZID=");
+    expect(ics).toContain("DTSTART:20260620T080000Z");
+  });
 });

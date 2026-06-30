@@ -35,4 +35,22 @@ describe("toGraphRecurrence — Microsoft patternedRecurrence", () => {
     expect(r.pattern).toEqual({ type: "daily", interval: 1 });
     expect(r.range).toEqual({ type: "noEnd", startDate: "2026-07-06" });
   });
+
+  it("the optional zone derives weekday / day-of-month / startDate from LOCAL time", () => {
+    // Mon 23:30 UTC is Tue 01:30 in Paris — the anchors must follow the zone the
+    // Graph start.timeZone uses, or every occurrence is mis-placed.
+    const crossesMidnight = new Date("2026-07-06T23:30:00.000Z");
+    const weekly = toGraphRecurrence({ freq: "weekly", count: 8 }, crossesMidnight, "Europe/Paris");
+    expect(weekly.pattern).toEqual({ type: "weekly", interval: 1, daysOfWeek: ["tuesday"] });
+    expect(weekly.range).toEqual({ type: "numbered", startDate: "2026-07-07", numberOfOccurrences: 8 });
+
+    const monthly = toGraphRecurrence({ freq: "monthly" }, crossesMidnight, "Europe/Paris");
+    expect(monthly.pattern).toEqual({ type: "absoluteMonthly", interval: 1, dayOfMonth: 7 });
+    expect(monthly.range).toEqual({ type: "noEnd", startDate: "2026-07-07" });
+
+    // The 2-arg / null form keeps the UTC basis (Monday the 6th) byte-for-byte.
+    const utc = toGraphRecurrence({ freq: "weekly", count: 8 }, crossesMidnight);
+    expect(utc.pattern).toEqual({ type: "weekly", interval: 1, daysOfWeek: ["monday"] });
+    expect(utc.range).toEqual({ type: "numbered", startDate: "2026-07-06", numberOfOccurrences: 8 });
+  });
 });

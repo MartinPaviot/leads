@@ -101,6 +101,9 @@ export interface BookMeetingSlot {
   reminderMinutes?: number;
   /** Recurrence (structured subset): freq + optional occurrence count. */
   recurrence?: { freq: "daily" | "weekly" | "monthly"; count?: number };
+  /** Organizer IANA zone (the booking machine's browser zone) — a recurring
+   *  series holds its local wall-clock across DST. Singles ignore it. */
+  organizerTimeZone?: string;
 }
 
 export interface BookMeetingResult {
@@ -141,6 +144,7 @@ export async function bookMeetingRequest(slot: BookMeetingSlot): Promise<BookMee
         location: slot.location?.trim() || undefined,
         reminderMinutes: typeof slot.reminderMinutes === "number" ? slot.reminderMinutes : undefined,
         recurrence: slot.recurrence,
+        organizerTimeZone: slot.organizerTimeZone,
       }),
     });
     const data = (await res.json().catch(() => ({}))) as {
@@ -405,6 +409,9 @@ export function MeetingSchedulerCard({
             count: recurCount && Number(recurCount) >= 2 ? Math.min(52, Math.floor(Number(recurCount))) : undefined,
           }
         : undefined,
+      // The booking machine's IANA zone — a recurring series anchors to the local
+      // wall-clock the user SAW (same value used for the availability query).
+      organizerTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
     });
     setBooking(false);
     if (!r.ok) {

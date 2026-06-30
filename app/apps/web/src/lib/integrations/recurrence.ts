@@ -10,6 +10,8 @@
  * (weekly), day-of-month (monthly) and the range start date.
  */
 
+import { zonedWeekday, zonedYmdDay } from "./tz";
+
 export type RecurrenceFreq = "daily" | "weekly" | "monthly";
 
 export interface MeetingRecurrence {
@@ -60,21 +62,31 @@ export function toRRule(rec: MeetingRecurrence): string {
 
 /**
  * Microsoft Graph `patternedRecurrence`. The weekday (weekly) / day-of-month
- * (monthly) and the range start come from the event's UTC start (our Graph
- * writer pins start.timeZone = "UTC").
+ * (monthly) and the range start come from the event's start.
+ *
+ * `tz` (the organizer's IANA zone) MUST be the SAME zone the Graph writer puts
+ * in start.timeZone — else the restated weekday/dayOfMonth would disagree with
+ * the start. When `tz` is set, the anchors are the LOCAL wall-clock in that zone
+ * (so a recurring series holds its local time across DST); when null they fall
+ * back to the UTC basis (matching a UTC-pinned start), preserving the prior
+ * behaviour byte-for-byte for the 2-arg call sites + tests.
  */
 export function toGraphRecurrence(
   rec: MeetingRecurrence,
   start: Date,
+  tz: string | null = null,
 ): { pattern: Record<string, unknown>; range: Record<string, unknown> } {
+  const weekday = tz ? zonedWeekday(start, tz) : GRAPH_DAYS[start.getUTCDay()];
+  const dayOfMonth = tz ? zonedYmdDay(start, tz).dayOfMonth : start.getUTCDate();
+  const startDate = tz ? zonedYmdDay(start, tz).ymd : ymdUtc(start);
   const pattern: Record<string, unknown> =
     rec.freq === "weekly"
-      ? { type: "weekly", interval: 1, daysOfWeek: [GRAPH_DAYS[start.getUTCDay()]] }
+      ? { type: "weekly", interval: 1, daysOfWeek: [weekday] }
       : rec.freq === "monthly"
-        ? { type: "absoluteMonthly", interval: 1, dayOfMonth: start.getUTCDate() }
+        ? { type: "absoluteMonthly", interval: 1, dayOfMonth }
         : { type: "daily", interval: 1 };
   const range: Record<string, unknown> = hasCount(rec)
-    ? { type: "numbered", startDate: ymdUtc(start), numberOfOccurrences: Math.floor(rec.count as number) }
-    : { type: "noEnd", startDate: ymdUtc(start) };
+    ? { type: "numbered", startDate, numberOfOccurrences: Math.floor(rec.count as number) }
+    : { type: "noEnd", startDate };
   return { pattern, range };
 }

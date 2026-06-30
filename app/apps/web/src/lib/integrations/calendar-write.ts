@@ -28,6 +28,7 @@ import { sendViaSmtp } from "./smtp-send";
 import { createSovereignMeeting } from "./video-meeting";
 import { createZoomMeeting, zoomConfigured } from "./zoom";
 import { toRRule, toGraphRecurrence, type MeetingRecurrence } from "./recurrence";
+import { isValidTimeZone, toZonedNaiveIso } from "./tz";
 
 export type CalendarProvider = "google" | "microsoft" | "caldav" | "smtp";
 /** "sovereign" = Jitsi visio (default); the rest are opt-in "si besoin". */
@@ -74,6 +75,19 @@ interface EventCore {
   reminderMinutes?: number;
   /** Recurrence (structured subset, recurrence.ts). Omitted = single meeting. */
   recurrence?: MeetingRecurrence;
+  /** Organizer IANA zone. Used ONLY for a RECURRING series, so occurrences hold
+   *  their local wall-clock across DST instead of drifting with a UTC instant.
+   *  Single events stay UTC (an instant is unambiguous). */
+  organizerTimeZone?: string;
+}
+
+/**
+ * The organizer zone to expand a RECURRING series in — the IANA string only when
+ * the event is recurring AND the zone is valid; else null (a single event, or a
+ * missing/invalid zone, keeps the UTC basis: byte-identical to before).
+ */
+function recurrenceZone(core: EventCore): string | null {
+  return core.recurrence && isValidTimeZone(core.organizerTimeZone) ? core.organizerTimeZone! : null;
 }
 
 /** The contact + any extra invitees, deduped by lowercased email. */
@@ -196,6 +210,8 @@ export async function bookSovereignMeeting(opts: {
   reminderMinutes?: number;
   /** Recurrence (structured subset); omitted = single meeting. */
   recurrence?: MeetingRecurrence;
+  /** Organizer IANA zone (recurring only; singles stay UTC). */
+  organizerTimeZone?: string;
 }): Promise<BookResult> {
   const requested = opts.conferencing ?? "sovereign";
   const meeting = createSovereignMeeting({ prefix: opts.roomPrefix ?? "elevay" });
@@ -210,6 +226,7 @@ export async function bookSovereignMeeting(opts: {
     location: opts.location,
     reminderMinutes: opts.reminderMinutes,
     recurrence: opts.recurrence,
+    organizerTimeZone: opts.organizerTimeZone,
   };
 
   // 1. The user's explicitly-connected IMAP/SMTP mailbox (Zimbra / Infomaniak /
@@ -286,12 +303,17 @@ async function writeGoogleEvent(
   wopts: WriteOpts,
 ): Promise<WriteResult> {
   const end = new Date(core.startTime.getTime() + core.durationMinutes * 60_000);
-  // timeZone is OPTIONAL for a single event (the Z-offset dateTime suffices) but
-  // REQUIRED for a recurring one — Google expands the RRULE in this zone. We pin
-  // "UTC" to match the UTC instant from toISOString() and the getUTCDay()/
-  // getUTCDate() basis used to build the RRULE + the Graph patternedRecurrence.
-  const start = { dateTime: core.startTime.toISOString(), timeZone: "UTC" };
-  const endTime = { dateTime: end.toISOString(), timeZone: "UTC" };
+  // For a RECURRING series, express start/end as LOCAL time in the organizer's
+  // zone so Google expands the RRULE on the wall-clock (no DST drift). A single
+  // event (zone === null) stays UTC — an instant is unambiguous, and timeZone
+  // stays "UTC" because Google REQUIRES timeZone on recurring inserts.
+  const zone = recurrenceZone(core);
+  const start = zone
+    ? { dateTime: toZonedNaiveIso(core.startTime, zone), timeZone: zone }
+    : { dateTime: core.startTime.toISOString(), timeZone: "UTC" };
+  const endTime = zone
+    ? { dateTime: toZonedNaiveIso(end, zone), timeZone: zone }
+    : { dateTime: end.toISOString(), timeZone: "UTC" };
   const attendees = allAttendees(core).map((a) => ({ email: a.email, displayName: a.name }));
 
   if (wopts.native) {
@@ -360,11 +382,19 @@ async function writeMicrosoftEvent(
   wopts: WriteOpts,
 ): Promise<WriteResult> {
   const end = new Date(core.startTime.getTime() + core.durationMinutes * 60_000);
+  // ONE zone drives BOTH the dateTime zone and the patternedRecurrence weekday/
+  // dayOfMonth/range — so they can never disagree with the start. Recurring →
+  // local time in the organizer's zone (DST-stable); single → naive-UTC (Graph's
+  // expected shape for an instant).
+  const zone = recurrenceZone(core);
   const base: Record<string, unknown> = {
     subject: core.title,
-    // Naive UTC datetime + explicit timeZone is Graph's expected shape.
-    start: { dateTime: core.startTime.toISOString().replace("Z", ""), timeZone: "UTC" },
-    end: { dateTime: end.toISOString().replace("Z", ""), timeZone: "UTC" },
+    start: zone
+      ? { dateTime: toZonedNaiveIso(core.startTime, zone), timeZone: zone }
+      : { dateTime: core.startTime.toISOString().replace("Z", ""), timeZone: "UTC" },
+    end: zone
+      ? { dateTime: toZonedNaiveIso(end, zone), timeZone: zone }
+      : { dateTime: end.toISOString().replace("Z", ""), timeZone: "UTC" },
     attendees: allAttendees(core).map((a) => ({
       emailAddress: { address: a.email, name: a.name },
       type: "required",
@@ -373,7 +403,7 @@ async function writeMicrosoftEvent(
     ...(typeof core.reminderMinutes === "number" && core.reminderMinutes >= 0
       ? { isReminderOn: true, reminderMinutesBeforeStart: Math.floor(core.reminderMinutes) }
       : {}),
-    ...(core.recurrence ? { recurrence: toGraphRecurrence(core.recurrence, core.startTime) } : {}),
+    ...(core.recurrence ? { recurrence: toGraphRecurrence(core.recurrence, core.startTime, zone) } : {}),
   };
 
   const requestBody = wopts.native
@@ -491,6 +521,9 @@ async function writeCalDavEvent(
     attendees: allAttendees(core),
     recurrenceRule: core.recurrence ? toRRule(core.recurrence) : null,
     reminderMinutes: core.reminderMinutes ?? null,
+    // Zone the .ics ONLY for a recurring series (singles stay UTC). buildIcs
+    // further gates on the zone being in its verified VTIMEZONE table.
+    timeZone: core.recurrence ? (core.organizerTimeZone ?? null) : null,
     method: "REQUEST",
   });
 
@@ -562,6 +595,9 @@ async function writeSmtpIcsEvent(
     attendees: allAttendees(core),
     recurrenceRule: core.recurrence ? toRRule(core.recurrence) : null,
     reminderMinutes: core.reminderMinutes ?? null,
+    // Zone the .ics ONLY for a recurring series (singles stay UTC). buildIcs
+    // further gates on the zone being in its verified VTIMEZONE table.
+    timeZone: core.recurrence ? (core.organizerTimeZone ?? null) : null,
     method: "REQUEST",
   });
 

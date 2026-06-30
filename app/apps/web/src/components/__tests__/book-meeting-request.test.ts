@@ -84,6 +84,18 @@ describe("bookMeetingRequest", () => {
     expect(body.recurrence).toBeUndefined();
   });
 
+  it("forwards organizerTimeZone when set; omits it when not", async () => {
+    await bookMeetingRequest({
+      contactId: "ct-1",
+      startTime: "2026-07-01T09:00:00.000Z",
+      organizerTimeZone: "Europe/Paris",
+    });
+    expect(bodyOfLastCall().organizerTimeZone).toBe("Europe/Paris");
+
+    await bookMeetingRequest({ contactId: "ct-1", startTime: "2026-07-01T09:00:00.000Z" });
+    expect(bodyOfLastCall().organizerTimeZone).toBeUndefined();
+  });
+
   it("forwards contactId when a contact is linked", async () => {
     await bookMeetingRequest({
       contactId: "ct-1",

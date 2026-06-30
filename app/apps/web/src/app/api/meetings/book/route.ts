@@ -57,6 +57,9 @@ const bookMeetingSchema = z
         count: z.number().int().min(2).max(52).optional(),
       })
       .optional(),
+    // Organizer IANA zone (recurring only). Validated-and-dropped below, never
+    // 400 — a bad zone just degrades a recurring series to UTC.
+    organizerTimeZone: z.string().max(64).optional(),
   })
   // One of the two identity inputs must be present.
   .refine((d) => Boolean(d.contactId || d.contactEmail), {
@@ -93,7 +96,19 @@ export async function POST(req: Request) {
       location,
       reminderMinutes,
       recurrence,
+      organizerTimeZone,
     } = parsed.data;
+
+    // Validate-and-DROP a malformed zone (never 400 the booking on it). A bad or
+    // absent zone degrades a recurring series to UTC; singles never use it.
+    let orgTz = organizerTimeZone;
+    if (orgTz) {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: orgTz });
+      } catch {
+        orgTz = undefined;
+      }
+    }
 
     // Resolve the contact (always tenant-scoped, soft-deleted excluded). Three
     // paths: an existing id; an existing contact matched by sender email; or a
@@ -229,6 +244,7 @@ export async function POST(req: Request) {
         location,
         reminderMinutes,
         recurrence,
+        organizerTimeZone: orgTz,
       });
     } catch (err) {
       if (err instanceof CalendarNotConnectedError) {
