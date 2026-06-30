@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { z } from "zod";
-import { Building2, Search, Filter, Plus, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, Archive, SlidersHorizontal, Layers, ListPlus, type LucideIcon } from "lucide-react";
+import { Building2, Search, Filter, Plus, Target, Radio, X, Globe, Factory, Ruler, DollarSign, GitBranch, Gauge, ExternalLink, Clock, Users, ChevronRight, ChevronDown, Loader2, Sparkles, Phone, MapPin, Trash2, UserPlus, Ban, RotateCcw, Archive, SlidersHorizontal, Layers, ListPlus, ListMinus, Pencil, type LucideIcon } from "lucide-react";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
 import { useRegisterPageActions, useRegisterEntityLocator, cssEscape } from "@/lib/chat/page-actions/registry";
 import type { EntityLocator } from "@/lib/chat/page-actions/registry";
@@ -225,6 +225,12 @@ export default function AccountsPage() {
   const [activeListId, setActiveListId] = useState<string | null>(null);
   const [showAddToList, setShowAddToList] = useState(false);
   const [listBusy, setListBusy] = useState(false);
+  // Inline rename of a list chip — `renamingListId` is the chip being edited.
+  // The intent ref lets Enter/blur commit once and Escape cancel: both keys
+  // blur the input, and onBlur reads the intent (default commit on click-away).
+  const [renamingListId, setRenamingListId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameIntentRef = useRef<"commit" | "cancel">("commit");
   // Per-column header filters (Notion / Excel style). Keyed by the
   // column's filterKey → its filter state. An entry only exists while
   // the column constrains the list; clearing it deletes the key.
@@ -933,6 +939,74 @@ export default function AccountsPage() {
       console.warn("accounts: delete list failed", e);
     }
   }, [activeListId, toast, fetchLists, t]);
+
+  // ── Active list ⇄ URL (?list=<id>) ──
+  // Read once on mount so a bookmarked / shared link reopens the list. A bogus
+  // id self-clears once fetchLists lands (the guard above). Client-only read —
+  // same pattern as ?create=true — so there's no useSearchParams Suspense.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const fromUrl = new URLSearchParams(window.location.search).get("list");
+    if (fromUrl) setActiveListId(fromUrl);
+  }, []);
+  // Keep the URL in sync as the selection changes (replaceState — no history
+  // spam). Skip the very first run so the mount-read above owns the initial URL
+  // and this never wipes a deep-linked ?list before the read applies.
+  const listUrlMounted = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!listUrlMounted.current) { listUrlMounted.current = true; return; }
+    const params = new URLSearchParams(window.location.search);
+    if (activeListId) params.set("list", activeListId);
+    else params.delete("list");
+    const qs = params.toString();
+    window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+  }, [activeListId]);
+
+  // Remove one account from the currently-active list (per-row affordance). The
+  // row drops out of the filtered view on the refetch.
+  const removeFromActiveList = useCallback(async (companyId: string, name: string) => {
+    if (!activeListId) return;
+    try {
+      const res = await fetch(`/api/account-lists/${activeListId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ removeCompanyIds: [companyId] }),
+      });
+      if (!res.ok) { toast(t("accountLists.toast.removeError"), "error"); return; }
+      toast(t("accountLists.toast.removed", { name }), "success");
+      await fetchLists();
+      await refetchLoadedAccounts();
+    } catch (e) {
+      toast(t("accountLists.toast.removeError"), "error");
+      console.warn("accounts: remove from list failed", e);
+    }
+  }, [activeListId, toast, fetchLists, refetchLoadedAccounts, t]);
+
+  // Rename a list (inline edit on the active chip). No-op on an empty or
+  // unchanged name; a name collision comes back 409 → a localized warning.
+  const renameList = useCallback(async (listId: string, nextName: string) => {
+    const trimmed = nextName.trim();
+    const current = lists.find((l) => l.id === listId);
+    setRenamingListId(null);
+    if (!trimmed || !current || trimmed === current.name) return;
+    try {
+      const res = await fetch(`/api/account-lists/${listId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (!res.ok) {
+        toast(res.status === 409 ? t("accountLists.toast.renameConflict") : t("accountLists.toast.renameError"), res.status === 409 ? "warning" : "error");
+        return;
+      }
+      toast(t("accountLists.toast.renamed", { name: trimmed }), "success");
+      await fetchLists();
+    } catch (e) {
+      toast(t("accountLists.toast.renameError"), "error");
+      console.warn("accounts: rename list failed", e);
+    }
+  }, [lists, toast, fetchLists, t]);
 
   // Pending TAM-proposal count for the header entry point.
   useEffect(() => {
@@ -2543,6 +2617,32 @@ export default function AccountsPage() {
           <div className="flex min-w-0 items-center gap-1 overflow-x-auto border-l pl-2" style={{ borderColor: "var(--color-border-default)" }}>
             {lists.map((l) => {
               const isActive = activeListId === l.id;
+              const isRenaming = renamingListId === l.id;
+              if (isRenaming) {
+                // Inline rename — replaces the chip with an input. Enter / blur
+                // commits, Escape cancels (renameList no-ops on empty/unchanged).
+                return (
+                  <input
+                    key={l.id}
+                    autoFocus
+                    value={renameValue}
+                    maxLength={120}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { renameIntentRef.current = "commit"; e.currentTarget.blur(); }
+                      else if (e.key === "Escape") { renameIntentRef.current = "cancel"; e.currentTarget.blur(); }
+                    }}
+                    onBlur={() => {
+                      if (renameIntentRef.current === "cancel") setRenamingListId(null);
+                      else renameList(l.id, renameValue);
+                      renameIntentRef.current = "commit";
+                    }}
+                    aria-label={t("accountLists.chip.renameTitle")}
+                    className="h-[26px] w-[150px] shrink-0 rounded-md px-2 text-[12px] font-medium outline-none"
+                    style={{ background: "var(--color-bg-card)", color: "var(--color-text-primary)", border: "1px solid var(--color-accent)" }}
+                  />
+                );
+              }
               return (
                 <div
                   key={l.id}
@@ -2552,6 +2652,7 @@ export default function AccountsPage() {
                   <button
                     type="button"
                     onClick={() => setActiveListId(isActive ? null : l.id)}
+                    onDoubleClick={() => { setRenamingListId(l.id); setRenameValue(l.name); }}
                     title={isActive ? t("accountLists.chip.leave") : t("accountLists.chip.showOnly", { name: l.name })}
                     className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
                     style={{ color: isActive ? "var(--color-accent)" : "var(--color-text-tertiary)" }}
@@ -2561,16 +2662,28 @@ export default function AccountsPage() {
                     <span className="tabular-nums" style={{ opacity: 0.7 }}>{l.count}</span>
                   </button>
                   {isActive && (
-                    <button
-                      type="button"
-                      aria-label={t("accountLists.chip.deleteAria", { name: l.name })}
-                      title={t("accountLists.chip.deleteTitle")}
-                      onClick={() => deleteList(l.id, l.name)}
-                      className="mr-1 flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
-                      style={{ color: "var(--color-accent)" }}
-                    >
-                      <X size={11} />
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        aria-label={t("accountLists.chip.renameAria", { name: l.name })}
+                        title={t("accountLists.chip.renameTitle")}
+                        onClick={() => { setRenamingListId(l.id); setRenameValue(l.name); }}
+                        className="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+                        style={{ color: "var(--color-accent)" }}
+                      >
+                        <Pencil size={10} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t("accountLists.chip.deleteAria", { name: l.name })}
+                        title={t("accountLists.chip.deleteTitle")}
+                        onClick={() => deleteList(l.id, l.name)}
+                        className="mr-1 ml-0.5 flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+                        style={{ color: "var(--color-accent)" }}
+                      >
+                        <X size={11} />
+                      </button>
+                    </>
                   )}
                 </div>
               );
@@ -3358,6 +3471,21 @@ export default function AccountsPage() {
                         The primary action (Enrich) now lives in the top bar. */}
                     <td className="actions">
                       <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                        {activeListId && !viewDeleted && (
+                          <button
+                            type="button"
+                            aria-label={t("accountLists.row.removeAria", { name: account.name })}
+                            title={t("accountLists.row.removeTitle")}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void removeFromActiveList(account.id, account.name);
+                            }}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+                            style={{ color: "var(--color-text-muted)" }}
+                          >
+                            <ListMinus size={13} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={viewDeleted ? `Restore ${account.name}` : viewExcluded ? `Restore ${account.name}` : `Mark ${account.name} as not a fit`}
