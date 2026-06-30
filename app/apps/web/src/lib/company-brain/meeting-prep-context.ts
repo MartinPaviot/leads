@@ -15,6 +15,7 @@
  */
 
 import { getCompanyBrain as defaultGetCompanyBrain } from "./get-brain";
+import { getDecisionLedgerSection } from "./decision-ledger";
 import type { CompanyBrain } from "./types";
 
 export interface MeetingPrepAttendee {
@@ -177,6 +178,13 @@ export async function composeMeetingPrepContext(
           .join("\n"),
     );
   }
+
+  // Tenant-wide decision ledger — what was decided + what's still owed
+  // across recent meetings. Top-level (not company-scoped) so it also
+  // serves a company-less internal/cofounder meeting, where the per-
+  // company brains below are empty. Fail-soft; no-op when there's nothing.
+  const ledger = await getDecisionLedgerSection(tenantId).catch(() => "");
+  if (ledger) sections.push(ledger);
 
   // Dedupe + cap company list to keep prompt within budget.
   const uniqueCompanyIds = Array.from(new Set(companyIds.filter(Boolean))).slice(
