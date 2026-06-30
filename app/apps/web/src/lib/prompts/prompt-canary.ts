@@ -181,3 +181,18 @@ export async function promoteCanary(versionId: string): Promise<void> {
     version: version.version,
   });
 }
+
+/**
+ * Roll a canary back: deactivate it so `getActivePromptVersion` falls
+ * back to the stable version. Used when the canary's eval score has
+ * regressed below stable. Setting canaryPercent=0 alone is NOT enough —
+ * with two active versions both at 0%, routing would still serve the
+ * newest — so the canary must be made inactive.
+ */
+export async function rollbackCanary(versionId: string): Promise<void> {
+  await db.update(agentPromptVersions)
+    .set({ isActive: false, canaryPercent: 0 })
+    .where(eq(agentPromptVersions.id, versionId));
+
+  logger.info("[PROMPT-CANARY] Rolled back canary", { versionId });
+}
