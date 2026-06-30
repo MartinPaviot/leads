@@ -1,21 +1,4 @@
-import {
-  HeaderSkeleton,
-  FilterBarSkeleton,
-  Skeleton,
-  TableRowSkeleton,
-} from "@/components/ui/skeleton";
-
-const ROW_SHAPE = [
-  { width: 14, circle: true },
-  { width: 180 },
-  { width: 80 },
-  { width: 60, pill: true },
-  { width: 40 },
-  { width: 45 },
-  { width: 40, pill: true },
-  { width: 22, circle: true },
-  { width: 40 },
-] as const;
+import { HeaderSkeleton, FilterBarSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 
 export default function AccountsLoading() {
   return (
@@ -23,21 +6,11 @@ export default function AccountsLoading() {
       <HeaderSkeleton actions={4} />
       <FilterBarSkeleton tabs={3} search />
 
+      {/* Same generic TableSkeleton the page renders on first paint (rows=8), so
+          the route fallback doesn't morph a tailored 10-row table into 8 even
+          rows. */}
       <div className="flex-1 overflow-hidden">
-        {/* Table header */}
-        <div
-          className="flex items-center gap-3 px-4"
-          style={{ height: "var(--table-row-height)", borderBottom: "1px solid var(--color-border-default)" }}
-        >
-          <Skeleton className="h-3.5 w-3.5 rounded" />
-          {[90, 70, 55, 45, 45, 45, 45, 55, 50].map((w, i) => (
-            <Skeleton key={i} className="h-2.5 rounded" style={{ width: w }} />
-          ))}
-        </div>
-
-        {Array.from({ length: 10 }).map((_, r) => (
-          <TableRowSkeleton key={r} index={r} cells={[...ROW_SHAPE]} />
-        ))}
+        <TableSkeleton rows={8} cols={9} />
       </div>
     </div>
   );

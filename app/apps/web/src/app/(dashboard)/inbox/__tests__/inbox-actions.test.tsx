@@ -503,6 +503,42 @@ describe("CLE-14 /inbox — outbound filter (child mounts on the outbound tab)",
   });
 });
 
+describe("/inbox — Composer (new email) renders in-page, not a drawer", () => {
+  it("clicking Composer shows the inline composer in the reading pane — no slide-over, no backdrop", async () => {
+    await mountLoaded();
+    fireEvent.click(screen.getByRole("button", { name: /Composer/ }));
+    await flush();
+    // In-page like a reply: no fixed slide-over drawer and no page-dimming backdrop.
+    expect(document.querySelector(".slide-in-right")).toBeNull();
+    expect(document.querySelector('[style*="overlay-fade-in"]')).toBeNull();
+    // The compose body (textarea) rendered in the document flow.
+    expect(document.querySelector("textarea")).not.toBeNull();
+  });
+
+  it("while composing, a global thread shortcut ('e') does NOT triage the hidden selected thread", async () => {
+    await mountLoaded(); // selects a thread (selectedKey set)
+    fireEvent.click(screen.getByRole("button", { name: /Composer/ }));
+    await flush();
+    // 'e' on a non-field target would archive the selected thread — must be a no-op
+    // while the composer owns the pane (composeOpen guard in the keydown handler).
+    fireEvent.keyDown(document.body, { key: "e" });
+    await flush();
+    expect(callsTo("/api/inbox/triage").length).toBe(0);
+  });
+
+  it("Composer from the Outbound tab switches to a mail lane and shows the composer (not the table)", async () => {
+    await mountLoaded();
+    await runRegisteredAction("inbox.setLane", { lane: "outbound" });
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: /Composer/ }));
+    await flush();
+    // Compose renders in the reading pane (textarea present) rather than being
+    // stranded behind the OutboundTable.
+    expect(document.querySelector("textarea")).not.toBeNull();
+    expect(document.querySelector(".slide-in-right")).toBeNull();
+  });
+});
+
 describe("CLE-14 /inbox — off-page degradation", () => {
   it("after unmount the inbox.* ids are gone and runRegisteredAction refuses", async () => {
     await mountLoaded();

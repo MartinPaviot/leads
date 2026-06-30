@@ -460,7 +460,12 @@ export default function DeliverabilityPage() {
           </div>
         )}
 
-        {/* KPI Grid with trend arrows */}
+        {/* KPI Grid — hidden until something has actually been sent. With zero
+            sends, getRateColor paints Open/Reply rate at 0% in alarming RED (a
+            deliverability "problem" that's really just "nothing sent yet"), and
+            the grid would render at the same time as the "No emails sent yet"
+            empty state below — a contradictory, broken-looking double state. */}
+        {data.totalSent > 0 && (
         <div className={`${recommendations.length > 0 || data.warnings.length > 0 ? "" : ""} grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3`}>
           <Card>
             <CardBody>
@@ -537,6 +542,7 @@ export default function DeliverabilityPage() {
             </CardBody>
           </Card>
         </div>
+        )}
 
         {/* Domain Health per Mailbox */}
         {data.mailboxHealth && data.mailboxHealth.length > 0 && (

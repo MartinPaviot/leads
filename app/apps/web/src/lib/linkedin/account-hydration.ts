@@ -32,6 +32,7 @@ import { upsertAccount } from "@/db/canonical/upsert";
 import { readUnipileConfig } from "@/lib/providers/unipile/http";
 import { resolveAndEnrichCompany, icpSegmentToPreserve, type KnownCompany } from "@/lib/providers/unipile/enrichment";
 import { clampHydrationLimit } from "@/lib/linkedin/hydration-seat";
+import { reserveDailyViews } from "@/lib/linkedin/view-budget";
 
 const UNIPILE = "unipile";
 
@@ -39,6 +40,10 @@ const UNIPILE = "unipile";
  * window for this many days (so a company with no LinkedIn page isn't re-probed
  * every run, but is retried eventually in case it later gets a page). */
 const HYDRATION_RETRY_DAYS = 30;
+
+/** Profile views a single probe can spend (the candidate's company profile,
+ * sometimes two during domain-confirmation) — reserved against the daily budget. */
+const VIEWS_PER_PROBE = 2;
 
 export interface HydrateExistingParams {
   tenantId: string;
@@ -56,6 +61,8 @@ export interface HydrateExistingResult {
   hydrated: number;
   skippedNoMatch: number;
   segmentsPreserved: number;
+  /** True if the seat's daily view budget was hit before `limit` was reached. */
+  budgetExhausted: boolean;
 }
 
 interface AccountRow {
@@ -116,8 +123,16 @@ export async function hydrateExistingAccounts(params: HydrateExistingParams): Pr
   let hydrated = 0;
   let skippedNoMatch = 0;
   let segmentsPreserved = 0;
+  let budgetExhausted = false;
 
   for (const row of rows) {
+    // Cross-call daily cap: reserve this probe's views against the seat's UTC-day
+    // budget before spending. Stops repeated route/cron calls from draining the
+    // seat's ~100 views/day (which would get the LinkedIn account restricted).
+    if (!(await reserveDailyViews(params.unipileAccountId, VIEWS_PER_PROBE))) {
+      budgetExhausted = true;
+      break;
+    }
     processed++; // one probe = bounded Unipile spend, whether or not it matches
     const known: KnownCompany = { name: row.name, domain: row.domain, linkedinCompanyId: knownLinkedInId(row) };
 
@@ -179,7 +194,7 @@ export async function hydrateExistingAccounts(params: HydrateExistingParams): Pr
     hydrated++;
   }
 
-  return { processed, hydrated, skippedNoMatch, segmentsPreserved };
+  return { processed, hydrated, skippedNoMatch, segmentsPreserved, budgetExhausted };
 }
 
 /** Stamp a no-match attempt (no Unipile call) so the row drops out of the

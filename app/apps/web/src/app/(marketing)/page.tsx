@@ -399,7 +399,6 @@ export default function LandingPage() {
         <div className="mx-auto max-w-[1240px] px-6">
           <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">How the engine works</p></Animate>
           <Animate><h2 className="mt-4 text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">One engine, from cold list to closed deal</h2></Animate>
-          <Animate><p className="mt-4 max-w-2xl text-lg leading-relaxed text-gray-600">Follow one account, Notion. We run every step: sourcing, ranking, reading intent, drafting, logging. And we remember every interaction, so the deal keeps moving on its own.</p></Animate>
           {/* Market evidence — speed-to-lead. Cited third-party data
               (Dr. James Oldroyd, MIT / InsideSales), the reason the
               "prioritize" step exists: timing is most of the win. */}
@@ -422,39 +421,11 @@ export default function LandingPage() {
         </div>
       </Section>
 
-      {/* HUMAN IN THE LOOP — the control principle. Its "nothing sends
-          without you" proof now lives, animated, in the steps above
-          (Approve & send, Review & confirm), so this stays a clean
-          statement of the principle, not a duplicate static mock. */}
-      <Section className="pt-32">
-        <div className="mx-auto max-w-[1240px] px-6">
-          <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-10 md:p-14">
-            <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">Built around you</p></Animate>
-            <Animate><h2 className="mt-3 max-w-2xl text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">We run the engine. You spend your time with customers.</h2></Animate>
-            <Animate><p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">Sourcing, ranking, intent detection, drafting, capture, follow-ups: all of it runs nonstop, on your terms. That frees you for the one thing software can&apos;t touch: the conversations and the relationships only a founder can build.</p></Animate>
-            <div className="mt-10 grid gap-8 md:grid-cols-3">
-              {[
-                { h: "We handle", b: "Prospecting, enrichment, grading, signal detection, copywriting, transcription, follow-ups. Always-on, in the background." },
-                { h: "You focus on", b: "The conversations, the read on the room, and the relationships: the part of selling only a person can do." },
-                { h: "On your guardrails", b: "Set the rules once and we run within them. Open the throttle or pull back to drafts-only anytime. Autonomy is earned, never assumed." },
-              ].map((col) => (
-                <Animate key={col.h}>
-                  <div className="border-l-2 pl-4" style={{ borderColor: "rgba(44,107,237,0.22)" }}>
-                    <h3 className="text-sm font-semibold text-gray-900">{col.h}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-600">{col.b}</p>
-                  </div>
-                </Animate>
-              ))}
-            </div>
-          </div>
-        </div>
-      </Section>
-
       {/* FROM THE FOUNDER — honest trust to stand in for the customer proof
           a pre-revenue product can't show yet: the mission in the founder's
           own words, plus a real early-access commitment. No fabricated
           metrics or customers. TODO(martin): confirm this copy is true to you. */}
-      <Section className="pt-32 pb-32">
+      <Section className="pt-32">
         <div className="mx-auto max-w-[1240px] px-6">
           <div className="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white p-8 md:p-12">
             <Animate>
@@ -475,8 +446,28 @@ In founder-led sales, you are the pipeline, and the work around the conversation
         </div>
       </Section>
 
-      {/* BOOK A DEMO CTA */}
-      <Section className="pt-32 text-center">
+      {/* FAQ — objections cleared right before the closing CTA below. Centered
+          header keeps the whole bottom third on one axis (founder card -> FAQ
+          -> CTA) so the page reads as a single flow, not stacked islands. Each
+          row settles in on a small stagger, then expands with a real height
+          animation when opened. */}
+      <Section className="pt-32">
+        <div className="mx-auto max-w-3xl px-6">
+          <Animate><p className="text-center text-xs font-semibold uppercase tracking-wider text-[#2563DF]">Before you book</p></Animate>
+          <Animate><h2 className="mt-4 text-center text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">Questions</h2></Animate>
+          <m.div className="mt-10" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}>
+            {faqs.map((faq) => (
+              <Animate key={faq.q}>
+                <FAQItem q={faq.q} a={faq.a} />
+              </Animate>
+            ))}
+          </m.div>
+        </div>
+      </Section>
+
+      {/* BOOK A DEMO — the closing CTA, last thing before the footer so the ask
+          lands after the FAQ has cleared objections. */}
+      <Section className="pt-32 pb-32 text-center">
         <div className="mx-auto max-w-[1240px] px-6">
           <Animate>
             <div className="mx-auto max-w-2xl rounded-2xl p-12" style={{ background: "#F6F8FC", border: "1px solid rgba(44,107,237,0.12)" }}>
@@ -487,21 +478,6 @@ In founder-led sales, you are the pipeline, and the work around the conversation
               </div>
             </div>
           </Animate>
-        </div>
-      </Section>
-
-      {/* FAQ — each row settles in on its own small stagger, then expands
-          with a real height animation when opened. */}
-      <Section className="pt-32">
-        <div className="mx-auto max-w-3xl px-6">
-          <Animate><h2 className="text-[30px] font-bold tracking-tight text-gray-900 sm:text-[38px]">Questions</h2></Animate>
-          <m.div className="mt-8" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}>
-            {faqs.map((faq) => (
-              <Animate key={faq.q}>
-                <FAQItem q={faq.q} a={faq.a} />
-              </Animate>
-            ))}
-          </m.div>
         </div>
       </Section>
 

@@ -657,6 +657,8 @@ export interface UnipileInvitation {
   inviter?: string;
   date?: string;
   parsed_datetime?: string;
+  /** Received-only: the token REQUIRED to accept/decline this invitation. */
+  specifics?: { provider?: string; shared_secret?: string };
   [k: string]: unknown;
 }
 
@@ -680,6 +682,198 @@ export async function listUnipileInvitationsReceived(
   const q = new URLSearchParams({ account_id: accountId, limit: String(opts.limit ?? 50) });
   if (opts.cursor) q.set("cursor", opts.cursor);
   return unipileFetch<UnipileList<UnipileInvitation>>(cfg, "GET", `/users/invite/received?${q.toString()}`);
+}
+
+/**
+ * POST /users/invite/received/{id} — accept or decline an INBOUND connection
+ * request. Body shape from the live OpenAPI: needs the invitation's own
+ * `shared_secret` (read it off the matching GET /users/invite/received item's
+ * `specifics.shared_secret`) plus account_id + action.
+ */
+export function handleUnipileInvitation(
+  cfg: UnipileConfig,
+  invitationId: string,
+  opts: { accountId: string; sharedSecret: string; action: "accept" | "decline" },
+): Promise<{ object?: string; status?: unknown }> {
+  return unipileFetch(cfg, "POST", `/users/invite/received/${encodeURIComponent(invitationId)}`, {
+    provider: "LINKEDIN",
+    account_id: opts.accountId,
+    shared_secret: opts.sharedSecret,
+    action: opts.action,
+  });
+}
+
+/** DELETE /users/invite/sent/{id} — withdraw a pending OUTBOUND invitation (anti-collision cleanup). */
+export function withdrawUnipileInvitation(cfg: UnipileConfig, invitationId: string, accountId: string): Promise<{ object?: string }> {
+  return unipileFetch(cfg, "DELETE", `/users/invite/sent/${encodeURIComponent(invitationId)}?account_id=${encodeURIComponent(accountId)}`);
+}
+
+/** A reaction on a post/comment (verified shape) — the author is the warm-lead signal. */
+export interface UnipilePostReaction {
+  /** LIKE | PRAISE | APPRECIATION | EMPATHY | INTEREST | ENTERTAINMENT. */
+  value?: string;
+  post_id?: string;
+  comment_id?: string | null;
+  author?: {
+    id?: string;
+    name?: string;
+    headline?: string;
+    profile_url?: string;
+    profile_picture_url?: string;
+    network_distance?: string;
+  };
+  [k: string]: unknown;
+}
+
+/** GET /users/{identifier}/reactions — a person's recent reactions (engagement signal). Needs provider_id. */
+export function listUnipileUserReactions(
+  cfg: UnipileConfig,
+  providerId: string,
+  accountId: string,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<UnipileList<UnipilePostReaction>> {
+  const q = new URLSearchParams({ account_id: accountId, limit: String(opts.limit ?? 10) });
+  if (opts.cursor) q.set("cursor", opts.cursor);
+  return unipileFetch<UnipileList<UnipilePostReaction>>(cfg, "GET", `/users/${encodeURIComponent(providerId)}/reactions?${q.toString()}`);
+}
+
+/** GET /users/{identifier}/comments — a person's recent comments (engagement signal). Needs provider_id. */
+export function listUnipileUserComments(
+  cfg: UnipileConfig,
+  providerId: string,
+  accountId: string,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<UnipileList<Record<string, unknown>>> {
+  const q = new URLSearchParams({ account_id: accountId, limit: String(opts.limit ?? 10) });
+  if (opts.cursor) q.set("cursor", opts.cursor);
+  return unipileFetch<UnipileList<Record<string, unknown>>>(cfg, "GET", `/users/${encodeURIComponent(providerId)}/comments?${q.toString()}`);
+}
+
+/** GET /posts/{id} — a single post (for the post id read off a search/activity result). */
+export function getUnipilePost(cfg: UnipileConfig, postId: string, accountId: string): Promise<Record<string, unknown>> {
+  return unipileFetch(cfg, "GET", `/posts/${encodeURIComponent(postId)}?account_id=${encodeURIComponent(accountId)}`);
+}
+
+/**
+ * GET /posts/{id}/reactions — WHO reacted to a post. The highest-value discovery
+ * surface: the reactors of a prospect's (or our own) post are warm, intent-rich
+ * leads (each `author` carries name/headline/profile_url/network_distance).
+ * NOTE (verified live): `postId` is the post's **social_id** (URN, e.g.
+ * `urn:li:ugcPost:123…`), NOT the bare numeric `id` — the numeric id 404s.
+ */
+export function listUnipilePostReactions(
+  cfg: UnipileConfig,
+  postId: string,
+  accountId: string,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<UnipileList<UnipilePostReaction>> {
+  const q = new URLSearchParams({ account_id: accountId, limit: String(opts.limit ?? 50) });
+  if (opts.cursor) q.set("cursor", opts.cursor);
+  return unipileFetch<UnipileList<UnipilePostReaction>>(cfg, "GET", `/posts/${encodeURIComponent(postId)}/reactions?${q.toString()}`);
+}
+
+/** GET /posts/{id}/comments — who commented on a post (warm-lead discovery). */
+export function listUnipilePostComments(
+  cfg: UnipileConfig,
+  postId: string,
+  accountId: string,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<UnipileList<Record<string, unknown>>> {
+  const q = new URLSearchParams({ account_id: accountId, limit: String(opts.limit ?? 50) });
+  if (opts.cursor) q.set("cursor", opts.cursor);
+  return unipileFetch<UnipileList<Record<string, unknown>>>(cfg, "GET", `/posts/${encodeURIComponent(postId)}/comments?${q.toString()}`);
+}
+
+export type UnipileReactionType = "like" | "celebrate" | "support" | "love" | "insightful" | "funny";
+
+/** POST /posts/reaction — react to a post (a warm-up touch before outreach). Body modeled in the OpenAPI. */
+export function reactToUnipilePost(
+  cfg: UnipileConfig,
+  opts: { accountId: string; postId: string; reactionType: UnipileReactionType; commentId?: string },
+): Promise<{ object?: string }> {
+  return unipileFetch(cfg, "POST", `/posts/reaction`, {
+    account_id: opts.accountId,
+    post_id: opts.postId,
+    reaction_type: opts.reactionType,
+    ...(opts.commentId ? { comment_id: opts.commentId } : {}),
+  });
+}
+
+/** POST /posts/{id}/comments — comment on a post (warm-up touch). Body modeled in the OpenAPI. */
+export function commentOnUnipilePost(
+  cfg: UnipileConfig,
+  postId: string,
+  opts: { accountId: string; text: string },
+): Promise<{ object?: string; comment_id?: string }> {
+  return unipileFetch(cfg, "POST", `/posts/${encodeURIComponent(postId)}/comments`, {
+    account_id: opts.accountId,
+    text: opts.text,
+  });
+}
+
+/** GET /chats/{id} — a single chat (accepts the Unipile or provider chat id). */
+export function getUnipileChat(cfg: UnipileConfig, chatId: string, accountId?: string): Promise<UnipileChat> {
+  const q = accountId ? `?account_id=${encodeURIComponent(accountId)}` : "";
+  return unipileFetch<UnipileChat>(cfg, "GET", `/chats/${encodeURIComponent(chatId)}${q}`);
+}
+
+/** A chat participant (verified shape) — provider_id is what POST /chats `attendees_ids` wants. */
+export interface UnipileChatAttendee {
+  id?: string;
+  account_id?: string;
+  provider_id?: string;
+  name?: string;
+  is_self?: number;
+  hidden?: number;
+  picture_url?: string;
+  profile_url?: string;
+  [k: string]: unknown;
+}
+
+/** GET /chats/{id}/attendees — the participants of a chat (attribution / who-is-who). */
+export function listUnipileChatAttendees(cfg: UnipileConfig, chatId: string): Promise<UnipileList<UnipileChatAttendee>> {
+  return unipileFetch<UnipileList<UnipileChatAttendee>>(cfg, "GET", `/chats/${encodeURIComponent(chatId)}/attendees`);
+}
+
+/** POST /linkedin/contracts/{id}/select — switch a multi-contract seat to a specific SN/Recruiter contract. */
+export function selectUnipileContract(cfg: UnipileConfig, contractId: string, accountId: string): Promise<{ object?: string }> {
+  return unipileFetch(cfg, "POST", `/linkedin/contracts/${encodeURIComponent(contractId)}/select?account_id=${encodeURIComponent(accountId)}`);
+}
+
+export interface UnipileWebhookParams {
+  /** Event family: 'messaging' | 'account_status' | 'mailing'. */
+  source: string;
+  /** Our HTTPS endpoint Unipile POSTs to. */
+  requestUrl: string;
+  name?: string;
+  /** Restrict to specific connected accounts; omit for all. */
+  accountIds?: string[];
+  /** Custom headers Unipile attaches to every delivery (the shared-secret auth header). */
+  headers?: Array<{ key: string; value: string }>;
+}
+
+/** Map our params to the snake_case webhook-create body. Pure (unit-tested). */
+export function toWebhookBody(p: UnipileWebhookParams): Record<string, unknown> {
+  const body: Record<string, unknown> = { source: p.source, request_url: p.requestUrl };
+  if (p.name) body.name = p.name;
+  if (p.accountIds?.length) body.account_ids = p.accountIds;
+  if (p.headers?.length) body.headers = p.headers;
+  return body;
+}
+
+/** POST /webhooks — register a webhook programmatically (vs the manual dashboard). */
+export function createUnipileWebhook(cfg: UnipileConfig, params: UnipileWebhookParams): Promise<{ object?: string; webhook_id?: string }> {
+  return unipileFetch(cfg, "POST", `/webhooks`, toWebhookBody(params));
+}
+
+/** GET /webhooks — list registered webhooks (reconcile / garbage-collect stale ones). */
+export function listUnipileWebhooks(cfg: UnipileConfig): Promise<{ object?: string; items?: Array<Record<string, unknown>> }> {
+  return unipileFetch(cfg, "GET", `/webhooks`);
+}
+
+/** DELETE /webhooks/{id} — remove a webhook by id. */
+export function deleteUnipileWebhook(cfg: UnipileConfig, id: string): Promise<{ object?: string }> {
+  return unipileFetch(cfg, "DELETE", `/webhooks/${encodeURIComponent(id)}`);
 }
 
 /**

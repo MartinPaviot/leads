@@ -1499,8 +1499,11 @@ export default function OpportunitiesPage() {
           </div>
         )}
 
-        {/* KPI Row — compact */}
-        {showAnalytics && analytics ? (
+        {/* KPI Row — compact. Replaced by a single framed line when there are no
+            deals yet, so a new tenant doesn't get a wall of bare $0 / 0% / 0d
+            metric cards that read as a broken dashboard (mirrors the home KPI
+            zero-state framing). */}
+        {showAnalytics && analytics && analytics.totalDeals > 0 ? (
           <div className="mb-3 grid grid-cols-3 gap-2 md:grid-cols-6">
             <Card><CardBody className="px-2.5 py-2">
               <p className="text-[9px] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>Pipeline</p>
@@ -1529,6 +1532,10 @@ export default function OpportunitiesPage() {
               </p>
             </CardBody></Card>
           </div>
+        ) : showAnalytics && analytics && analytics.totalDeals === 0 ? (
+          <p className="mb-3 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+            No pipeline yet — add your first opportunity to start tracking value, win rate and velocity.
+          </p>
         ) : showAnalytics && analyticsError ? (
           <div className="mb-3 flex items-center gap-3 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
             <span>Couldn&apos;t load pipeline metrics.</span>

@@ -1,20 +1,22 @@
 import {
   HeaderSkeleton,
   FilterBarSkeleton,
-  KpiRowSkeleton,
   KanbanColumnSkeleton,
   Skeleton,
 } from "@/components/ui/skeleton";
 
+// Mirror the page's own first-paint kanban — the same six stages and card counts
+// — so the board doesn't morph 8→6 columns (dropping a "Trial" column and an
+// empty "Lost" column) when the client page mounts. The KPI strip is intentionally
+// absent: the page only renders it once analytics has loaded (and only when there
+// are deals), so painting a 6-card KPI skeleton here would just flash and vanish.
 const STAGES = [
   { name: "Lead", cards: 3 },
   { name: "Qualification", cards: 2 },
   { name: "Demo", cards: 2 },
-  { name: "Trial", cards: 1 },
-  { name: "Proposal", cards: 2 },
+  { name: "Proposal", cards: 1 },
   { name: "Negotiation", cards: 1 },
   { name: "Won", cards: 1 },
-  { name: "Lost", cards: 0 },
 ];
 
 export default function OpportunitiesLoading() {
@@ -31,11 +33,7 @@ export default function OpportunitiesLoading() {
         </div>
       </FilterBarSkeleton>
 
-      <div className="px-4 py-3">
-        <KpiRowSkeleton count={6} />
-      </div>
-
-      <div className="flex flex-1 items-stretch gap-3 overflow-x-auto px-4 pb-3">
+      <div className="flex flex-1 items-stretch gap-3 overflow-x-auto px-4 py-3">
         {STAGES.map((stage, idx) => (
           <KanbanColumnSkeleton
             key={stage.name}

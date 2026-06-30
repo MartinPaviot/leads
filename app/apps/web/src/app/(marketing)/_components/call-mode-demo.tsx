@@ -154,7 +154,10 @@ export function CallModeDemo() {
   return (
     <div ref={ref} className="relative">
       <div ref={frameRef} className="relative z-10">
-        <ScaleToFit designWidth={860}>
+        {/* designWidth matches the other process-step demos (1080) so the cockpit
+            renders at the SAME scale as its siblings — no oversized "zoomed-in"
+            outlier in the half-width lineup. Height stays 470 (content unchanged). */}
+        <ScaleToFit designWidth={1080}>
           <AppFrame url="app.elevay.com/call-mode">
             <div className="flex" style={{ height: 470, background: T.page }} aria-hidden="true">
               {/* Collapsed icon nav — the real sidebar's small-screen state */}

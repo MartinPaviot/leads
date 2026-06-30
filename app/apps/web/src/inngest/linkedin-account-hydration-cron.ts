@@ -55,7 +55,7 @@ export const linkedinAccountHydrationCron = inngest.createFunction(
     });
 
     const perTenantLimit = Math.max(1, Math.min(50, Number(process.env.LINKEDIN_ACCOUNT_HYDRATION_LIMIT) || 10));
-    const totals = { tenants: 0, hydrated: 0, skippedNoMatch: 0, segmentsPreserved: 0, failedTenants: 0 };
+    const totals = { tenants: 0, hydrated: 0, skippedNoMatch: 0, segmentsPreserved: 0, failedTenants: 0, budgetExhaustedTenants: 0 };
 
     for (const [tenantId, unipileAccountId] of perTenant) {
       // Per-tenant fault isolation: a hard error on one tenant must not abort the
@@ -69,7 +69,7 @@ export const linkedinAccountHydrationCron = inngest.createFunction(
             tenantId,
             err: err instanceof Error ? err.message : String(err),
           });
-          return { processed: 0, hydrated: 0, skippedNoMatch: 0, segmentsPreserved: 0, failed: true };
+          return { processed: 0, hydrated: 0, skippedNoMatch: 0, segmentsPreserved: 0, budgetExhausted: false, failed: true };
         }
       });
       totals.tenants++;
@@ -77,6 +77,7 @@ export const linkedinAccountHydrationCron = inngest.createFunction(
       totals.skippedNoMatch += r.skippedNoMatch;
       totals.segmentsPreserved += r.segmentsPreserved;
       if (r.failed) totals.failedTenants++;
+      if (r.budgetExhausted) totals.budgetExhaustedTenants++;
     }
 
     logger.info("linkedin-account-hydration.run_done", totals);
