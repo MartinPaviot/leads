@@ -21,6 +21,7 @@ import { useToast } from "@/components/ui/toast";
 import { useT } from "@/lib/i18n/locale";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
 import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
+import { deriveMeetingActions } from "@/lib/meetings/action-pack";
 
 /* ── CLE-14: page-action helpers (pure, shared) ── */
 
@@ -796,6 +797,19 @@ export default function MeetingDetailPage() {
     data.transcriptSource === "recall_bot" || data.transcriptSource === "jibri";
   const needsReview = notes && !linkedTasks.length && !followUpDraft && isAutoTranscribed;
 
+  // Per-meeting action pack — the next moves post-call did NOT auto-run.
+  // `isInternal` proxy: an internal/cofounder meeting has no matched external
+  // contact (a sales meeting resolves one), which is also exactly the gate for
+  // a sendable follow-up recipient.
+  const hasResolvableContact = !!(data.crm?.contact || data.matchedContacts.length);
+  const suggestedActions = notes
+    ? deriveMeetingActions(notes, {
+        hasFollowUpDraft: !!followUpDraft && !data.followUpSentAt,
+        hasContact: hasResolvableContact,
+        isInternal: !hasResolvableContact,
+      })
+    : [];
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* MONACO-PARITY-05: deep-link confirmation banner + transcript
@@ -1257,6 +1271,28 @@ export default function MeetingDetailPage() {
                 <BuyingSignalCard label="Competitors" value={notes.buyingSignals.competitors} />
                 <BuyingSignalCard label="Next Steps" value={notes.buyingSignals.nextSteps} />
               </div>
+            </CollapsibleSection>
+          )}
+
+          {/* Suggested next actions — the leverage moves post-call did NOT
+              auto-run (send the follow-up, recap the team, answer objections,
+              act on the agreed next steps). Read-only for now; one-click launch
+              via the chat agent is the next iteration. */}
+          {suggestedActions.length > 0 && (
+            <CollapsibleSection title="Suggested next actions" icon={Sparkles}>
+              <ul className="space-y-2">
+                {suggestedActions.map((a) => (
+                  <li key={a.id} className="flex items-start gap-2">
+                    <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>{a.label}</p>
+                      {a.prompt && (
+                        <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>{a.prompt}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </CollapsibleSection>
           )}
 
