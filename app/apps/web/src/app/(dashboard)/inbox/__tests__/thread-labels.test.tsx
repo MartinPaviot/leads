@@ -20,28 +20,28 @@ afterEach(() => vi.unstubAllGlobals());
 describe("ThreadLabels — B6.3 openSignal", () => {
   it("renders the '+ Label' button and no input by default", () => {
     render(<ThreadLabels conversationKey="k1" />);
-    expect(screen.getByText("Étiquette")).toBeTruthy();
-    expect(screen.queryByPlaceholderText(/Étiquette/)).toBeNull();
+    expect(screen.getByText("Label")).toBeTruthy();
+    expect(screen.queryByPlaceholderText(/Label/)).toBeNull();
   });
 
   it("does not auto-open on mount when openSignal is 0", () => {
     render(<ThreadLabels conversationKey="k1" openSignal={0} />);
-    expect(screen.queryByPlaceholderText(/Étiquette/)).toBeNull();
+    expect(screen.queryByPlaceholderText(/Label/)).toBeNull();
   });
 
   it("opens the focused add-label input when openSignal goes positive", () => {
     const { rerender } = render(<ThreadLabels conversationKey="k1" openSignal={0} />);
-    expect(screen.queryByPlaceholderText(/Étiquette/)).toBeNull();
+    expect(screen.queryByPlaceholderText(/Label/)).toBeNull();
     rerender(<ThreadLabels conversationKey="k1" openSignal={1} />);
-    const input = screen.getByPlaceholderText(/Étiquette/);
+    const input = screen.getByPlaceholderText(/Label/);
     expect(input).toBeTruthy();
     expect(document.activeElement).toBe(input);
   });
 
   it("re-opens after a subsequent bump (monotonic increments)", () => {
     const { rerender } = render(<ThreadLabels conversationKey="k1" openSignal={1} />);
-    expect(screen.getByPlaceholderText(/Étiquette/)).toBeTruthy();
+    expect(screen.getByPlaceholderText(/Label/)).toBeTruthy();
     rerender(<ThreadLabels conversationKey="k1" openSignal={2} />);
-    expect(screen.getByPlaceholderText(/Étiquette/)).toBeTruthy();
+    expect(screen.getByPlaceholderText(/Label/)).toBeTruthy();
   });
 });

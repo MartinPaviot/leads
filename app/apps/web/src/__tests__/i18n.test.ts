@@ -30,7 +30,7 @@ describe("translate", () => {
     expect(translate(dict, "en", "g", { a: "x" })).toBe("x-{b}");
   });
 
-  it("defaults to FR (the current UI)", () => {
-    expect(DEFAULT_LOCALE).toBe("fr");
+  it("defaults to EN", () => {
+    expect(DEFAULT_LOCALE).toBe("en");
   });
 });

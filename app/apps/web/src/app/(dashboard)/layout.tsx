@@ -19,7 +19,7 @@ import { workspaceLogoUrl } from "@/lib/logo/workspace-logo";
 import type { TenantSettings } from "@/lib/config/tenant-settings";
 import { cookies } from "next/headers";
 import { LocaleProvider } from "@/lib/i18n/locale";
-import type { Locale } from "@/lib/i18n/messages";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/messages";
 
 export default async function DashboardLayout({
   children,
@@ -31,10 +31,11 @@ export default async function DashboardLayout({
 
   const initials = (session.user.name?.charAt(0) || "?").toUpperCase();
 
-  // Default FR (the current UI); the sidebar Language switch flips to the base
-  // English version and persists the choice to this cookie.
+  // Default EN; the sidebar Language switch flips to FR and persists the choice
+  // to this cookie. An explicit cookie (either language) wins over the default.
   const localeCookie = (await cookies()).get("locale")?.value;
-  const initialLocale: Locale = localeCookie === "en" ? "en" : "fr";
+  const initialLocale: Locale =
+    localeCookie === "en" || localeCookie === "fr" ? localeCookie : DEFAULT_LOCALE;
 
   let recentChats: Array<{ id: string; title: string | null }> = [];
   let userAvatarUrl: string | null = null;

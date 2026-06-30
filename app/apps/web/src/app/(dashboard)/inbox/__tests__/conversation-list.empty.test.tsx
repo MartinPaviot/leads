@@ -22,20 +22,20 @@ describe("ConversationList empty state (F3 B4)", () => {
   it("with an active query -> no-results copy + a Clear search action", () => {
     const onClearSearch = vi.fn();
     render(<ConversationList {...base} hasQuery onClearSearch={onClearSearch} />);
-    expect(screen.getByText("Aucune conversation ne correspond à la recherche")).toBeTruthy();
-    const clear = screen.getByText("Effacer la recherche");
+    expect(screen.getByText("No conversations match the current search")).toBeTruthy();
+    const clear = screen.getByText("Clear search");
     fireEvent.click(clear);
     expect(onClearSearch).toHaveBeenCalled();
   });
 
   it("with no query -> the lane's resting empty copy, no Clear search", () => {
     render(<ConversationList {...base} hasQuery={false} />);
-    expect(screen.getByText("Rien ne requiert votre attention")).toBeTruthy();
-    expect(screen.queryByText("Effacer la recherche")).toBeNull();
+    expect(screen.getByText("Nothing needs your attention")).toBeTruthy();
+    expect(screen.queryByText("Clear search")).toBeNull();
   });
 
   it("the done lane shows its own resting copy when empty + no query", () => {
     render(<ConversationList {...base} lane="done" />);
-    expect(screen.getByText("Rien de marqué comme terminé pour l'instant")).toBeTruthy();
+    expect(screen.getByText("Nothing marked done yet")).toBeTruthy();
   });
 });

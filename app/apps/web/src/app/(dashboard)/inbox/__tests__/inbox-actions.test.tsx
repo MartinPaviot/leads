@@ -365,19 +365,19 @@ describe("CLE-14 /inbox — bookMeeting + stopSequence (lifted pane handlers)", 
 });
 
 describe("Fix A /inbox — book a meeting without a linked contact", () => {
-  it("shows 'Planifier un RDV' even when the sender is not a CRM contact yet", async () => {
+  it("shows 'Schedule a meeting' even when the sender is not a CRM contact yet", async () => {
     detailResponse = () => jsonRes({ ...FIXTURE_DETAIL, contact: null, enrollment: null });
     await mountLoaded();
     // The calendar action books against the sender email; the server
     // resolves-or-creates the contact at confirm time, so it must appear
     // even though detail.contact is null.
-    expect(screen.getByLabelText("Planifier un RDV")).toBeTruthy();
+    expect(screen.getByLabelText("Schedule a meeting")).toBeTruthy();
   });
 
   it("opening the scheduler from a contactless thread books nothing until confirm", async () => {
     detailResponse = () => jsonRes({ ...FIXTURE_DETAIL, contact: null, enrollment: null });
     await mountLoaded();
-    fireEvent.click(screen.getByLabelText("Planifier un RDV"));
+    fireEvent.click(screen.getByLabelText("Schedule a meeting"));
     await flush();
     expect(callsTo("/api/meetings/book").length).toBe(0);
   });
@@ -392,7 +392,7 @@ describe("Fix A /inbox — book a meeting without a linked contact", () => {
       });
     await mountLoaded();
     // Booking a no-reply@ would create a junk contact + email an unmonitored box.
-    expect(screen.queryByLabelText("Planifier un RDV")).toBeNull();
+    expect(screen.queryByLabelText("Schedule a meeting")).toBeNull();
   });
 
   it("still shows the button when the sender is a full 'Name <addr>' header", async () => {
@@ -406,7 +406,7 @@ describe("Fix A /inbox — book a meeting without a linked contact", () => {
         conversation: { ...FIXTURE_DETAIL.conversation, fromAddress: "Marie Dubois <marie@ems.ch>" },
       });
     await mountLoaded();
-    expect(screen.getByLabelText("Planifier un RDV")).toBeTruthy();
+    expect(screen.getByLabelText("Schedule a meeting")).toBeTruthy();
   });
 });
 
@@ -414,26 +414,26 @@ describe("F3 /inbox — pane error vs missing (B5)", () => {
   it("a failed detail fetch shows the pane error + Retry, not 'no longer available'", async () => {
     detailResponse = () => jsonRes({ error: "boom" }, false, 500);
     await mountLoaded();
-    expect(await screen.findByText("Impossible de charger cette conversation.")).toBeTruthy();
-    expect(screen.getByText("Réessayer")).toBeTruthy();
-    expect(screen.queryByText("Cette conversation n'est plus disponible.")).toBeNull();
+    expect(await screen.findByText("Couldn't load this conversation.")).toBeTruthy();
+    expect(screen.getByText("Retry")).toBeTruthy();
+    expect(screen.queryByText("This conversation is no longer available.")).toBeNull();
   });
 
   it("a resolved-but-absent detail shows 'no longer available' (missing, not error)", async () => {
     detailResponse = () => jsonRes(null);
     await mountLoaded();
-    expect(await screen.findByText("Cette conversation n'est plus disponible.")).toBeTruthy();
-    expect(screen.queryByText("Impossible de charger cette conversation.")).toBeNull();
+    expect(await screen.findByText("This conversation is no longer available.")).toBeTruthy();
+    expect(screen.queryByText("Couldn't load this conversation.")).toBeNull();
   });
 
   it("pane Retry re-fetches and recovers the thread", async () => {
     detailResponse = () => jsonRes({ error: "boom" }, false, 500);
     await mountLoaded();
-    const retry = await screen.findByText("Réessayer");
+    const retry = await screen.findByText("Retry");
     detailResponse = () => jsonRes(FIXTURE_DETAIL);
     fireEvent.click(retry);
     await flush();
-    expect(screen.queryByText("Impossible de charger cette conversation.")).toBeNull();
+    expect(screen.queryByText("Couldn't load this conversation.")).toBeNull();
     expect(screen.getByText(/can we talk pricing/)).toBeTruthy(); // thread body rendered
   });
 });
@@ -442,20 +442,20 @@ describe("F3 /inbox — list error state (B3)", () => {
   it("a failed list load shows the error EmptyState + Retry, not a misleading empty lane", async () => {
     listResponse = () => jsonRes({ error: "boom" }, false, 500);
     await mountLoaded();
-    expect(await screen.findByText("Impossible de charger ce dossier")).toBeTruthy();
-    expect(screen.getByText("Réessayer")).toBeTruthy();
+    expect(await screen.findByText("Couldn't load this lane")).toBeTruthy();
+    expect(screen.getByText("Retry")).toBeTruthy();
     // The lane's resting empty copy must NOT be what the user sees on a failure.
-    expect(screen.queryByText("Rien ne requiert votre attention")).toBeNull();
+    expect(screen.queryByText("Nothing needs your attention")).toBeNull();
   });
 
   it("Retry re-requests and recovers on success", async () => {
     listResponse = () => jsonRes({ error: "boom" }, false, 500);
     await mountLoaded();
-    const retry = await screen.findByText("Réessayer");
+    const retry = await screen.findByText("Retry");
     listResponse = () => jsonRes(FIXTURE_LIST); // the next load succeeds
     fireEvent.click(retry);
     await flush();
-    expect(screen.queryByText("Impossible de charger ce dossier")).toBeNull();
+    expect(screen.queryByText("Couldn't load this lane")).toBeNull();
     expect(screen.getAllByText("Marie Dubois").length).toBeGreaterThan(0); // rows are back
   });
 });
@@ -468,8 +468,8 @@ describe("B7 /inbox — Generate nudge affordance (B3.2)", () => {
       jsonRes({ ...FIXTURE_DETAIL, conversation: { ...FIXTURE_DETAIL.conversation, followup: dueFollowup } });
     await mountLoaded();
     // Generate nudge now lives in the "⋮ More" overflow (Upstream-clean toolbar).
-    fireEvent.click(await screen.findByText("Plus"));
-    const btn = await screen.findByText("Générer une relance");
+    fireEvent.click(await screen.findByText("More"));
+    const btn = await screen.findByText("Generate nudge");
     fireEvent.click(btn);
     await flush();
     // Robust against any auto-draft (which POSTs without a mode): count only nudge posts.
@@ -482,7 +482,7 @@ describe("B7 /inbox — Generate nudge affordance (B3.2)", () => {
 
   it("hides Generate nudge when the thread has no due follow-up", async () => {
     await mountLoaded(); // default detail carries no followup
-    expect(screen.queryByText("Générer une relance")).toBeNull();
+    expect(screen.queryByText("Generate nudge")).toBeNull();
   });
 });
 
@@ -506,7 +506,7 @@ describe("CLE-14 /inbox — outbound filter (child mounts on the outbound tab)",
 describe("/inbox — Composer (new email) renders in-page, not a drawer", () => {
   it("clicking Composer shows the inline composer in the reading pane — no slide-over, no backdrop", async () => {
     await mountLoaded();
-    fireEvent.click(screen.getByRole("button", { name: /Composer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Compose/ }));
     await flush();
     // In-page like a reply: no fixed slide-over drawer and no page-dimming backdrop.
     expect(document.querySelector(".slide-in-right")).toBeNull();
@@ -517,7 +517,7 @@ describe("/inbox — Composer (new email) renders in-page, not a drawer", () => 
 
   it("while composing, a global thread shortcut ('e') does NOT triage the hidden selected thread", async () => {
     await mountLoaded(); // selects a thread (selectedKey set)
-    fireEvent.click(screen.getByRole("button", { name: /Composer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Compose/ }));
     await flush();
     // 'e' on a non-field target would archive the selected thread — must be a no-op
     // while the composer owns the pane (composeOpen guard in the keydown handler).
@@ -530,7 +530,7 @@ describe("/inbox — Composer (new email) renders in-page, not a drawer", () => 
     await mountLoaded();
     await runRegisteredAction("inbox.setLane", { lane: "outbound" });
     await flush();
-    fireEvent.click(screen.getByRole("button", { name: /Composer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Compose/ }));
     await flush();
     // Compose renders in the reading pane (textarea present) rather than being
     // stranded behind the OutboundTable.

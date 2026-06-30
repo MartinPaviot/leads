@@ -40,17 +40,17 @@ const twoBoxes = [
 describe("InboxFolders — Upstream sidebar order", () => {
   it("renders Inbox + the intention folders as top-tier rows (with the split count)", () => {
     render(<InboxFolders {...base()} />);
-    expect(screen.getByText("Boîte de réception")).toBeTruthy();
-    expect(screen.getByText("À répondre")).toBeTruthy();
-    expect(screen.getByText("Relances")).toBeTruthy();
-    expect(screen.getByText("Envoyés")).toBeTruthy(); // outbound relabelled
+    expect(screen.getByText("Inbox")).toBeTruthy();
+    expect(screen.getByText("Needs Reply")).toBeTruthy();
+    expect(screen.getByText("Follow Ups")).toBeTruthy();
+    expect(screen.getByText("Sent")).toBeTruthy(); // outbound relabelled
     expect(screen.getByText("4")).toBeTruthy(); // needs_reply split count
   });
 
   it("clicking an intention folder selects its split", () => {
     const onSelectSplit = vi.fn();
     render(<InboxFolders {...base({ onSelectSplit })} />);
-    fireEvent.click(screen.getByText("À répondre"));
+    fireEvent.click(screen.getByText("Needs Reply"));
     expect(onSelectSplit).toHaveBeenCalledWith("needs_reply");
   });
 });
@@ -85,8 +85,8 @@ describe("InboxFolders — deal folders (P1)", () => {
 describe("InboxFolders — per-mailbox sub-segment", () => {
   it("shows the Mailboxes group with 2+ boxes: All inboxes + each box", () => {
     render(<InboxFolders {...base({ mailboxes: twoBoxes })} />);
-    expect(screen.getByText("Boîtes mail")).toBeTruthy();
-    expect(screen.getByText("Toutes les boîtes")).toBeTruthy();
+    expect(screen.getByText("Mailboxes")).toBeTruthy();
+    expect(screen.getByText("All inboxes")).toBeTruthy();
     expect(screen.getByText("Work")).toBeTruthy();
     expect(screen.getByText("Personal")).toBeTruthy();
   });
@@ -96,13 +96,13 @@ describe("InboxFolders — per-mailbox sub-segment", () => {
     render(<InboxFolders {...base({ mailboxes: twoBoxes, selectedMailbox: "mb1", onSelectMailbox })} />);
     fireEvent.click(screen.getByText("Personal"));
     expect(onSelectMailbox).toHaveBeenCalledWith("mb2");
-    fireEvent.click(screen.getByText("Toutes les boîtes"));
+    fireEvent.click(screen.getByText("All inboxes"));
     expect(onSelectMailbox).toHaveBeenLastCalledWith(null);
   });
 
   it("hides the Mailboxes group for a single-mailbox user", () => {
     render(<InboxFolders {...base({ mailboxes: [twoBoxes[0]] })} />);
-    expect(screen.queryByText("Boîtes mail")).toBeNull();
-    expect(screen.queryByText("Toutes les boîtes")).toBeNull();
+    expect(screen.queryByText("Mailboxes")).toBeNull();
+    expect(screen.queryByText("All inboxes")).toBeNull();
   });
 });

@@ -10,7 +10,7 @@
  * keyed here.
  */
 export type Locale = "en" | "fr";
-export const DEFAULT_LOCALE: Locale = "fr";
+export const DEFAULT_LOCALE: Locale = "en";
 
 export type Messages = Record<string, string>;
 
