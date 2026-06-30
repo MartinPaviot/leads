@@ -243,7 +243,7 @@ export async function executeAgentAction(
           status: "active",
           currentStep: 1,
           nextStepAt: new Date(),
-        });
+        }).onConflictDoNothing();
         enrolled++;
       }
       const name = str(p.sequenceName) ?? "the sequence";

@@ -188,7 +188,7 @@ export const executeWorkflow = inngest.createFunction(
                     currentStep: 1,
                     enrolledAt: new Date(),
                     nextStepAt: new Date(), // first step fires immediately
-                  });
+                  }).onConflictDoNothing();
 
                   await db.insert(activities).values({
                     tenantId,

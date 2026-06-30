@@ -36,7 +36,12 @@ vi.mock("@/db", () => ({
     insert: vi.fn(() => ({
       values: (v: Record<string, unknown>) => {
         insertedValues.push(v);
-        return Promise.resolve(undefined);
+        // Awaitable (tasks/deals `await ...values()`) AND chainable (the
+        // enrollment insert calls `.onConflictDoNothing()`).
+        return {
+          onConflictDoNothing: () => Promise.resolve(undefined),
+          then: (resolve: (v: unknown) => void) => resolve(undefined),
+        };
       },
     })),
   },

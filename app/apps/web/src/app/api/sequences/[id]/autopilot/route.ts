@@ -173,7 +173,8 @@ export async function POST(
       nextStepAt.setDate(nextStepAt.getDate() + firstStepDelay);
       await db
         .insert(sequenceEnrollments)
-        .values({ sequenceId: id, contactId, currentStep: 1, nextStepAt });
+        .values({ sequenceId: id, contactId, currentStep: 1, nextStepAt })
+        .onConflictDoNothing();
       enrolledCount++;
     }
 

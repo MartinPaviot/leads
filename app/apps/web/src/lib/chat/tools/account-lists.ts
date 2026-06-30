@@ -238,7 +238,7 @@ export function buildAccountListTools(ctx: ToolContext) {
           if (!ac.proceed) { skipped++; continue; }
           const nextStepAt = new Date();
           nextStepAt.setDate(nextStepAt.getDate() + firstDelay);
-          await db.insert(sequenceEnrollments).values({ sequenceId: seq.id, contactId, currentStep: 1, nextStepAt });
+          await db.insert(sequenceEnrollments).values({ sequenceId: seq.id, contactId, currentStep: 1, nextStepAt }).onConflictDoNothing();
           enrolled++;
         }
         return { enrolled, skipped, queued: 0, list: list.name, sequence: seq.name, capped };

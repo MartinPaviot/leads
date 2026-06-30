@@ -154,7 +154,8 @@ export async function POST(
           contactId,
           currentStep: 1,
           nextStepAt,
-        });
+        })
+        .onConflictDoNothing();
 
       enrolled++;
     }

@@ -338,6 +338,7 @@ export const prepareCampaign = inngest.createFunction(
             currentStep: 1,
             nextStepAt,
           })
+          .onConflictDoNothing()
           .returning({ id: sequenceEnrollments.id });
 
         enrolled++;

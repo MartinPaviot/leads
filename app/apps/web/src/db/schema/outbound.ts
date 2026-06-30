@@ -13,6 +13,7 @@ import {
   varchar,
   date,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { tenants, users, contacts } from "./core";
 
 // === SEQUENCE TABLES ===
@@ -114,6 +115,15 @@ export const sequenceEnrollments = pgTable(
     index("enrollments_sequence_id_idx").on(table.sequenceId),
     index("enrollments_contact_id_idx").on(table.contactId),
     index("enrollments_next_step_idx").on(table.nextStepAt),
+    // At most ONE active enrollment per (sequence, contact) — kills the
+    // duplicate-active-enrollment race. PARTIAL on status='active' so a contact
+    // can still be re-enrolled after a previous run reaches a terminal status
+    // (completed/replied/...): nurture-recycle + future re-engagement depend on
+    // that. Every insert pairs with .onConflictDoNothing() so the loser of a
+    // race silently skips instead of erroring.
+    uniqueIndex("enrollments_active_unique_idx")
+      .on(table.sequenceId, table.contactId)
+      .where(sql`status = 'active'`),
   ]
 );
 

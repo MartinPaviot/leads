@@ -88,7 +88,8 @@ function chain(result: unknown[]): any {
   return c;
 }
 
-const insertValues = vi.fn().mockResolvedValue(undefined);
+// values() now chains .onConflictDoNothing() (enrollment dedup index).
+const insertValues = vi.fn(() => ({ onConflictDoNothing: () => Promise.resolve(undefined) }));
 
 function req() {
   return new Request("http://localhost/api/sequences/seq1/autopilot", {

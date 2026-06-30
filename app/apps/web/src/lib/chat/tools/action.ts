@@ -664,7 +664,7 @@ RULES:
             contactId,
             currentStep: 1,
             nextStepAt,
-          });
+          }).onConflictDoNothing();
           enrolled++;
         }
 
@@ -808,7 +808,7 @@ RULES:
             contactId,
             currentStep: 1,
             nextStepAt,
-          });
+          }).onConflictDoNothing();
           enrolledCount++;
         }
 

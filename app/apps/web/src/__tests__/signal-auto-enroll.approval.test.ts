@@ -97,6 +97,8 @@ vi.mock("@/db", () => ({
         inserted.push(JSON.stringify(table) === "{}" ? "unknown" : "row");
         return {
           returning: () => Promise.resolve([{ id: "new1" }]),
+          // the enrollment insert chains .onConflictDoNothing()
+          onConflictDoNothing: () => Promise.resolve(undefined),
           // bare insert (sequenceEnrollments / notifications) is awaited
           then: (resolve: (v: unknown) => void) => resolve(undefined),
         };

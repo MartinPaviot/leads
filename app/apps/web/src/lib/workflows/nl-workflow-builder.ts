@@ -557,7 +557,7 @@ export async function executeWorkflowStep(
           currentStep: 1,
           enrolledAt: new Date(),
           nextStepAt: new Date(),
-        });
+        }).onConflictDoNothing();
 
         return { success: true, result: { sequenceId, contactId, enrolled: true } };
       }

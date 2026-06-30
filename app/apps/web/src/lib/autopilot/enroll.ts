@@ -65,6 +65,6 @@ export async function enrollOne(input: EnrollOneInput, deps: EnrollOneDeps = {})
     status: "active",
     currentStep: 1,
     nextStepAt: new Date(), // first step due immediately; the send crons pick it up under evaluateSend
-  });
+  }).onConflictDoNothing();
   return { outcome: "enrolled" };
 }

@@ -291,7 +291,7 @@ export const signalAutoEnroll = inngest.createFunction(
           status: "active",
           currentStep: 1,
           nextStepAt: new Date(), // Immediate first step
-        });
+        }).onConflictDoNothing();
         enrolled++;
       }
     });

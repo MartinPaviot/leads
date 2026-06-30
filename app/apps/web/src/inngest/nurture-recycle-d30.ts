@@ -169,7 +169,7 @@ export const nurtureRecycleD30 = inngest.createFunction(
             status: "active",
             currentStep: 1,
             nextStepAt: now,
-          });
+          }).onConflictDoNothing();
           recycled++;
         }
         return { recycled, skipped };

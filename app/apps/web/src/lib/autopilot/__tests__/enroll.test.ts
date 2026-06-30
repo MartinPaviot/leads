@@ -18,7 +18,8 @@ const deps = (): EnrollOneDeps => ({
 beforeEach(() => {
   guardMock.mockReset();
   recordDraftMock.mockReset().mockResolvedValue(undefined);
-  valuesSpy.mockReset();
+  // values() chains .onConflictDoNothing() (enrollment dedup index).
+  valuesSpy.mockReset().mockReturnValue({ onConflictDoNothing: () => Promise.resolve(undefined) });
 });
 
 describe("enrollOne", () => {
