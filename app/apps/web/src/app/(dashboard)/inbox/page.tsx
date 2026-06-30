@@ -169,6 +169,9 @@ export default function InboxPage() {
   // fetch (?lane=<id>) instead of the built-in tab.
   const [customLaneId, setCustomLaneId] = useState<string | null>(null);
   const [customLanes, setCustomLanes] = useState<Array<{ id: string; name: string; hideWhenEmpty: boolean; count: number }>>([]);
+  // P1 deal folders: a stable auto-folder per active-open deal (id = `deal:<id>`),
+  // selected through the same customLaneId path as a smart lane.
+  const [dealLanes, setDealLanes] = useState<Array<{ id: string; name: string; stage: string; count: number }>>([]);
   // B3 intention splits — sub-segment the attention lane. activeSplit drives
   // ?split= (a built-in id or a custom-split UUID).
   const [activeSplit, setActiveSplit] = useState<string | null>(null);
@@ -351,6 +354,7 @@ export default function InboxPage() {
           mailboxes?: MailboxSummary[];
           selectedMailbox?: string | null;
           customLanes?: Array<{ id: string; name: string; hideWhenEmpty: boolean; count: number }>;
+          dealLanes?: Array<{ id: string; name: string; stage: string; count: number }>;
           splits?: SplitCount[];
           noiseCount?: number;
           starredCount?: number;
@@ -369,6 +373,7 @@ export default function InboxPage() {
         setMailboxConnected(data.mailboxConnected !== false);
         if (data.mailboxes) setMailboxes(data.mailboxes);
         setCustomLanes(data.customLanes ?? []);
+        setDealLanes(data.dealLanes ?? []);
         setSplitCounts(data.splits ?? []);
         setNoiseCount(data.noiseCount ?? 0);
         setStarredCount(data.starredCount ?? 0);
@@ -1211,7 +1216,11 @@ export default function InboxPage() {
         // the header): Inbox / Starred / Sent / Drafts / Scheduled / All Mail / …
         title={
           customLaneId
-            ? customLanes.find((l) => l.id === customLaneId)?.name ?? t("inbox.folder.attention")
+            // A deal folder's id lives in dealLanes (not customLanes) — resolve both
+            // so the header shows the deal name, not the generic inbox title.
+            ? customLanes.find((l) => l.id === customLaneId)?.name
+              ?? dealLanes.find((d) => d.id === customLaneId)?.name
+              ?? t("inbox.folder.attention")
             : tab === "attention"
               ? t("inbox.folder.attention")
               : tab === "outbound"
@@ -1307,6 +1316,7 @@ export default function InboxPage() {
           counts={{ ...counts, attention: unreadCount }}
           splitCounts={splitCounts}
           customLanes={customLanes}
+          dealLanes={dealLanes}
           bundleTotal={bundleTotal}
           starredCount={starredCount}
           draftsCount={draftsCount}

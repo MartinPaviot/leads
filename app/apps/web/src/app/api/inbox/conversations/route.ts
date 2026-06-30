@@ -17,6 +17,7 @@ import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
 import { attributeMailbox, indexMailboxes } from "@/lib/inbox/mailbox-attribution";
 import { laneMatches, type MatchCandidate } from "@/lib/inbox/lane-match";
 import { getUserLanes } from "@/lib/inbox/lane-store";
+import { loadActiveDealLanes, isDealLaneId } from "@/lib/inbox/deal-lanes";
 import { applyLabelFilters } from "@/lib/inbox/filter-match";
 import { getUserFilters } from "@/lib/inbox/filter-store";
 import { bundleConversations } from "@/lib/inbox/bundle";
@@ -90,6 +91,13 @@ export async function GET(req: Request) {
     }
 
     const customLane = userLanes.find((l) => l.id === laneParam) ?? null;
+    // P1 deal folders: each active-open deal is a stable lane (`deal:<id>`); when
+    // one is selected we filter to its contact's threads instead of re-ranking the
+    // main inbox. Loaded once; counts computed over `visible` below.
+    // Load a buffer (40) so the has-mail filter + cap-to-12 happen below over the
+    // deals you actually correspond on, not just the 12 most-advanced.
+    const dealLanes = await loadActiveDealLanes(authCtx.tenantId, { limit: 40 });
+    const selectedDealLane = isDealLaneId(laneParam) ? dealLanes.find((d) => d.id === laneParam) ?? null : null;
     const toLaneCandidate = (row: {
       c: { fromAddress: string; subject: string };
       mb: { mailboxAddress: string | null };
@@ -208,6 +216,10 @@ export async function GET(req: Request) {
         // + snoozed, but INCLUDES handled (a caught-up mail still belongs in the
         // inbox). Order = the importance/recency ranking already on `visible`.
         ? visible.filter(({ c }) => c.split !== "promotions" && c.split !== "social" && !c.noise && c.lane !== "done" && c.lane !== "snoozed")
+      : selectedDealLane
+        // Deal folder: everything from the deal's primary contact (account-level
+        // fan-out across the company's contacts is a follow-up).
+        ? visible.filter(({ c }) => selectedDealLane.contactId != null && c.contactId === selectedDealLane.contactId)
       : customLane
         ? visible.filter((row) => laneMatches(toLaneCandidate(row), customLane))
         : splitParam
@@ -245,6 +257,22 @@ export async function GET(req: Request) {
         count: visible.filter((row) => laneMatches(toLaneCandidate(row), l)).length,
       }))
       .filter((l) => !l.hideWhenEmpty || l.count > 0);
+
+    // P1 deal folders, with their thread counts. Hide deals that have no mail so
+    // the sidebar shows only deals you're actually corresponding on (order =
+    // hottest-stage-first from loadActiveDealLanes).
+    const dealLanesOut = dealLanes
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        stage: d.stage,
+        count: d.contactId ? visible.filter(({ c }) => c.contactId === d.contactId).length : 0,
+      }))
+      // Show deals you actually correspond on (count > 0), but ALWAYS keep the
+      // currently-selected deal so the rail never loses the folder you're in (an
+      // empty selected deal otherwise vanishes + nothing is highlighted). Then cap.
+      .filter((d) => d.count > 0 || d.id === selectedDealLane?.id)
+      .slice(0, 12);
 
     // Built-in category-split counts over the INBOX set (attention + handled, i.e.
     // lane ∉ {done, snoozed}) so a caught-up/handled mail still counts toward its
@@ -367,7 +395,8 @@ export async function GET(req: Request) {
       mailboxes,
       selectedMailbox,
       customLanes,
-      activeLane: customLane ? customLane.id : lane,
+      dealLanes: dealLanesOut,
+      activeLane: selectedDealLane ? selectedDealLane.id : customLane ? customLane.id : lane,
       bundles,
       searching,
       catchUpCount,

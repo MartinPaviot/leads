@@ -9,7 +9,7 @@
  * state through callbacks; it owns no data.
  */
 
-import { Inbox, AlarmClock, CheckCircle2, Bot, Send, Layers, Reply, Clock, Megaphone, Users, Plus, Mail, Star, FileText, SendHorizontal, Mails, Trash2, ShieldAlert } from "lucide-react";
+import { Inbox, AlarmClock, CheckCircle2, Bot, Send, Layers, Reply, Clock, Megaphone, Users, Plus, Mail, Star, FileText, SendHorizontal, Mails, Trash2, ShieldAlert, Target } from "lucide-react";
 import type { InboxLane, MailboxSummary } from "./_types";
 import type { SplitCount } from "@/lib/inbox/splits";
 import { colorForMailbox } from "@/lib/inbox/mailbox-color";
@@ -97,6 +97,7 @@ export function InboxFolders({
   counts,
   splitCounts,
   customLanes,
+  dealLanes = [],
   bundleTotal,
   starredCount,
   draftsCount,
@@ -119,6 +120,8 @@ export function InboxFolders({
   counts: Record<InboxLane, number>;
   splitCounts: SplitCount[];
   customLanes: Array<{ id: string; name: string; count: number }>;
+  /** P1 deal folders (id = `deal:<id>`), ordered hottest-stage-first by the route. */
+  dealLanes?: Array<{ id: string; name: string; stage: string; count: number }>;
   bundleTotal: number;
   /** Count for the Starred folder (Upstream is:starred). */
   starredCount: number;
@@ -220,6 +223,25 @@ export function InboxFolders({
         {lane("done", counts.done)}
         {lane("handled", counts.handled)}
         {bundleTotal > 0 && lane("bundles", bundleTotal)}
+
+        {/* Deal folders (P1): one stable folder per active-open deal, hottest
+            stage first, only the ones with mail. The main inbox is never reordered —
+            this is a separate, stable navigation axis. */}
+        {dealLanes.length > 0 && (
+          <>
+            <GroupLabel>{t("inbox.folder.dealsGroup")}</GroupLabel>
+            {dealLanes.map((d) => (
+              <FolderRow
+                key={d.id}
+                icon={<Target size={15} />}
+                label={d.name}
+                count={d.count}
+                active={customLaneId === d.id}
+                onClick={() => onSelectCustomLane(d.id)}
+              />
+            ))}
+          </>
+        )}
 
         {/* Custom lanes */}
         {customLanes.length > 0 && (

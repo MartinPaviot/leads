@@ -55,6 +55,33 @@ describe("InboxFolders — Upstream sidebar order", () => {
   });
 });
 
+describe("InboxFolders — deal folders (P1)", () => {
+  const deals = [
+    { id: "deal:d1", name: "Northwind", stage: "proposal", count: 3 },
+    { id: "deal:d2", name: "Acme", stage: "demo", count: 1 },
+  ];
+
+  it("renders a Deals group with a folder per deal + its thread count", () => {
+    render(<InboxFolders {...base({ dealLanes: deals })} />);
+    expect(screen.getByText("Deals")).toBeTruthy();
+    expect(screen.getByText("Northwind")).toBeTruthy();
+    expect(screen.getByText("Acme")).toBeTruthy();
+    expect(screen.getByText("3")).toBeTruthy();
+  });
+
+  it("clicking a deal folder selects it via the customLane path (deal:<id>)", () => {
+    const onSelectCustomLane = vi.fn();
+    render(<InboxFolders {...base({ dealLanes: deals, onSelectCustomLane })} />);
+    fireEvent.click(screen.getByText("Northwind"));
+    expect(onSelectCustomLane).toHaveBeenCalledWith("deal:d1");
+  });
+
+  it("renders no Deals group when there are no active deals", () => {
+    render(<InboxFolders {...base({ dealLanes: [] })} />);
+    expect(screen.queryByText("Deals")).toBeNull();
+  });
+});
+
 describe("InboxFolders — per-mailbox sub-segment", () => {
   it("shows the Mailboxes group with 2+ boxes: All inboxes + each box", () => {
     render(<InboxFolders {...base({ mailboxes: twoBoxes })} />);
