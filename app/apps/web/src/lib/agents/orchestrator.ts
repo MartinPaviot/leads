@@ -72,6 +72,11 @@ const TOOL_GROUP_MAP: Record<string, string> = {
   listPageActions: "query", invokePageAction: "action",
   // read-gap tools
   querySequences: "query", getMailboxHealth: "query", queryProposals: "query",
+  // account lists (account-lists.ts) — kept in lockstep with tool-router.ts
+  listAccountLists: "query", createAccountList: "create",
+  addCompaniesToAccountList: "update", removeCompaniesFromAccountList: "update",
+  renameAccountList: "update", deleteAccountList: "action",
+  enrollAccountListInSequence: "action",
   // create
   createContact: "create", createAccount: "create", createDeal: "create",
   createNote: "create", logActivity: "create", createSequence: "create",

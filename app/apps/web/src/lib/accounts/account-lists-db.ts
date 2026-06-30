@@ -8,7 +8,7 @@
  * clicking the list shows.
  */
 import { db } from "@/db";
-import { accountLists, accountListMembers, companies } from "@/db/schema";
+import { accountLists, accountListMembers, companies, contacts } from "@/db/schema";
 import { and, eq, sql, inArray, isNull, desc } from "drizzle-orm";
 
 export interface AccountListSummary {
@@ -102,4 +102,93 @@ export async function addMembers(listId: string, tenantId: string, companyIds: s
  * (tenant_id, name) constraint race to a 409 instead of a generic 500. */
 export function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "23505";
+}
+
+/** Resolve a list by id OR by (case-insensitive) exact name, tenant-scoped.
+ * Returns null when neither resolves. Lets the chat say "the Hot Leads list"
+ * without knowing the id. Name is unique per tenant so a hit is unambiguous. */
+export async function resolveListRef(
+  tenantId: string,
+  ref: { listId?: string | null; listName?: string | null },
+): Promise<{ id: string; name: string } | null> {
+  if (ref.listId) {
+    const [byId] = await db
+      .select({ id: accountLists.id, name: accountLists.name })
+      .from(accountLists)
+      .where(and(eq(accountLists.id, ref.listId), eq(accountLists.tenantId, tenantId)))
+      .limit(1);
+    if (byId) return byId;
+  }
+  const name = ref.listName?.trim();
+  if (name) {
+    const [byName] = await db
+      .select({ id: accountLists.id, name: accountLists.name })
+      .from(accountLists)
+      .where(and(eq(accountLists.tenantId, tenantId), sql`lower(${accountLists.name}) = lower(${name})`))
+      .limit(1);
+    if (byName) return byName;
+  }
+  return null;
+}
+
+/** Contact ids of a list's live members (company not deleted; contact not
+ * deleted + has an email). The per-contact enrollment gates (suppression,
+ * anti-ICP exclusion, anti-collision, already-enrolled) run downstream — this
+ * just yields the candidate set. Capped to keep a bulk enroll bounded. */
+export async function listMemberContactIds(
+  listId: string,
+  tenantId: string,
+  cap = 5000,
+): Promise<string[]> {
+  const rows = await db
+    .select({ id: contacts.id })
+    .from(accountListMembers)
+    .innerJoin(companies, and(eq(companies.id, accountListMembers.companyId), eq(companies.tenantId, tenantId), isNull(companies.deletedAt)))
+    .innerJoin(contacts, and(eq(contacts.companyId, accountListMembers.companyId), eq(contacts.tenantId, tenantId), isNull(contacts.deletedAt)))
+    .where(and(eq(accountListMembers.listId, listId), isNotNullEmail()))
+    .limit(cap);
+  return rows.map((r) => r.id);
+}
+
+/** contacts.email IS NOT NULL AND <> '' — kept as a helper so the join above
+ * reads cleanly and the condition is defined once. */
+function isNotNullEmail() {
+  return sql`${contacts.email} IS NOT NULL AND ${contacts.email} <> ''`;
+}
+
+/** Atomic create-list-with-members for the chat tool (mirrors POST
+ * /api/account-lists). Returns the created list summary, or a conflict marker
+ * when the (tenant, name) unique index is hit (check + race both covered). */
+export async function createAccountListWithMembers(
+  tenantId: string,
+  name: string,
+  ownerId: string,
+  companyIds: string[],
+): Promise<{ ok: true; list: AccountListSummary } | { ok: false; conflict: true }> {
+  try {
+    const created = await db.transaction(async (tx) => {
+      const [dupe] = await tx
+        .select({ id: accountLists.id })
+        .from(accountLists)
+        .where(and(eq(accountLists.tenantId, tenantId), eq(accountLists.name, name)))
+        .limit(1);
+      if (dupe) throw new ListNameConflictError();
+      const [row] = await tx
+        .insert(accountLists)
+        .values({ tenantId, name, ownerId })
+        .returning({ id: accountLists.id, name: accountLists.name });
+      await insertMembers(tx, row.id, tenantId, companyIds);
+      return row;
+    });
+    return { ok: true, list: { id: created.id, name: created.name, count: await listLiveCount(created.id, tenantId) } };
+  } catch (e) {
+    if (e instanceof ListNameConflictError || isUniqueViolation(e)) return { ok: false, conflict: true };
+    throw e;
+  }
+}
+
+class ListNameConflictError extends Error {
+  constructor() {
+    super("list name conflict");
+  }
 }
