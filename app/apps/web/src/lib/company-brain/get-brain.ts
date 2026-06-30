@@ -206,9 +206,35 @@ export async function getCompanyBrain(
       .where(
         and(
           eq(activitiesTable.tenantId, opts.tenantId),
-          eq(activitiesTable.entityType, "company"),
-          eq(activitiesTable.entityId, companyId),
           isNull(activitiesTable.deletedAt),
+          or(
+            // Company-scoped activities (e.g. a meeting written at company level).
+            and(
+              eq(activitiesTable.entityType, "company"),
+              eq(activitiesTable.entityId, companyId),
+            ),
+            // Contact-scoped interactions for THIS company's contacts — a call
+            // (calls-post-process.ts writes entityType='contact') and a sent or
+            // received email otherwise never appear in the account-level timeline,
+            // even though meetings do. Tenant-guarded subquery; cascades to the
+            // deal brain, which embeds getCompanyBrain.
+            and(
+              eq(activitiesTable.entityType, "contact"),
+              inArray(
+                activitiesTable.entityId,
+                dbi
+                  .select({ id: contactsTable.id })
+                  .from(contactsTable)
+                  .where(
+                    and(
+                      eq(contactsTable.companyId, companyId),
+                      eq(contactsTable.tenantId, opts.tenantId),
+                      isNull(contactsTable.deletedAt),
+                    ),
+                  ),
+              ),
+            ),
+          ),
         ),
       )
       .orderBy(desc(activitiesTable.occurredAt))
