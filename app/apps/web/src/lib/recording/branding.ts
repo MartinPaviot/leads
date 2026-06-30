@@ -102,6 +102,27 @@ export function decideBrandingMode(input: BrandingDecisionInput): BrandingDecisi
   };
 }
 
+/**
+ * Is this an all-internal meeting? True when every attendee that has a
+ * parseable domain belongs to the tenant's org (same primary domain or an
+ * alias). Returns false when the org domain is unknown or no attendee has a
+ * domain — fail toward "external" so we never mislabel a real prospect call
+ * as internal. Reuses the same org-matching the recorder branding uses.
+ */
+export function isInternalMeeting(
+  attendeeEmails: string[],
+  primaryDomain: string | null,
+  aliases: string[] = [],
+): boolean {
+  if (!primaryDomain) return false;
+  const normalizedAliases = aliases.map((a) => a.trim().toLowerCase()).filter(Boolean);
+  const domains = attendeeEmails
+    .map((e) => extractDomain(e))
+    .filter((d): d is string => !!d);
+  if (domains.length === 0) return false;
+  return domains.every((d) => isSameOrg(d, primaryDomain, normalizedAliases));
+}
+
 function getPrimaryDomain(tenant: BrandingDecisionInput["tenant"]): string | null {
   if (tenant.settings?.primaryDomain) {
     return tenant.settings.primaryDomain.trim().toLowerCase();
