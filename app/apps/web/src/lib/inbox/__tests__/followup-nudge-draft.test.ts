@@ -12,20 +12,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  */
 
 const selectQueue: unknown[][] = [];
-const mockSelect = vi.fn(() => ({
+const mockSelect = vi.fn((..._args: any[]) => ({
   from: () => ({
     where: () => Promise.resolve(selectQueue.shift() ?? []),
   }),
 }));
 const insertCalls: any[] = [];
-const mockInsert = vi.fn(() => ({
+const mockInsert = vi.fn((..._args: any[]) => ({
   values: (v: any) => {
     insertCalls.push(v);
     return Promise.resolve();
   },
 }));
 const updateCalls: any[] = [];
-const mockUpdate = vi.fn(() => ({
+const mockUpdate = vi.fn((..._args: any[]) => ({
   set: (v: any) => ({
     where: (...whereArgs: any[]) => {
       updateCalls.push({ set: v, whereArgs });
@@ -41,12 +41,12 @@ vi.mock("@/db", () => ({
   },
 }));
 
-const mockLoadConversationRows = vi.fn(async () => ({ inbound: [], outbound: [], triage: [] }));
+const mockLoadConversationRows = vi.fn(async (..._args: any[]) => ({ inbound: [], outbound: [], triage: [] }));
 vi.mock("../load", () => ({
   loadConversationRows: (...args: any[]) => mockLoadConversationRows(...args),
 }));
 
-const mockGetInboxScope = vi.fn(async () => ({ hasMailbox: true, mailboxes: [] }) as any);
+const mockGetInboxScope = vi.fn(async (..._args: any[]) => ({ hasMailbox: true, mailboxes: [] }) as any);
 vi.mock("../user-scope", () => ({
   getInboxScope: (...args: any[]) => mockGetInboxScope(...args),
   scopeConversationRows: (rows: any) => rows,
@@ -57,12 +57,12 @@ vi.mock("../conversations", () => ({
   buildConversations: () => fixtureConversations,
 }));
 
-const mockBuildReplyInstructions = vi.fn(async () => ({ instructions: "voice+style", context: undefined }));
+const mockBuildReplyInstructions = vi.fn(async (..._args: any[]) => ({ instructions: "voice+style", context: undefined }));
 vi.mock("../reply-instructions", () => ({
   buildReplyInstructions: (...args: any[]) => mockBuildReplyInstructions(...args),
 }));
 
-const mockComposeReply = vi.fn(async () => ({ subject: "Re: hello", text: "Just checking in!" }));
+const mockComposeReply = vi.fn(async (..._args: any[]) => ({ subject: "Re: hello", text: "Just checking in!" }));
 vi.mock("../compose-reply", () => ({
   composeReply: (...args: any[]) => mockComposeReply(...args),
 }));
