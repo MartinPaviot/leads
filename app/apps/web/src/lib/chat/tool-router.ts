@@ -88,6 +88,16 @@ const TOOL_GROUPS: Record<string, string> = {
   getMailboxHealth: "query",
   queryProposals: "query",
 
+  // account lists (account-lists.ts) — server tools so the chat manages lists +
+  // targets them in outreach from anywhere, not only on /accounts.
+  listAccountLists: "query",
+  createAccountList: "create",
+  addCompaniesToAccountList: "update",
+  removeCompaniesFromAccountList: "update",
+  renameAccountList: "update",
+  deleteAccountList: "action",
+  enrollAccountListInSequence: "action",
+
   // create (create.ts)
   createContact: "create",
   createAccount: "create",
