@@ -370,14 +370,13 @@ export default function LandingPage() {
         <div className="relative mx-auto max-w-[1240px] px-6 text-center">
           <Animate><p className="text-xs font-semibold uppercase tracking-wider text-[#2563DF]">The autonomous revenue engine for founder-led sales</p></Animate>
           <Animate><h1 className="mx-auto mt-6 max-w-[900px] text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-gray-900 sm:text-[48px] lg:text-[64px]">Elevay runs your pipeline.<br className="hidden sm:block" /> You run the conversations.</h1></Animate>
-          <Animate><p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-gray-600">We build and score your TAM, catch every buying signal in real time, and write outreach that earns the reply: the GTM team you haven&apos;t hired yet.</p></Animate>
+          <Animate><p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-gray-600">We build and score your TAM, catch every buying signal in real time, and write outreach that earns the reply.</p></Animate>
           <Animate>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="cursor-pointer rounded-lg px-6 py-3 text-sm font-semibold text-white transition-[opacity,transform] duration-150 hover:-translate-y-0.5 hover:opacity-90 active:translate-y-0" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", backgroundPosition: "center" }}>Book a demo</a>
               <Link href="#how-it-works" className="group flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-400">See how it works <ArrowRight size={14} className="text-gray-400 transition-transform duration-150 group-hover:translate-x-0.5" /></Link>
             </div>
           </Animate>
-          <Animate><p className="mt-4 text-xs text-gray-500">A live 15-minute demo on your own data · We onboard every founder personally</p></Animate>
         </div>
 
         {/* The product shot */}

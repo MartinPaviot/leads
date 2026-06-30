@@ -5,7 +5,7 @@ import { LazyMotionProvider } from "./_components/lazy-motion-provider";
 export const metadata: Metadata = {
   title: "Elevay: Your Revenue Engine for Founder-Led Sales",
   description:
-    "The autonomous revenue engine for founder-led sales. We build and score your TAM, catch every buying signal, and write outreach that earns the reply: the GTM team you haven't hired yet.",
+    "The autonomous revenue engine for founder-led sales. We build and score your TAM, catch every buying signal, and write outreach that earns the reply.",
   openGraph: {
     title: "Elevay: Your Revenue Engine for Founder-Led Sales",
     description:
