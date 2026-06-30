@@ -51,6 +51,7 @@ Respond ONLY with valid JSON matching this schema:
 export function buildDecisionUserPrompt(
   trigger: AgentTrigger,
   context: ReactorContext,
+  policyBlock?: string,
 ): string {
   const parts: string[] = [];
 
@@ -102,6 +103,13 @@ export function buildDecisionUserPrompt(
 
   if (Object.keys(context.triggerMetadata).length > 0) {
     parts.push(`\n## Event Details\n${JSON.stringify(context.triggerMetadata, null, 2)}`);
+  }
+
+  // The workspace's own outcome history (what trigger→action combos have
+  // actually worked), injected right before the decision so it's fresh in
+  // context. Advisory — the approval guardrails still decide what runs.
+  if (policyBlock) {
+    parts.push(`\n${policyBlock}`);
   }
 
   parts.push("\n## Decision\nWhat action(s) should be taken? Respond with JSON only.");

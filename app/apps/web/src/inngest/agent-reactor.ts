@@ -56,6 +56,7 @@ import type {
 } from "@/lib/agent-reactor/types";
 import { HEURISTIC_DECISIONS } from "@/lib/agent-reactor/types";
 import { createOutcomeWatcher } from "@/lib/outcomes/create-watcher";
+import { getActionPolicyBlock } from "@/lib/outcomes/action-policy";
 import logger from "@/lib/observability/logger";
 
 const DEDUP_WINDOW_MS = 60 * 60 * 1000; // 60 minutes
@@ -142,11 +143,18 @@ export const agentReactor = inngest.createFunction(
         return getHeuristicDecision(data.trigger);
       }
 
+      // Feed the workspace's own outcome history into the decision so the
+      // agent biases toward action choices that have actually worked. No-op
+      // until enough outcomes accrue; never blocks the decision.
+      const policyBlock = await getActionPolicyBlock(data.tenantId, data.trigger).catch(
+        () => "",
+      );
+
       try {
         const result = await tracedGenerateObject({
           model,
           system: buildDecisionSystemPrompt(),
-          prompt: buildDecisionUserPrompt(data.trigger, context),
+          prompt: buildDecisionUserPrompt(data.trigger, context, policyBlock),
           schema: decisionSchema,
           temperature: 0.2,
           maxOutputTokens: 1000,
