@@ -166,6 +166,38 @@ export default function InsightsPage() {
     );
   }
 
+  // Nothing in the pipeline yet → one intentional empty state instead of a
+  // "Pipeline" header sitting over a wall of four zeros with empty space beneath
+  // (the funnel/alerts/briefs sections all self-hide when empty). Mirrors the
+  // home zero-state framing. loadError with all-empty data is already handled
+  // above, so reaching here with isEmpty means a successful but empty fetch.
+  const isEmpty =
+    (!pipeline || pipeline.totals.openDeals === 0) &&
+    (!alerts || alerts.totalAlerts === 0) &&
+    briefs.length === 0;
+  if (isEmpty) {
+    return (
+      <div className="flex h-full flex-col">
+        <PageHeader title="Insights" />
+        <div className="flex-1 p-5">
+          <div className="flex flex-col items-start gap-3 rounded-lg p-6" style={{ border: "1px solid var(--color-border-default)" }}>
+            <p className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>No pipeline insights yet</p>
+            <p className="text-[13px]" style={{ color: "var(--color-text-tertiary)" }}>
+              Create your first opportunity — pipeline health, alerts and deal briefs will appear here as deals move.
+            </p>
+            <a
+              href="/opportunities"
+              className="rounded-lg px-3 py-1.5 text-[12px] font-semibold"
+              style={{ border: "1px solid var(--color-border-default)", color: "var(--color-text-secondary)" }}
+            >
+              View opportunities
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const stageOrder = ["lead", "qualification", "demo", "trial", "proposal", "negotiation"];
 
   return (
