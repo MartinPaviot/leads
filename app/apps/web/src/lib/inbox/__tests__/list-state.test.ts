@@ -2,13 +2,19 @@ import { describe, it, expect } from "vitest";
 import { pickListState, pickPaneState } from "../list-state";
 
 /**
- * F3 B1 — the pure state-decision core. Table-driven so the ordering (rows win,
- * a failed load is an error not an empty lane) is locked.
+ * F3 B1 — the pure state-decision core. Table-driven so the ordering is locked:
+ * a FOREGROUND load (loading=true) hydrates with the skeleton even over stale rows
+ * (the lane-switch fix), a SILENT refresh (loading=false) keeps live rows, and a
+ * failed load is an error not an empty lane.
  */
 
 describe("pickListState", () => {
   const cases: Array<[string, Parameters<typeof pickListState>[0], ReturnType<typeof pickListState>]> = [
-    ["rows present win even while a background load runs", { loading: true, error: false, count: 3, hasQuery: false }, "ready"],
+    // Lane/split/folder switch: loading=true while the PREVIOUS view's rows are
+    // still in state -> skeleton, so changing category hydrates (no stale rows).
+    ["a foreground load shows the skeleton even over stale rows", { loading: true, error: false, count: 3, hasQuery: false }, "loading"],
+    // The ~15s freshness poll refetches with loading=false -> live rows are kept.
+    ["a silent background refresh (loading=false) keeps live rows", { loading: false, error: false, count: 3, hasQuery: false }, "ready"],
     ["rows present win even after an error", { loading: false, error: true, count: 3, hasQuery: true }, "ready"],
     ["loading with no rows -> loading", { loading: true, error: false, count: 0, hasQuery: false }, "loading"],
     ["error with no rows -> error (not empty)", { loading: false, error: true, count: 0, hasQuery: false }, "error"],

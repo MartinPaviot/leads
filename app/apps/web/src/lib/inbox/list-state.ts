@@ -2,8 +2,13 @@
  * F3 — the "which state" decision for the inbox list + reading pane, as two pure
  * functions so the choice is unit-testable without a DOM and cannot drift between
  * surfaces. No React, no DOM, no I/O — each returns exactly one literal of its
- * union. The ordering is load-bearing: rows always win (a background refetch never
- * blanks live rows), and a failed load is an ERROR, not an empty lane.
+ * union. The ordering is load-bearing:
+ *  - A FOREGROUND load wins (it sets loading=true): switching lane/split/folder
+ *    shows the skeleton instead of the *previous* view's stale rows, so changing
+ *    category hydrates rather than staring at the old list until the fetch lands.
+ *  - A SILENT background refresh (the ~15s freshness poll) runs with loading=false,
+ *    so it falls through to "rows win" and never blanks live rows.
+ *  - A failed load is an ERROR, not an empty lane.
  */
 
 export type ListState = "loading" | "error" | "empty" | "no-results" | "ready";
@@ -18,8 +23,8 @@ export function pickListState(i: {
   /** debouncedSearch is non-empty. */
   hasQuery: boolean;
 }): ListState {
-  if (i.count > 0) return "ready"; // R2.5 — rows win; a background load never blanks them
-  if (i.loading) return "loading"; // R2.2
+  if (i.loading) return "loading"; // R2.2 — a FOREGROUND load (lane switch / retry) hydrates
+  if (i.count > 0) return "ready"; // R2.5 — rows win over a SILENT refresh (loading=false)
   if (i.error) return "error"; // R2.3 — a failed load is not an empty lane
   return i.hasQuery ? "no-results" : "empty"; // R2.4
 }

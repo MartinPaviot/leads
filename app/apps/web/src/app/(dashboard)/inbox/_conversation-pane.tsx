@@ -63,6 +63,7 @@ import { decodeDisplay } from "@/lib/inbox/text-decode";
 import { type SendableMailbox } from "@/lib/inbox/pick-from-mailbox";
 import { tomorrowMorning, inThreeDays, nextMonday } from "@/lib/inbox/snooze-presets";
 import { pickPaneState } from "@/lib/inbox/list-state";
+import { ConversationPaneSkeleton } from "./_skeleton";
 
 // The presets live in lib/inbox/snooze-presets (pure, unit-tested) so the popover
 // and the `s` keyboard shortcut resolve to the SAME instant (B6.4).
@@ -516,11 +517,9 @@ export function ConversationPane({
 
   const paneState = pickPaneState({ hasSelection: !!conversationKey, loading, error: paneError, hasDetail: !!detail });
   if (paneState === "loading") {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--color-text-tertiary)" }} />
-      </div>
-    );
+    // Footprint skeleton (not a bare spinner) so opening a thread hydrates like
+    // the list/outbound and the real mail lands with no reflow.
+    return <ConversationPaneSkeleton />;
   }
   if (paneState === "error") {
     // F3: a failed fetch is retryable — distinct from a deleted thread.

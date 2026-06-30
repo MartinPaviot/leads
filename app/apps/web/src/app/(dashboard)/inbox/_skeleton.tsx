@@ -68,6 +68,39 @@ export function SplitStripSkeleton() {
   );
 }
 
+/** Reading-pane placeholder — mirrors the open conversation's footprint (sender
+ *  header row + subject, then a few message blocks) so opening a thread hydrates
+ *  with a skeleton instead of a bare spinner, and the real mail lands with no jump. */
+export function ConversationPaneSkeleton() {
+  return (
+    <div className="flex h-full flex-col" aria-busy="true" aria-label="Loading conversation">
+      {/* Header zone: avatar + sender/subject lines, mirroring the thread header. */}
+      <div
+        className="skeleton-row flex items-center gap-3 border-b px-5 py-3"
+        style={{ borderColor: "var(--color-border-default)" }}
+      >
+        <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <Skeleton className="h-3.5 w-48 rounded" />
+          <Skeleton className="h-3 w-32 rounded" />
+        </div>
+        <Skeleton className="h-7 w-20 shrink-0 rounded-md" />
+      </div>
+      {/* Body: two message blocks of staggered paragraph lines. */}
+      <div className="flex-1 space-y-6 overflow-hidden px-5 py-5">
+        {[0, 1].map((b) => (
+          <div key={b} className="skeleton-row space-y-2.5">
+            <Skeleton className="h-3 w-3/4 rounded" />
+            <Skeleton className="h-3 w-full rounded" />
+            <Skeleton className="h-3 w-5/6 rounded" />
+            <Skeleton className="h-3 w-2/3 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Rail placeholder — fixed 212px width matching _mailbox-rail.tsx, so no horizontal jump. */
 export function RailSkeleton() {
   return (
