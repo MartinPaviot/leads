@@ -20,8 +20,12 @@ export function PageHeader({ icon, title, subtitle, children }: PageHeaderProps)
       // runs half-screen + 200% zoom ≈ 460px): the actions wrap onto a second
       // line instead of overflowing off the right edge with no scroll. On a
       // wide viewport everything still fits on the single 44px row, unchanged.
-      // Safe: --header-height is only ever a bar height, never a sticky `top`.
-      className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 px-6 py-2"
+      // py-1.5 (not py-2): with box-sizing:border-box the 1px border sits on top
+      // of content+padding, so py-2 + 28px controls measured 45px on toolbar
+      // pages vs 44px (--header-height) on content pages. py-1.5 keeps the row
+      // under minHeight, so EVERY header is exactly 44px (= HeaderSkeleton, no
+      // route-load CLS). Safe: --header-height is only ever a bar height.
+      className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 px-6 py-1.5"
       style={{
         minHeight: "var(--header-height)",
         borderBottom: "1px solid var(--color-border-default)",

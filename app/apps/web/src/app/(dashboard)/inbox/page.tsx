@@ -1256,7 +1256,11 @@ export default function InboxPage() {
                 // name can't depend on it (a11y — screen readers need a constant label).
                 aria-label={t("inbox.search.ariaLabel")}
                 placeholder={wideSearch ? t("inbox.search.placeholder") : t("inbox.search.placeholderShort")}
-                className="w-full rounded-md border py-1.5 pl-8 pr-8 text-[13px] outline-none"
+                // h-7 (28px) so the control matches the Compose button and the
+                // single-row header stays at the 44px --header-height standard
+                // (was py-1.5 ≈ 31px, which grew the inbox header taller than the
+                // rest of the app). Icons inside stay vertically centered.
+                className="h-7 w-full rounded-md border pl-8 pr-8 text-[13px] outline-none"
                 style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)", color: "var(--color-text-primary)" }}
               />
               {search && (
@@ -1270,7 +1274,9 @@ export default function InboxPage() {
             <button
               onClick={toggleDensity}
               aria-pressed={density === "compact"}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors"
+              // h-7 w-7 (28px) — matches the search field + Compose button so the
+              // header row sits at the 44px --header-height standard (was h-8 = 32px).
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors"
               style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)", color: "var(--color-text-secondary)" }}
               title={density === "comfortable" ? t("inbox.density.titleCompact") : t("inbox.density.titleComfortable")}
               aria-label={density === "comfortable" ? t("inbox.density.ariaCompact") : t("inbox.density.ariaComfortable")}
