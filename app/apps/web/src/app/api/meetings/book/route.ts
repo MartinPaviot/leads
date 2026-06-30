@@ -44,6 +44,9 @@ const bookMeetingSchema = z
       .enum(["sovereign", "google_meet", "teams", "zoom"])
       .optional()
       .default("sovereign"),
+    // Extra invitees beyond the prospect (founder, colleagues) + a free agenda.
+    attendees: z.array(z.string().email()).max(20).optional(),
+    agenda: z.string().max(2000).optional(),
   })
   // One of the two identity inputs must be present.
   .refine((d) => Boolean(d.contactId || d.contactEmail), {
@@ -75,6 +78,8 @@ export async function POST(req: Request) {
       meetingType,
       override,
       conferencing,
+      attendees,
+      agenda,
     } = parsed.data;
 
     // Resolve the contact (always tenant-scoped, soft-deleted excluded). Three
@@ -205,6 +210,9 @@ export async function POST(req: Request) {
         title: title || `Rendez-vous avec ${contactName}`,
         roomPrefix: "rdv",
         conferencing,
+        // Don't re-invite the prospect; allAttendees dedups, but skip the obvious case.
+        attendees: attendees?.filter((e) => e.toLowerCase() !== contact.email!.toLowerCase()).map((email) => ({ email })),
+        agenda,
       });
     } catch (err) {
       if (err instanceof CalendarNotConnectedError) {

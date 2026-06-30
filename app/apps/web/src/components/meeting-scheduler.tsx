@@ -27,6 +27,16 @@ function dayKey(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
+/**
+ * Commit a free-duration draft to a bookable value: round, then clamp to the
+ * server's [5,480] window (api/meetings/book caps there). A blank/NaN draft
+ * falls back to 30. Used on the field's blur so a half-typed "1" can never book
+ * a 1-minute meeting (which the server would 400 on).
+ */
+export function clampDurationMinutes(raw: string): number {
+  return Math.min(480, Math.max(5, Math.round(Number(raw) || 30)));
+}
+
 /** The next `n` business days (skipping weekends), local midnight. */
 function nextBusinessDays(n: number): Date[] {
   const days: Date[] = [];
@@ -65,6 +75,10 @@ export interface BookMeetingSlot {
   durationMinutes?: number;
   conferencing?: "sovereign" | "google_meet" | "teams" | "zoom";
   title?: string;
+  /** Extra invitees beyond the prospect (founder, colleagues). */
+  attendees?: string[];
+  /** Free agenda / notes added to the invite. */
+  agenda?: string;
 }
 
 export interface BookMeetingResult {
@@ -100,6 +114,8 @@ export async function bookMeetingRequest(slot: BookMeetingSlot): Promise<BookMee
         meetingType: "qualification",
         title: slot.title?.trim() || undefined,
         conferencing: slot.conferencing ?? "sovereign",
+        attendees: slot.attendees && slot.attendees.length > 0 ? slot.attendees : undefined,
+        agenda: slot.agenda?.trim() || undefined,
       }),
     });
     const data = (await res.json().catch(() => ({}))) as {
@@ -166,7 +182,17 @@ export function MeetingSchedulerCard({
   // time came from the manual picker instead.
   const [selectedIso, setSelectedIso] = useState<string | null>(null);
   const [duration, setDuration] = useState(45);
+  // What the free-duration field shows while typing. Kept as a raw string so a
+  // user can pass through intermediate states (clear the field, type "1" then
+  // "20") without each keystroke being clamped/reverted; `duration` (the booked
+  // value) follows when the draft parses in-range, and the draft is clamped to
+  // [5,480] on blur. Presets write both.
+  const [durationDraft, setDurationDraft] = useState("45");
   const [title, setTitle] = useState(initialTitle || "");
+  // Extra invitees (emails) beyond the prospect + a free agenda for the invite.
+  const [attendees, setAttendees] = useState<string[]>([]);
+  const [attendeeInput, setAttendeeInput] = useState("");
+  const [agenda, setAgenda] = useState("");
   const [booking, setBooking] = useState(false);
   // Title/duration/video live behind a quiet "Détails" disclosure (Visio is the
   // right default ~always); the manual datetime picker behind a fallback link.
@@ -269,7 +295,9 @@ export function MeetingSchedulerCard({
     const e = new Date(s.getTime() + duration * 60_000);
     const day = s.toLocaleDateString(loc, { weekday: "short", day: "numeric", month: "short" });
     const hm = (d: Date) => d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
-    return `${day} · ${hm(s)}–${hm(e)} · ${videoLabel}`;
+    // Show the user's timezone so the time is never ambiguous (UTC+2 / EDT / …).
+    const tz = new Intl.DateTimeFormat(loc, { timeZoneName: "short" }).formatToParts(s).find((p) => p.type === "timeZoneName")?.value || "";
+    return `${day} · ${hm(s)}–${hm(e)}${tz ? ` (${tz})` : ""} · ${videoLabel}`;
   }, [when, duration, videoLabel, loc]);
 
   function pickSlot(iso: string) {
@@ -334,6 +362,8 @@ export function MeetingSchedulerCard({
       durationMinutes: duration,
       title,
       conferencing,
+      attendees,
+      agenda,
     });
     setBooking(false);
     if (!r.ok) {
@@ -504,7 +534,7 @@ export function MeetingSchedulerCard({
               <button
                 key={d}
                 type="button"
-                onClick={() => setDuration(d)}
+                onClick={() => { setDuration(d); setDurationDraft(String(d)); }}
                 aria-pressed={duration === d}
                 className="rounded-md px-2 py-0.5 text-[12px] transition-colors"
                 style={duration === d
@@ -514,6 +544,29 @@ export function MeetingSchedulerCard({
                 {d} min
               </button>
             ))}
+            {/* Free duration — any value 5–480 min, not just the presets. */}
+            <input
+              type="number"
+              min={5}
+              max={480}
+              step={5}
+              value={durationDraft}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setDurationDraft(raw);
+                const n = Number(raw);
+                if (Number.isFinite(n) && n >= 5 && n <= 480) setDuration(n);
+              }}
+              onBlur={() => {
+                const n = clampDurationMinutes(durationDraft);
+                setDuration(n);
+                setDurationDraft(String(n));
+              }}
+              aria-label={t("meeting.duration")}
+              className="w-14 rounded-md px-1.5 py-0.5 text-[12px] outline-none"
+              style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+            />
+            <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>min</span>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{t("meeting.video")}</span>
@@ -537,6 +590,48 @@ export function MeetingSchedulerCard({
             onChange={(e) => setTitle(e.target.value)}
             placeholder={t("meeting.titlePlaceholder", { name: firstName })}
             className="w-full rounded-md px-2 py-1 text-[13px] outline-none"
+            style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+          />
+          {/* Invités en plus du prospect (founder, collègue). Email + Entrée/virgule. */}
+          <div
+            className="flex flex-wrap items-center gap-1 rounded-md px-2 py-1"
+            style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}
+          >
+            {attendees.map((a, i) => (
+              <span
+                key={a}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px]"
+                style={{ background: "var(--color-bg-card)", color: "var(--color-text-primary)", border: "0.5px solid var(--color-border-default)" }}
+              >
+                {a}
+                <button type="button" onClick={() => setAttendees((xs) => xs.filter((_, idx) => idx !== i))} aria-label={t("common.close")} style={{ color: "var(--color-text-muted)" }}>
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+            <input
+              value={attendeeInput}
+              onChange={(e) => setAttendeeInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
+                  const v = attendeeInput.trim().replace(/,$/, "");
+                  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { e.preventDefault(); if (!attendees.includes(v)) setAttendees((xs) => [...xs, v]); setAttendeeInput(""); }
+                } else if (e.key === "Backspace" && !attendeeInput && attendees.length) {
+                  setAttendees((xs) => xs.slice(0, -1));
+                }
+              }}
+              onBlur={() => { const v = attendeeInput.trim(); if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) && !attendees.includes(v)) { setAttendees((xs) => [...xs, v]); setAttendeeInput(""); } }}
+              placeholder={attendees.length === 0 ? t("meeting.attendeesPlaceholder") : ""}
+              className="min-w-[120px] flex-1 bg-transparent text-[12px] outline-none"
+              style={{ color: "var(--color-text-primary)" }}
+            />
+          </div>
+          <textarea
+            value={agenda}
+            onChange={(e) => setAgenda(e.target.value)}
+            rows={2}
+            placeholder={t("meeting.agendaPlaceholder")}
+            className="w-full resize-none rounded-md px-2 py-1 text-[13px] outline-none"
             style={{ background: "var(--color-bg-page)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
           />
         </div>

@@ -59,6 +59,45 @@ interface EventCore {
   startTime: Date;
   durationMinutes: number;
   title: string;
+  /** Extra invitees beyond the prospect (the founder, a colleague, more on the
+   *  prospect side). Merged into each provider's attendee list. */
+  attendees?: Array<{ email: string; name?: string }>;
+  /** Free agenda / notes, prepended to the auto join-link line in the invite. */
+  agenda?: string;
+}
+
+/** The contact + any extra invitees, deduped by lowercased email. */
+function allAttendees(core: EventCore): Array<{ email: string; name?: string }> {
+  const out: Array<{ email: string; name?: string }> = [{ email: core.contactEmail, name: core.contactName }];
+  const seen = new Set([core.contactEmail.toLowerCase()]);
+  for (const a of core.attendees ?? []) {
+    const e = (a.email || "").trim();
+    if (!e || seen.has(e.toLowerCase())) continue;
+    seen.add(e.toLowerCase());
+    out.push({ email: e, name: a.name });
+  }
+  return out;
+}
+
+/**
+ * The extra invitees' emails — everyone in the attendee list except the
+ * prospect — for the Cc envelope on the CalDAV / SMTP paths, where the calendar
+ * backend does NOT email attendees itself (Google/Microsoft notify natively via
+ * sendUpdates/Graph, so they don't need this). `exclude` drops addresses already
+ * on the envelope (e.g. the organiser, who is Cc'd separately). Comma-joined for
+ * nodemailer; "" when there's no one to add.
+ */
+export function extraCcEmails(core: EventCore, exclude: string[] = []): string {
+  const skip = new Set([core.contactEmail.toLowerCase(), ...exclude.map((e) => e.toLowerCase())]);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const a of allAttendees(core)) {
+    const k = a.email.toLowerCase();
+    if (skip.has(k) || seen.has(k)) continue;
+    seen.add(k);
+    out.push(a.email);
+  }
+  return out.join(", ");
 }
 
 /**
@@ -79,14 +118,29 @@ export function resolveConferencing(
   return "sovereign";
 }
 
-function descriptionText(joinUrl: string): string {
-  return `Rejoindre la visio : ${joinUrl}`;
+function descriptionText(joinUrl: string, agenda?: string): string {
+  const visio = `Rejoindre la visio : ${joinUrl}`;
+  return agenda?.trim() ? `${agenda.trim()}\n\n${visio}` : visio;
 }
-function htmlBody(title: string, joinUrl: string): string {
-  return `<p>${escapeHtml(title)}</p><p><a href="${joinUrl}">Rejoindre la visio</a><br>${joinUrl}</p>`;
+function htmlBody(title: string, joinUrl: string, agenda?: string): string {
+  const agendaHtml = agenda?.trim()
+    ? `<p>${escapeHtml(agenda.trim()).replace(/\n/g, "<br>")}</p>`
+    : "";
+  return `<p>${escapeHtml(title)}</p>${agendaHtml}<p><a href="${joinUrl}">Rejoindre la visio</a><br>${joinUrl}</p>`;
 }
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+/** Native Meet/Teams mint their own join button, so the body/description carries
+ *  only the agenda (no "Rejoindre la visio" line). Undefined when there's none. */
+export function nativeAgendaText(agenda?: string): string | undefined {
+  return agenda?.trim() || undefined;
+}
+export function nativeHtmlBody(title: string, agenda?: string): string {
+  const agendaHtml = agenda?.trim()
+    ? `<p>${escapeHtml(agenda.trim()).replace(/\n/g, "<br>")}</p>`
+    : "";
+  return `<p>${escapeHtml(title)}</p>${agendaHtml}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -105,6 +159,10 @@ export async function bookSovereignMeeting(opts: {
   roomPrefix?: string;
   /** "sovereign" (default) = Jitsi; or "google_meet" / "teams" / "zoom". */
   conferencing?: Conferencing;
+  /** Extra invitees beyond the prospect (founder, colleagues). */
+  attendees?: Array<{ email: string; name?: string }>;
+  /** Free agenda / notes added to the invite body. */
+  agenda?: string;
 }): Promise<BookResult> {
   const requested = opts.conferencing ?? "sovereign";
   const meeting = createSovereignMeeting({ prefix: opts.roomPrefix ?? "elevay" });
@@ -114,6 +172,8 @@ export async function bookSovereignMeeting(opts: {
     startTime: opts.startTime,
     durationMinutes: opts.durationMinutes,
     title: opts.title,
+    attendees: opts.attendees,
+    agenda: opts.agenda,
   };
 
   // 1. The user's explicitly-connected IMAP/SMTP mailbox (Zimbra / Infomaniak /
@@ -192,7 +252,7 @@ async function writeGoogleEvent(
   const end = new Date(core.startTime.getTime() + core.durationMinutes * 60_000);
   const start = { dateTime: core.startTime.toISOString() };
   const endTime = { dateTime: end.toISOString() };
-  const attendees = [{ email: core.contactEmail, displayName: core.contactName }];
+  const attendees = allAttendees(core).map((a) => ({ email: a.email, displayName: a.name }));
 
   if (wopts.native) {
     const event = await calendar.events.insert({
@@ -201,6 +261,7 @@ async function writeGoogleEvent(
       conferenceDataVersion: 1,
       requestBody: {
         summary: core.title,
+        description: nativeAgendaText(core.agenda),
         start,
         end: endTime,
         attendees,
@@ -229,7 +290,7 @@ async function writeGoogleEvent(
     sendUpdates: "all",
     requestBody: {
       summary: core.title,
-      description: descriptionText(wopts.link),
+      description: descriptionText(wopts.link, core.agenda),
       location: wopts.link,
       start,
       end: endTime,
@@ -259,21 +320,22 @@ async function writeMicrosoftEvent(
     // Naive UTC datetime + explicit timeZone is Graph's expected shape.
     start: { dateTime: core.startTime.toISOString().replace("Z", ""), timeZone: "UTC" },
     end: { dateTime: end.toISOString().replace("Z", ""), timeZone: "UTC" },
-    attendees: [
-      { emailAddress: { address: core.contactEmail, name: core.contactName }, type: "required" },
-    ],
+    attendees: allAttendees(core).map((a) => ({
+      emailAddress: { address: a.email, name: a.name },
+      type: "required",
+    })),
   };
 
   const requestBody = wopts.native
     ? {
         ...base,
-        body: { contentType: "HTML", content: `<p>${escapeHtml(core.title)}</p>` },
+        body: { contentType: "HTML", content: nativeHtmlBody(core.title, core.agenda) },
         isOnlineMeeting: true,
         onlineMeetingProvider: "teamsForBusiness",
       }
     : {
         ...base,
-        body: { contentType: "HTML", content: htmlBody(core.title, wopts.link) },
+        body: { contentType: "HTML", content: htmlBody(core.title, wopts.link, core.agenda) },
         location: { displayName: wopts.link },
       };
 
@@ -370,11 +432,11 @@ async function writeCalDavEvent(
     start: core.startTime,
     end,
     summary: core.title,
-    description: descriptionText(link),
+    description: descriptionText(link, core.agenda),
     location: link,
     url: link,
     organizer: { email: box.email, name: box.displayName },
-    attendees: [{ email: core.contactEmail, name: core.contactName }],
+    attendees: allAttendees(core),
     method: "REQUEST",
   });
 
@@ -391,7 +453,10 @@ async function writeCalDavEvent(
     iCalString: ics,
   });
 
-  // CalDAV does not notify the attendee — send the invitation ourselves.
+  // CalDAV does not notify the attendees — send the invitation ourselves. The
+  // event is already on the organiser's own calendar, so Cc only the EXTRA
+  // invitees (the prospect is on To); without this they'd be in the .ics
+  // ATTENDEE list but never receive the email.
   if (box.smtpHost) {
     try {
       await sendViaSmtp(
@@ -404,8 +469,9 @@ async function writeCalDavEvent(
         },
         {
           to: core.contactEmail,
+          cc: extraCcEmails(core, [box.email]) || undefined,
           subject: core.title,
-          html: htmlBody(core.title, link),
+          html: htmlBody(core.title, link, core.agenda),
           icsInvite: { method: "REQUEST", content: ics, filename: "invite.ics" },
         },
       );
@@ -435,18 +501,21 @@ async function writeSmtpIcsEvent(
     start: core.startTime,
     end,
     summary: core.title,
-    description: descriptionText(link),
+    description: descriptionText(link, core.agenda),
     location: link,
     url: link,
     organizer: { email: box.email, name: box.displayName },
-    attendees: [{ email: core.contactEmail, name: core.contactName }],
+    attendees: allAttendees(core),
     method: "REQUEST",
   });
 
   // The invitation IS the booking here — there's no calendar API. Send the iTIP
-  // REQUEST from the user's own mailbox to the prospect, Cc the organiser so it
-  // also files onto their calendar. A send failure means the booking failed
-  // (so we throw, unlike the CalDAV path where the event is already written).
+  // REQUEST from the user's own mailbox to the prospect, Cc the organiser (so it
+  // also files onto their calendar) AND any extra invitees (who'd otherwise only
+  // be in the .ics ATTENDEE list, never emailed). A send failure means the
+  // booking failed (so we throw, unlike CalDAV where the event is already
+  // written). The body carries the agenda too — not just the .ics description.
+  const cc = [box.email, extraCcEmails(core, [box.email])].filter(Boolean).join(", ");
   await sendViaSmtp(
     {
       emailAddress: box.email,
@@ -457,9 +526,9 @@ async function writeSmtpIcsEvent(
     },
     {
       to: core.contactEmail,
-      cc: box.email,
+      cc,
       subject: core.title,
-      html: htmlBody(core.title, link),
+      html: htmlBody(core.title, link, core.agenda),
       icsInvite: { method: "REQUEST", content: ics, filename: "invite.ics" },
     },
   );
