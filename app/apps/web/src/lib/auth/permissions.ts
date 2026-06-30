@@ -298,6 +298,8 @@ const ROUTE_CAPABILITY_RULES: readonly RouteCapRule[] = [
   // Source warm leads from post engagement (reactors/commenters) — same posture.
   // (Explicit, though the /api/linkedin/source prefix already covers it.)
   { prefix: "/api/linkedin/source-from-engagement", write: "outbound:send" },
+  // Enrich existing contacts with their full LinkedIn profile — same posture.
+  { prefix: "/api/linkedin/hydrate-contacts", write: "outbound:send" },
   { prefix: "/api/sequences", write: "sequences:write", del: "sequences:delete" },
   { prefix: "/api/meetings", write: "deals:write" }, // notes / follow-up = member
   { prefix: "/api/contacts", write: "contacts:write", del: "contacts:delete" },
