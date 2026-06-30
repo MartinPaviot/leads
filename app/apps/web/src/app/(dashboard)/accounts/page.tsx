@@ -2366,69 +2366,8 @@ export default function AccountsPage() {
   // === RENDER ===
   return (
     <div ref={surfaceContainerRef} className="flex h-full flex-col animate-content-in" style={{ background: "var(--color-bg-page)" }}>
-      {/* A3 — bulk actions bar appears when one or more rows are checked. */}
-      <BulkActionsBar
-        count={selectedRows.size}
-        onClear={() => setSelectedRows(new Set())}
-        primary={
-          <EnrichMenu
-            targetCount={selectedRows.size}
-            running={enrichStream.isRunning}
-            processed={enrichStream.processed}
-            total={enrichStream.total}
-            onEnrich={(criteria) => runEnrich(criteria, Array.from(selectedRows))}
-          />
-        }
-        actions={[
-          { label: "Score", icon: <Target size={13} />, onClick: bulkScoreSelected },
-          { label: detectingSignals ? "Detecting…" : "Detect signals", icon: <Radio size={13} />, onClick: detectSignals, disabled: detectingSignals },
-          {
-            label: extractingContacts ? "Extracting…" : "Extract contacts",
-            icon: <UserPlus size={13} />,
-            // Open the ICP preview first — don't source blind.
-            onClick: () => {
-              const ids = Array.from(selectedRows);
-              if (ids.length > 0) setPreviewIds(ids);
-            },
-            disabled: extractingContacts,
-          },
-          {
-            label: "Call Mode",
-            icon: <Phone size={13} />,
-            onClick: () => {
-              const ids = Array.from(selectedRows);
-              if (ids.length === 0) return;
-              window.location.href = `/call-mode?accounts=${encodeURIComponent(ids.join(","))}`;
-            },
-          },
-          {
-            label: t("accountLists.add"),
-            icon: <ListPlus size={13} />,
-            onClick: () => { if (selectedRows.size > 0) setShowAddToList(true); },
-          },
-          ...(viewDeleted
-            ? [
-                {
-                  label: "Restore",
-                  icon: <RotateCcw size={13} />,
-                  onClick: () => restoreAccounts(Array.from(selectedRows)),
-                },
-              ]
-            : [
-                {
-                  label: viewExcluded ? "Restore" : "Not a fit",
-                  icon: viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />,
-                  onClick: () => bulkSetExclusion(viewExcluded ? "include" : "exclude"),
-                },
-                {
-                  label: "Delete",
-                  icon: <Trash2 size={13} />,
-                  variant: "danger" as const,
-                  onClick: () => openBulkCascadeDelete(),
-                },
-              ]),
-        ]}
-      />
+      {/* A3 — selection bar lives BELOW the filter bar now (see <BulkActionsBar>
+          after </FilterBar>) so checking rows can't push the header down. */}
       {/* Page header */}
       <PageHeader
         icon={<Building2 size={16} />}
@@ -2757,6 +2696,90 @@ export default function AccountsPage() {
           />
         </div>
       </FilterBar>
+
+      {/* A3 — selection bar. Sits directly UNDER the filter bar (not above the
+          page header), so checking rows never shifts the title or the
+          All/Filtres/Search row — only the table region below shrinks ~37px.
+          Actions are grouped into compact dropdown menus (Analyser / Actions)
+          instead of one wide button row, which also helps the half-screen +
+          200%-zoom viewport the founder uses. */}
+      <BulkActionsBar
+        count={selectedRows.size}
+        countLabel={t("bulk.selected", { n: selectedRows.size })}
+        clearLabel={t("bulk.clearSelection")}
+        onClear={() => setSelectedRows(new Set())}
+        primary={
+          <>
+            <EnrichMenu
+              targetCount={selectedRows.size}
+              running={enrichStream.isRunning}
+              processed={enrichStream.processed}
+              total={enrichStream.total}
+              onEnrich={(criteria) => runEnrich(criteria, Array.from(selectedRows))}
+            />
+            <MoreMenu
+              label={t("bulk.menu.prospect")}
+              items={[
+                { label: t("bulk.score"), icon: <Target size={13} />, onClick: bulkScoreSelected },
+                { label: detectingSignals ? t("bulk.detecting") : t("bulk.detectSignals"), icon: <Radio size={13} />, onClick: detectSignals, disabled: detectingSignals },
+                {
+                  label: extractingContacts ? t("bulk.extracting") : t("bulk.extractContacts"),
+                  icon: <UserPlus size={13} />,
+                  divider: true,
+                  // Open the ICP preview first — don't source blind.
+                  onClick: () => {
+                    const ids = Array.from(selectedRows);
+                    if (ids.length > 0) setPreviewIds(ids);
+                  },
+                  disabled: extractingContacts,
+                },
+                {
+                  label: t("bulk.callMode"),
+                  icon: <Phone size={13} />,
+                  onClick: () => {
+                    const ids = Array.from(selectedRows);
+                    if (ids.length === 0) return;
+                    window.location.href = `/call-mode?accounts=${encodeURIComponent(ids.join(","))}`;
+                  },
+                },
+                {
+                  label: t("accountLists.add"),
+                  icon: <ListPlus size={13} />,
+                  onClick: () => { if (selectedRows.size > 0) setShowAddToList(true); },
+                },
+                ...(viewDeleted
+                  ? []
+                  : [
+                      {
+                        label: viewExcluded ? t("bulk.restore") : t("bulk.notAFit"),
+                        icon: viewExcluded ? <RotateCcw size={13} /> : <Ban size={13} />,
+                        divider: true,
+                        onClick: () => bulkSetExclusion(viewExcluded ? "include" : "exclude"),
+                      },
+                    ]),
+              ]}
+            />
+          </>
+        }
+        actions={
+          viewDeleted
+            ? [
+                {
+                  label: t("bulk.restore"),
+                  icon: <RotateCcw size={13} />,
+                  onClick: () => restoreAccounts(Array.from(selectedRows)),
+                },
+              ]
+            : [
+                {
+                  label: t("bulk.delete"),
+                  icon: <Trash2 size={13} />,
+                  variant: "danger" as const,
+                  onClick: () => openBulkCascadeDelete(),
+                },
+              ]
+        }
+      />
 
       <FiltersPanel
         open={showFilters}

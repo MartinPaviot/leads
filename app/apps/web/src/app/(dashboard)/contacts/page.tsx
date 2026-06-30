@@ -1149,30 +1149,8 @@ export default function ContactsPage() {
 
   return (
     <div ref={surfaceContainerRef} className="flex h-full flex-col animate-content-in">
-      <BulkActionsBar
-        count={selectedRows.size}
-        onClear={() => setSelectedRows(new Set())}
-        actions={viewDeleted
-          ? [
-              { label: "Restore", icon: <RotateCcw size={13} />, onClick: () => restoreContacts(Array.from(selectedRows)) },
-            ]
-          : [
-              { label: "Enrich", icon: <Zap size={13} />, onClick: bulkEnrichSelected },
-              { label: "Find mobile", icon: <Phone size={13} />, onClick: bulkFindMobile },
-              {
-                label: "Merge",
-                icon: <GitMerge size={13} />,
-                onClick: bulkMergeSelected,
-                disabled: selectedRows.size < 2,
-              },
-              {
-                label: "Delete",
-                icon: <Trash2 size={13} />,
-                variant: "danger",
-                onClick: () => openBulkCascadeDelete(),
-              },
-            ]}
-      />
+      {/* Selection bar lives BELOW the filter bar now (see <BulkActionsBar>
+          after </FilterBar>) so checking rows can't push the header down. */}
       <PageHeader icon={<Users size={16} />} title="Contacts" subtitle={`${totalContacts}`}>
         {/* Enrich lives in the selection bar — it only makes sense once
             contacts are checked. Secondary controls (views, tenant-wide
@@ -1309,6 +1287,46 @@ export default function ContactsPage() {
           />
         </div>
       </FilterBar>
+
+      {/* Selection bar — placed UNDER the filter bar so checking rows never
+          shifts the header. Enrich actions group into one dropdown; Merge +
+          Delete stay visible (Merge is contextual, Delete is destructive). */}
+      <BulkActionsBar
+        count={selectedRows.size}
+        countLabel={t("bulk.selected", { n: selectedRows.size })}
+        clearLabel={t("bulk.clearSelection")}
+        onClear={() => setSelectedRows(new Set())}
+        primary={
+          viewDeleted ? null : (
+            <MoreMenu
+              label={t("bulk.menu.enrich")}
+              items={[
+                { label: t("bulk.enrich"), icon: <Zap size={13} />, onClick: bulkEnrichSelected },
+                { label: t("bulk.findMobile"), icon: <Phone size={13} />, onClick: bulkFindMobile },
+              ]}
+            />
+          )
+        }
+        actions={viewDeleted
+          ? [
+              { label: t("bulk.restore"), icon: <RotateCcw size={13} />, onClick: () => restoreContacts(Array.from(selectedRows)) },
+            ]
+          : [
+              {
+                label: t("bulk.merge"),
+                icon: <GitMerge size={13} />,
+                onClick: bulkMergeSelected,
+                disabled: selectedRows.size < 2,
+              },
+              {
+                label: t("bulk.delete"),
+                icon: <Trash2 size={13} />,
+                variant: "danger",
+                onClick: () => openBulkCascadeDelete(),
+              },
+            ]}
+      />
+
       <FiltersPanel
         open={showFilters}
         onOpenChange={setShowFilters}

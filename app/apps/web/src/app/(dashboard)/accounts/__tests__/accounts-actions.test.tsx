@@ -221,6 +221,16 @@ describe("CLE-07 /accounts — bulk actions over the selection", () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
   }
 
+  it("REGRESSION — the selection bar renders BELOW the filter bar (can't shift the header)", async () => {
+    await selectAll();
+    const toolbar = await screen.findByRole("toolbar");
+    // The "All (" source tab anchors the filter bar (hardcoded, locale-independent).
+    const allTab = screen.getAllByText(/^All \(/)[0];
+    // The filter tab must precede the selection bar in document order: the bar is a
+    // later sibling, so checking rows shifts only the table region — never the title.
+    expect(allTab.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("REQUIRED — bulkEnrich runs the streaming enrich over the selection; empty selection guards", async () => {
     // Empty selection first
     const empty = await runRegisteredAction("accounts.bulkEnrich", {});

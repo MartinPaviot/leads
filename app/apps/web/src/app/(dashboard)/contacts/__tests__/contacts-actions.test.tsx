@@ -177,6 +177,14 @@ describe("CLE-08 /contacts — bulk actions over the selection", () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
   }
 
+  it("REGRESSION — the selection bar renders BELOW the filter bar (can't shift the header)", async () => {
+    await selectAll();
+    const toolbar = await screen.findByRole("toolbar");
+    // The "All (" anchor tab lives in the filter bar (hardcoded, locale-independent).
+    const allTab = screen.getAllByText(/^All \(/)[0];
+    expect(allTab.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("bulkEnrich runs the chunked /api/enrich-contacts over the selection; empty selection guards", async () => {
     const empty = await runRegisteredAction("contacts.bulkEnrich", {});
     expect(empty.ok).toBe(false);
