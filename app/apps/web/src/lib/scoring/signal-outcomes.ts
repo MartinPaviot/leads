@@ -28,6 +28,8 @@ import { db } from "@/db";
 import { signalOutcomes, deals, companies } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { detectActiveSignals, listKnownSignalTypes as listShared } from "./signal-detectors";
+import { filterFreshSignals } from "@/lib/signals/freshness";
+import type { SignalEntry } from "@/lib/signals/record-signal";
 
 /** Minimum number of (won+lost) observations before we trust a multiplier. */
 const MIN_SAMPLE_SIZE = 10;
@@ -142,6 +144,48 @@ export function inheritAliasMultipliers(
 }
 
 /**
+ * Attribute the engagement / producer signals that live in
+ * `companies.properties.signals[]` (the array recordCompanySignal writes:
+ * positive_reply, meeting_booked, email_opened/clicked, demo_request,
+ * warm_connection, funding_recent, ...). The structured detectors only
+ * read first-class subtrees, so without this these types never accrue a
+ * won/lost outcome and ride their static prior forever. Freshness is
+ * judged at `asOf` (the deal's creation) exactly like the structured
+ * path; the type is canonicalized so an alias rides its learned family.
+ * Pure — exported for tests.
+ */
+export function detectArraySignals(
+  props: Record<string, unknown>,
+  asOf: Date,
+): Array<{ signalType: string; firedAt: Date }> {
+  // Pre-filter malformed entries: filterFreshSignals → normalizeType calls
+  // `.trim()`, which throws on a type-less entry. Real data always has a
+  // type, but stay defensive.
+  const arr = (Array.isArray(props.signals) ? (props.signals as SignalEntry[]) : []).filter(
+    (s) => s && typeof s.type === "string" && s.type.length > 0,
+  );
+  const out: Array<{ signalType: string; firedAt: Date }> = [];
+  for (const s of filterFreshSignals(arr, asOf)) {
+    if (!s.detectedAt) continue;
+    const firedAt = new Date(s.detectedAt);
+    if (Number.isNaN(firedAt.getTime())) continue; // unparseable → can't attribute
+    out.push({ signalType: SIGNAL_CANONICAL_ALIAS[s.type] ?? s.type, firedAt });
+  }
+  return out;
+}
+
+/** Dedup detected signals by canonical type, keeping the first seen. Pure. */
+export function dedupeBySignalType(
+  rows: Array<{ signalType: string; firedAt: Date }>,
+): Array<{ signalType: string; firedAt: Date }> {
+  const byType = new Map<string, { signalType: string; firedAt: Date }>();
+  for (const r of rows) {
+    if (!byType.has(r.signalType)) byType.set(r.signalType, r);
+  }
+  return [...byType.values()];
+}
+
+/**
  * Inspect a company's properties JSONB for fired signals and insert
  * one row per detected signal type into `signal_outcomes`. Safe to
  * call multiple times — downstream aggregation tolerates duplicates
@@ -176,10 +220,19 @@ export async function recordDealOutcome(params: {
   // credit; a fossil that expired long before the deal started earns
   // none. Signals that fired DURING the cycle pass trivially.
   const attributionAsOf = deal.createdAt ?? new Date();
-  const detected = detectActiveSignals(props, attributionAsOf).map((s) => ({
+  const structured = detectActiveSignals(props, attributionAsOf).map((s) => ({
     signalType: s.type as string,
     firedAt: s.firedAt,
   }));
+
+  // Union the structured detections with the engagement/producer signals
+  // that live in properties.signals[] (dedup by canonical type) so types
+  // like positive_reply / meeting_booked finally accrue outcomes instead
+  // of riding their static prior.
+  const detected = dedupeBySignalType([
+    ...structured,
+    ...detectArraySignals(props, attributionAsOf),
+  ]);
 
   if (detected.length === 0) return { recorded: 0, signalTypes: [] };
 
