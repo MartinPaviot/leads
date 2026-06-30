@@ -14,7 +14,7 @@
 
 import { generateText, generateObject, streamText } from "ai";
 import { recordTrace, type TraceContext, AGENT_REGISTRY } from "../observability/observability";
-import { getActivePrompt } from "../evals/flywheel";
+import { getActivePrompt, getFewShotExamples } from "../evals/flywheel";
 import { enforceLlmBudget } from "../billing/llm-budget";
 import logger from "../observability/logger";
 import { isAiDisabled } from "./ai-provider";
@@ -49,7 +49,7 @@ interface TraceMetadata {
  * Examples are prepended as user/assistant pairs so the model learns
  * from the best production outputs curated by the flywheel.
  */
-function injectFewShotExamples(
+export function injectFewShotExamples(
   aiParams: any,
   examples: Array<{ input: string; output: string }>,
 ): void {
@@ -73,6 +73,39 @@ function injectFewShotExamples(
   }
 }
 
+/**
+ * Apply the flywheel's learned artifacts to an outgoing model call:
+ *  - the active (auto-refined) system prompt version, when one exists;
+ *  - curated few-shot examples (best prod outputs + founder-approved drafts).
+ *
+ * The few-shot FALLBACK is load-bearing. `getActivePrompt` returns null
+ * for any agent that has no refined prompt VERSION yet — i.e. almost
+ * every agent, since most run on their default prompt — and the previous
+ * inline code only injected few-shots when `getActivePrompt` was
+ * non-null. So curated examples were stored but never reached the model
+ * for the common case, leaving the curation loop open. We now fall back
+ * to `getFewShotExamples` so the loop (high-quality / approved output →
+ * example → injected next call) actually closes regardless of whether a
+ * versioned prompt exists. The single seam also dedupes what were three
+ * copy-pasted blocks across text/object/stream, and is the place to add
+ * further learned context (playbook entries, recent objections) later.
+ */
+export async function applyLearnedContext(
+  agentId: string,
+  aiParams: any,
+): Promise<void> {
+  const activePrompt = await getActivePrompt(agentId).catch(() => null);
+  if (activePrompt?.prompt && !aiParams.system) {
+    aiParams.system = activePrompt.prompt;
+  }
+  // `getActivePrompt` already bundles the agent's few-shots; only fetch
+  // them separately when there is no active version to bundle them.
+  const examples =
+    activePrompt?.fewShotExamples ??
+    (await getFewShotExamples(agentId).catch(() => []));
+  injectFewShotExamples(aiParams, examples);
+}
+
 // ─── tracedGenerateText ──────────────────────────────────────
 
 export async function tracedGenerateText(
@@ -90,14 +123,8 @@ export async function tracedGenerateText(
   // a bug). Tenants with no cap configured pass through cheaply.
   await enforceLlmBudget(_trace.tenantId);
 
-  // Inject versioned prompt + few-shot examples from flywheel
-  const activePrompt = await getActivePrompt(_trace.agentId).catch(() => null);
-  if (activePrompt) {
-    if (!aiParams.system) {
-      (aiParams as any).system = activePrompt.prompt;
-    }
-    injectFewShotExamples(aiParams, activePrompt.fewShotExamples);
-  }
+  // Inject the flywheel's learned prompt + few-shot examples.
+  await applyLearnedContext(_trace.agentId, aiParams as any);
 
   try {
     const result = await generateText(aiParams);
@@ -159,13 +186,7 @@ export async function tracedGenerateObject(
 
   await enforceLlmBudget(_trace.tenantId);
 
-  const activePrompt = await getActivePrompt(_trace.agentId).catch(() => null);
-  if (activePrompt) {
-    if (!aiParams.system) {
-      aiParams.system = activePrompt.prompt;
-    }
-    injectFewShotExamples(aiParams, activePrompt.fewShotExamples);
-  }
+  await applyLearnedContext(_trace.agentId, aiParams);
 
   try {
     const result = await generateObject(aiParams as any);
@@ -217,14 +238,8 @@ export async function tracedStreamText(
 
   await enforceLlmBudget(_trace.tenantId);
 
-  // Inject versioned prompt + few-shot examples from flywheel
-  const activePrompt = await getActivePrompt(_trace.agentId).catch(() => null);
-  if (activePrompt) {
-    if (!(aiParams as any).system) {
-      (aiParams as any).system = activePrompt.prompt;
-    }
-    injectFewShotExamples(aiParams, activePrompt.fewShotExamples);
-  }
+  // Inject the flywheel's learned prompt + few-shot examples.
+  await applyLearnedContext(_trace.agentId, aiParams as any);
 
   const originalOnFinish = (aiParams as any).onFinish;
 

@@ -450,21 +450,31 @@ export async function curateFewShotExamples(
   agentId: string,
   tenantId: string,
   since: Date,
-): Promise<{ added: number; pruned: number }> {
-  const agent = AGENT_REGISTRY[agentId];
-  if (!agent || agent.evalSampleRate <= 0) return { added: 0, pruned: 0 };
+): Promise<{ added: number; pruned: number; promoted: number }> {
+  // Promote founder-approved candidates first. This is ungated by
+  // sampling on purpose: an unedited approval (recordFlywheelCandidate)
+  // is a first-class quality signal and must reach the model even for
+  // agents we do not trace-sample.
+  const promoted = await promoteApprovedCandidates(agentId);
 
-  // Find high-quality traces (top 10% by eval score)
-  const highQualityTraces = await db.select().from(agentTraces)
-    .where(and(
-      eq(agentTraces.agentId, agentId),
-      eq(agentTraces.tenantId, tenantId),
-      gte(agentTraces.createdAt, since),
-      gte(agentTraces.evalScore, 0.85),
-      eq(agentTraces.status, "ok"),
-    ))
-    .orderBy(desc(agentTraces.evalScore))
-    .limit(10);
+  const agent = AGENT_REGISTRY[agentId];
+
+  // Auto-curation from high-quality traces requires the agent to be
+  // sampled; promotion (above) and prune (below) still run otherwise so
+  // approved candidates surface and the top-5 cap is always enforced.
+  const highQualityTraces =
+    agent && agent.evalSampleRate > 0
+      ? await db.select().from(agentTraces)
+          .where(and(
+            eq(agentTraces.agentId, agentId),
+            eq(agentTraces.tenantId, tenantId),
+            gte(agentTraces.createdAt, since),
+            gte(agentTraces.evalScore, 0.85),
+            eq(agentTraces.status, "ok"),
+          ))
+          .orderBy(desc(agentTraces.evalScore))
+          .limit(10)
+      : [];
 
   let added = 0;
   for (const trace of highQualityTraces) {
@@ -530,11 +540,61 @@ export async function curateFewShotExamples(
     }
   }
 
-  if (added > 0 || pruned > 0) {
-    logger.info(`[FLYWHEEL] Few-shot curation for ${agentId}`, { added, pruned });
+  if (added > 0 || pruned > 0 || promoted > 0) {
+    logger.info(`[FLYWHEEL] Few-shot curation for ${agentId}`, { added, pruned, promoted });
   }
 
-  return { added, pruned };
+  return { added, pruned, promoted };
+}
+
+/**
+ * Promotion floor for founder-approved few-shot candidates. Matches the
+ * INITIAL_CANDIDATE_SCORE that recordFlywheelCandidate stamps, so an
+ * unedited approval clears the bar by default while genuinely low-scored
+ * rows stay inactive.
+ */
+const FEW_SHOT_PROMOTION_FLOOR = 0.6;
+
+/**
+ * Promote founder-approved few-shot candidates into active examples.
+ *
+ * `recordFlywheelCandidate` stores an unedited founder-approved draft
+ * with isActive=false and a low initial score (0.6), on the documented
+ * promise that curation "will later promote" it — but no promoter ever
+ * existed, so those candidates (the strongest positive signal we get)
+ * sat inert forever and never reached a prompt. This closes that loop:
+ * every inactive candidate at or above the promotion floor is activated,
+ * then the caller's top-5 prune keeps only the best active set by score.
+ * At cold start — no high-score auto-curated traces yet — these
+ * approvals are exactly what fill the few-shot slots.
+ *
+ * Returns the number of candidates activated.
+ */
+export async function promoteApprovedCandidates(agentId: string): Promise<number> {
+  const candidates = await db
+    .select({ id: agentFewShotExamples.id })
+    .from(agentFewShotExamples)
+    .where(and(
+      eq(agentFewShotExamples.agentId, agentId),
+      eq(agentFewShotExamples.isActive, false),
+      gte(agentFewShotExamples.evalScore, FEW_SHOT_PROMOTION_FLOOR),
+    ));
+
+  if (candidates.length === 0) return 0;
+
+  await db
+    .update(agentFewShotExamples)
+    .set({ isActive: true })
+    .where(and(
+      eq(agentFewShotExamples.agentId, agentId),
+      eq(agentFewShotExamples.isActive, false),
+      gte(agentFewShotExamples.evalScore, FEW_SHOT_PROMOTION_FLOOR),
+    ));
+
+  logger.info(
+    `[FLYWHEEL] Promoted ${candidates.length} approved few-shot candidate(s) for ${agentId}`,
+  );
+  return candidates.length;
 }
 
 /**
