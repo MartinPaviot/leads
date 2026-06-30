@@ -210,10 +210,24 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
+  const [navHidden, setNavHidden] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const lastScrollY = useRef(0);
 
+  // Auto-hide nav: slide it away when scrolling DOWN (past the hero top),
+  // bring it back the instant the user scrolls UP. The 6px delta guard kills
+  // trackpad jitter; the `y > 80` floor keeps the bar pinned at the very top.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
+    lastScrollY.current = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      setScrolled(y > 20);
+      const last = lastScrollY.current;
+      if (Math.abs(y - last) < 6) return;
+      if (y > last && y > 80) setNavHidden(true);
+      else if (y < last) setNavHidden(false);
+      lastScrollY.current = y;
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
@@ -265,9 +279,9 @@ export default function LandingPage() {
           a green band before). Solid bg renders identically everywhere. */}
       <nav
         aria-label="Primary"
-        className={`sticky top-0 z-50 transition-shadow duration-300 ${scrolled ? "bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]" : "bg-white"}`}
+        className={`sticky top-0 z-50 bg-white transition-[transform,box-shadow] duration-300 motion-reduce:transition-none ${navHidden ? "-translate-y-full" : "translate-y-0"} ${scrolled && !navHidden ? "shadow-[0_1px_3px_rgba(0,0,0,0.06)]" : ""}`}
       >
-        <div className="mx-auto flex max-w-[1240px] items-center justify-between px-6 py-4">
+        <div className="mx-auto flex h-14 max-w-[1240px] items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2">
             <img src="/logo-Elevay.svg?v=2" alt="Elevay" className="h-7 w-7" />
             <span className="text-xl font-bold" style={{ background: "linear-gradient(90deg, #17C3B2, #2C6BED, #FF7A3D)", backgroundSize: "120% 100%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Elevay</span>
