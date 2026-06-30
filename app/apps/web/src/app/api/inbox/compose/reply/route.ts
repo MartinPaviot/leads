@@ -119,30 +119,37 @@ export async function POST(req: Request) {
     // stage). Both additive + fail-soft: a stranger thread with no contact/KB
     // degrades to exactly the prior voice-only draft. This is what lets the reply
     // ANSWER "pricing for 8 seats?" instead of always deferring to a call.
+    // Skip for nudges: a "we haven't heard back" re-surface must add no new facts
+    // (compose-reply.ts nudge task), so it stays voice-only — and costs nothing.
     const contactId = conversation.contactId ?? null;
-    const [knowledge, accountBrief] = await Promise.all([
-      loadReplyKnowledgeBlock(authCtx.tenantId),
-      (async () => {
-        if (!contactId) return "";
-        try {
-          const [deal] = await db
-            .select({ id: deals.id, stage: deals.stage })
-            .from(deals)
-            .where(and(eq(deals.tenantId, authCtx.tenantId), eq(deals.contactId, contactId), isNull(deals.deletedAt)))
-            .orderBy(desc(deals.updatedAt))
-            .limit(1);
-          const enriched = await buildEnrichedContext(
-            contactId,
-            authCtx.tenantId,
-            deal?.id ? { dealId: deal.id } : undefined,
-          ).catch(() => null);
-          return buildReplyContextBrief(enriched, deal?.stage ?? null);
-        } catch {
-          // Account grounding is additive — never fail a draft over it.
-          return "";
-        }
-      })(),
-    ]);
+    const [knowledge, accountBrief] =
+      mode === "nudge"
+        ? ["", ""]
+        : await Promise.all([
+            loadReplyKnowledgeBlock(authCtx.tenantId),
+            (async () => {
+              if (!contactId) return "";
+              try {
+                const [deal] = await db
+                  .select({ id: deals.id, stage: deals.stage })
+                  .from(deals)
+                  .where(and(eq(deals.tenantId, authCtx.tenantId), eq(deals.contactId, contactId), isNull(deals.deletedAt)))
+                  .orderBy(desc(deals.updatedAt))
+                  .limit(1);
+                // maxEmails:0 — the brief uses only signals + graph facts, so skip
+                // the (discarded) verbatim email-body fetch; the thread is already
+                // in the prompt.
+                const enriched = await buildEnrichedContext(contactId, authCtx.tenantId, {
+                  ...(deal?.id ? { dealId: deal.id } : {}),
+                  maxEmails: 0,
+                }).catch(() => null);
+                return buildReplyContextBrief(enriched, deal?.stage ?? null);
+              } catch {
+                // Account grounding is additive — never fail a draft over it.
+                return "";
+              }
+            })(),
+          ]);
     const groundedInstructions = [instructions, knowledgeSection(knowledge)].filter(Boolean).join("\n\n");
 
     const result: ReplyDraft = await composeReply(messages, {
