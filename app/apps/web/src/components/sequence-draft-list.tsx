@@ -76,6 +76,9 @@ interface SequenceDraftListProps {
   hasMore: boolean;
   onLoadMore: () => void;
   loading: boolean;
+  /** The initial load failed — suppress the "empty queue" EmptyState so a hard
+   *  error doesn't read as "all caught up" (the page shows an error + Retry). */
+  loadError?: boolean;
   /** B5b — multi-select. When provided, each row in the pending tab
    *  gets a checkbox. Without these props, the list behaves exactly
    *  as before. */
@@ -93,6 +96,7 @@ export function SequenceDraftList({
   hasMore,
   onLoadMore,
   loading,
+  loadError,
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
@@ -182,7 +186,7 @@ export function SequenceDraftList({
             "Loading…" on the Load more button. */}
         {drafts.length === 0 && loading && <DraftListSkeleton />}
 
-        {drafts.length === 0 && !loading && (
+        {drafts.length === 0 && !loading && !loadError && (
           <EmptyState status={status} />
         )}
 

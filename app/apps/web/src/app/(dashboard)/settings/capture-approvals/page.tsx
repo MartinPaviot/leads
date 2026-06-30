@@ -11,8 +11,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { SettingsHeader } from "@/components/ui/settings-header";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
-import { CardSkeleton } from "@/components/ui/skeleton";
+import { CardSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { Check, X, Mail, Calendar, Phone, Inbox } from "lucide-react";
 import { QUALIFICATION_EXTRAS_ENABLED } from "@/lib/settings/qualification-extras-visibility";
@@ -44,6 +45,9 @@ export default function CaptureApprovalsPage() {
   const { toast } = useToast();
   const [list, setList] = useState<Approval[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed load must not read as a healthy empty "Auto" queue — track it so we
+  // show a distinct error + Retry instead of the misleading empty state.
+  const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [mode, setMode] = useState<"auto" | "review" | "hybrid">("auto");
   const [fieldModes, setFieldModes] = useState<Record<string, "auto" | "review">>({});
@@ -51,6 +55,7 @@ export default function CaptureApprovalsPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await fetch("/api/capture-approvals");
       if (res.ok) {
@@ -58,8 +63,12 @@ export default function CaptureApprovalsPage() {
         setList(data.approvals ?? []);
         if (data.mode === "review" || data.mode === "auto" || data.mode === "hybrid") setMode(data.mode);
         if (data.fieldModes && typeof data.fieldModes === "object") setFieldModes(data.fieldModes);
-      } else toast("Failed to load approvals", "error");
+      } else {
+        setLoadError(true);
+        toast("Failed to load approvals", "error");
+      }
     } catch {
+      setLoadError(true);
       toast("Failed to load approvals", "error");
     } finally {
       setLoading(false);
@@ -179,11 +188,18 @@ export default function CaptureApprovalsPage() {
           <p className="text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
             Capture mode
           </p>
-          <p className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-            {mode === "review"
-              ? "New captures — and the fields auto-filled from calls & meetings (qualification, account intel) — wait for your approval before they reach the CRM."
-              : "Captures and the fields auto-filled from calls & meetings enter the CRM automatically."}
-          </p>
+          {/* Don't assert a mode until the saved one is known — otherwise the
+              seeded 'auto' subtitle shows for the whole fetch and then flips for
+              a tenant whose saved mode is review/hybrid. */}
+          {loading ? (
+            <Skeleton className="mt-0.5 h-3 w-72 rounded" />
+          ) : (
+            <p className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+              {mode === "review"
+                ? "New captures — and the fields auto-filled from calls & meetings (qualification, account intel) — wait for your approval before they reach the CRM."
+                : "Captures and the fields auto-filled from calls & meetings enter the CRM automatically."}
+            </p>
+          )}
         </div>
         <div
           className="inline-flex shrink-0 rounded-md p-0.5"
@@ -192,7 +208,8 @@ export default function CaptureApprovalsPage() {
           {/* 'hybrid' (per-field) is prod-hidden — auto/review is enough for a
               founder-led workspace. getFieldApprovalMode logic is untouched. */}
           {(QUALIFICATION_EXTRAS_ENABLED ? (["auto", "review", "hybrid"] as const) : (["auto", "review"] as const)).map((m) => {
-            const active = mode === m;
+            // No segment highlighted until the saved mode is known (no flip).
+            const active = !loading && mode === m;
             return (
               <button
                 key={m}
@@ -270,7 +287,16 @@ export default function CaptureApprovalsPage() {
             ))}
           </div>
         )}
-        {!loading && list.length === 0 && (
+        {!loading && loadError && (
+          <div role="alert" className="flex flex-col items-center gap-3 rounded border p-8 text-center" style={{ borderColor: "var(--color-border-default)" }}>
+            <Inbox size={20} style={{ color: "var(--color-text-tertiary)" }} />
+            <p className="text-[12px]" style={{ color: "var(--color-text-secondary)" }}>
+              Couldn&apos;t load the approval queue. This is not an empty queue — the request failed.
+            </p>
+            <Button size="sm" onClick={() => void refresh()}>Retry</Button>
+          </div>
+        )}
+        {!loading && !loadError && list.length === 0 && (
           <div className="flex flex-col items-center gap-2 rounded border p-8 text-center" style={{ borderColor: "var(--color-border-default)" }}>
             <Inbox size={20} style={{ color: "var(--color-text-tertiary)" }} />
             <p className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>

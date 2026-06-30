@@ -217,7 +217,7 @@ export default function HotToCallPage() {
                 Refreshing…
               </p>
             )}
-            {!loading && items.length === 0 && (
+            {!loading && !error && items.length === 0 && (
               <EmptyState hours={windowHours} />
             )}
             <div

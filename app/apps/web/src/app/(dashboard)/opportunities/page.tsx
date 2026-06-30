@@ -1551,10 +1551,13 @@ export default function OpportunitiesPage() {
           </div>
         ) : null}
 
-        {/* Main view */}
-        {loading ? (
+        {/* Main view. Skeleton only on the FIRST load (no rows yet): refetches
+            from search / Archive-toggle / post-action (create/analyze/restore)
+            keep loading=true but already have rows, so they refresh in place
+            instead of blanking the whole board to skeleton columns. */}
+        {loading && deals.length === 0 ? (
           <div className="flex flex-1 items-stretch gap-3 overflow-x-auto">
-            {[{ name: "Lead", cards: 3 }, { name: "Qualification", cards: 2 }, { name: "Demo", cards: 2 }, { name: "Proposal", cards: 1 }, { name: "Negotiation", cards: 1 }, { name: "Won", cards: 1 }].map((s, idx) => (
+            {[{ name: "Lead", cards: 3 }, { name: "Qualification", cards: 2 }, { name: "Demo", cards: 2 }, { name: "Trial", cards: 1 }, { name: "Proposal", cards: 1 }, { name: "Negotiation", cards: 1 }, { name: "Won", cards: 1 }, { name: "Lost", cards: 1 }].map((s, idx) => (
               <KanbanColumnSkeleton key={s.name} name={s.name} cards={s.cards} index={idx} />
             ))}
           </div>

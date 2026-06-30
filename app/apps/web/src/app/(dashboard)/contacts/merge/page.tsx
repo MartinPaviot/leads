@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { CompanyLogo } from "@/components/ui/company-logo";
-import { Skeleton } from "@/components/ui/skeleton";
+import { MergeSkeleton } from "./_merge-skeleton";
 
 interface Candidate {
   id: string;
@@ -68,6 +68,9 @@ export default function ContactsMergePage() {
   }, [searchParams]);
 
   const [loading, setLoading] = useState(true);
+  // A failed load must not read as "No duplicate emails detected" — track it so
+  // we show a distinct error + Retry instead of the false-empty panel.
+  const [loadError, setLoadError] = useState(false);
   const [groups, setGroups] = useState<DuplicateGroup[]>([]);
   const [curated, setCurated] = useState<MinimalContact[]>([]);
   const [survivors, setSurvivors] = useState<Record<string, string>>({});
@@ -79,6 +82,7 @@ export default function ContactsMergePage() {
     try {
       const res = await fetch("/api/contacts/merge");
       if (!res.ok) {
+        setLoadError(true);
         toast("Failed to load duplicate groups.", "error");
         return;
       }
@@ -91,6 +95,7 @@ export default function ContactsMergePage() {
       setSurvivors(defaults);
     } catch (e) {
       console.warn("contacts/merge: loadAuto failed", e);
+      setLoadError(true);
       toast("Failed to load duplicate groups.", "error");
     }
   }, [toast]);
@@ -104,6 +109,7 @@ export default function ContactsMergePage() {
         `/api/contacts?ids=${encodeURIComponent(preselectedIds.join(","))}&pageSize=${Math.min(200, Math.max(1, preselectedIds.length))}`,
       );
       if (!res.ok) {
+        setLoadError(true);
         toast("Failed to load contacts.", "error");
         return;
       }
@@ -123,16 +129,22 @@ export default function ContactsMergePage() {
       setSurvivors({ [key]: resolved[0].id });
     } catch (e) {
       console.warn("contacts/merge: loadCurated failed", e);
+      setLoadError(true);
       toast("Failed to load contacts.", "error");
     }
   }, [preselectedIds, toast]);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     setLoading(true);
+    setLoadError(false);
     (preselectedIds.length > 0 ? loadCurated() : loadAuto()).finally(() =>
-      setLoading(false)
+      setLoading(false),
     );
   }, [preselectedIds.length, loadAuto, loadCurated]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   async function mergeGroup(key: string, allIds: string[]) {
     const survivorId = survivors[key];
@@ -189,6 +201,15 @@ export default function ContactsMergePage() {
       <div className="flex-1 overflow-auto px-5 pb-5 pt-3">
         {loading ? (
           <MergeSkeleton />
+        ) : loadError ? (
+          <EmptyState
+            variant="error"
+            icon={<Users size={28} />}
+            title="Couldn't load contacts"
+            description="This is not an empty result — the request failed."
+            actionLabel="Retry"
+            onAction={reload}
+          />
         ) : showingCurated ? (
           <CuratedForm
             contacts={curated}
@@ -218,44 +239,6 @@ export default function ContactsMergePage() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// Footprint skeleton mirroring the loaded GroupCard layout (rounded border
-// section + header with title/subtitle/action + candidate rows) so swapping to
-// real data causes no reflow.
-function MergeSkeleton() {
-  return (
-    <div className="space-y-4">
-      {Array.from({ length: 2 }).map((_, s) => (
-        <section
-          key={s}
-          className="skeleton-row rounded-lg border"
-          style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
-        >
-          <header className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--color-border-default)" }}>
-            <div className="space-y-1.5">
-              <Skeleton className="h-3.5 w-48 rounded" />
-              <Skeleton className="h-2.5 w-32 rounded" />
-            </div>
-            <Skeleton className="h-7 w-40 rounded-md" />
-          </header>
-          <ul className="divide-y" style={{ borderColor: "var(--color-border-default)" }}>
-            {Array.from({ length: 3 }).map((_, r) => (
-              <li key={r} className="flex items-center gap-3 px-4 py-3">
-                <Skeleton className="h-3.5 w-3.5 rounded-full" />
-                <Skeleton className="h-7 w-7 rounded-md" />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <Skeleton className="h-3 w-40 rounded" />
-                  <Skeleton className="h-2.5 w-56 rounded" />
-                </div>
-                <Skeleton className="h-2.5 w-16 rounded" />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
     </div>
   );
 }

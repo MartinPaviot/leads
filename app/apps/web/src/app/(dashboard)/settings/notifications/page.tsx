@@ -61,6 +61,7 @@ export default function NotificationsSettingsPage() {
   const [inboxEvents, setInboxEvents] = useState<InboxNotifEvent[]>([]);
   const [inboxPrefs, setInboxPrefs] = useState<InboxNotifPrefs>({ events: {}, digest: "morning", dndStart: null, dndEnd: null });
   const [inboxLoading, setInboxLoading] = useState(true);
+  const [inboxLoadError, setInboxLoadError] = useState(false);
 
   const sfetch = useSafeFetch();
 
@@ -92,7 +93,8 @@ export default function NotificationsSettingsPage() {
   useEffect(() => {
     type R = { events?: InboxNotifEvent[]; prefs?: InboxNotifPrefs };
     sfetch<R>("/api/inbox/notifications", { errorMessage: "Failed to load inbox notification preferences" })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) { setInboxLoadError(true); return; }
         if (data?.events) setInboxEvents(data.events);
         if (data?.prefs) setInboxPrefs(data.prefs);
       })
@@ -304,8 +306,8 @@ export default function NotificationsSettingsPage() {
           per-event opt-in + digest cadence + quiet hours. Saved live to its own
           store. While its catalog fetch is in flight we reserve the section with
           a couple of toggle-row skeletons so it swaps in instead of popping in;
-          if the catalog can't load the section stays hidden. */}
-      {inboxLoading ? (
+          if the catalog can't load the section stays hidden (no flash-then-collapse). */}
+      {inboxLoading && inboxEvents.length === 0 && !inboxLoadError ? (
         <div className="mt-8">
           <div className="flex items-center gap-4 pb-2" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
             <Skeleton className="h-3 w-14 rounded" />

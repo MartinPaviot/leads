@@ -264,19 +264,29 @@ export default function KnowledgePage() {
         <div className="flex flex-1">
           {/* Sidebar skeleton */}
           <div
-            className="w-[280px] shrink-0 space-y-3 p-4"
+            className="flex w-[280px] shrink-0 flex-col"
             style={{ borderRight: "1px solid var(--color-border-default)" }}
           >
-            {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="h-10 animate-pulse rounded-md"
-                style={{ background: "var(--color-bg-hover)" }}
-              />
-            ))}
+            {/* Header bar — matches KnowledgeSidebar's internal header */}
+            <div
+              className="shrink-0"
+              style={{
+                height: "var(--header-height)",
+                borderBottom: "1px solid var(--color-border-default)",
+              }}
+            />
+            <div className="space-y-3 p-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="h-10 animate-pulse rounded-md"
+                  style={{ background: "var(--color-bg-hover)" }}
+                />
+              ))}
+            </div>
           </div>
           {/* Detail skeleton */}
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-6" style={{ background: "var(--color-bg-card)" }}>
             <div
               className="h-8 w-48 animate-pulse rounded-md"
               style={{ background: "var(--color-bg-hover)" }}

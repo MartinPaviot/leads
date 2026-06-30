@@ -386,6 +386,25 @@ export default function WritingStylePage() {
           </div>
         </div>
 
+        {/* Extra guidance (textarea, rows=3) */}
+        <div className="mt-4">
+          <Skeleton className="h-3 w-40 rounded" />
+          <Skeleton className="mt-1 h-[68px] w-full rounded-md" />
+        </div>
+
+        {/* Pre-draft replies on open (auto-draft checkbox card) */}
+        <div
+          className="mt-4 flex items-start gap-3 rounded-lg border p-3"
+          style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-card)" }}
+        >
+          <Skeleton className="mt-0.5 h-4 w-4 rounded" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-3 w-40 rounded" />
+            <Skeleton className="h-3 w-full rounded" />
+            <Skeleton className="h-3 w-3/4 rounded" />
+          </div>
+        </div>
+
         {/* Standing instructions */}
         <div className="mt-6 space-y-2">
           <Skeleton className="h-3 w-36 rounded" />

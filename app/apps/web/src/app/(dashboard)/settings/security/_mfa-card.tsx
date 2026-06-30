@@ -33,13 +33,21 @@ export function MfaCard() {
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [disableSecret, setDisableSecret] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const refresh = useCallback(async () => {
+    setLoadFailed(false);
     try {
       const res = await fetch("/api/account/mfa");
-      if (res.ok) setStatus((await res.json()) as MfaStatus);
+      if (res.ok) {
+        setStatus((await res.json()) as MfaStatus);
+      } else {
+        // Was swallowed: a failed/401/non-JSON response left status===null, so the
+        // footprint skeletons below pulsed forever with no way to retry.
+        setLoadFailed(true);
+      }
     } catch {
-      // leave the card in its current state; next action retries
+      setLoadFailed(true);
     }
   }, []);
 
@@ -148,15 +156,31 @@ export function MfaCard() {
           >
             {status.enabled ? "Enabled" : "Off"}
           </span>
-        ) : (
+        ) : !loadFailed ? (
           // Reserve the status-badge footprint while /api/account/mfa resolves.
           <Skeleton className="h-[22px] w-12 rounded-full" />
-        )}
+        ) : null}
       </div>
 
       {/* Reserve the primary action footprint until status resolves, so the
-          CTA / enabled section don't pop in below the header. */}
-      {!status && <Skeleton className="h-9 w-60 rounded-md" />}
+          CTA / enabled section don't pop in below the header. Gated off on a
+          failed load so the skeleton can't pulse forever. */}
+      {!status && !loadFailed && <Skeleton className="h-9 w-60 rounded-md" />}
+
+      {/* Failed load: surface it with a Retry instead of a stuck skeleton. */}
+      {!status && loadFailed && (
+        <p role="alert" className="text-[12px]" style={{ color: "var(--color-error, #b91c1c)" }}>
+          Couldn&apos;t load your two-factor status — this is not a reset.{" "}
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="font-medium underline"
+            style={{ color: "var(--color-accent)" }}
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       {/* Recovery codes — rendered exactly once, right after activation. */}
       {recoveryCodes && (

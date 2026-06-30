@@ -258,41 +258,6 @@ export default function GraphExplorerPage() {
               ))}
             </div>
           </div>
-          {/* Detail-panel footprint (~320px, matches the w-80 selected-node panel) */}
-          <div
-            className="w-80 shrink-0"
-            style={{
-              borderLeft: "1px solid var(--color-border-default)",
-              background: "var(--color-bg-card)",
-            }}
-          >
-            <div className="px-4 py-3" style={{ borderBottom: "0.5px solid var(--color-border-default)" }}>
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-3 w-3 rounded-full" />
-                <Skeleton className="h-4 w-32 rounded" />
-              </div>
-              <Skeleton className="mt-1.5 h-3 w-16 rounded" />
-              <Skeleton className="mt-2 h-3 w-full rounded" />
-              <Skeleton className="mt-1.5 h-3 w-3/4 rounded" />
-            </div>
-            <div className="space-y-2 px-4 py-3">
-              <Skeleton className="h-3 w-20 rounded" />
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="rounded-md p-2"
-                  style={{
-                    background: "var(--color-bg-surface)",
-                    border: "0.5px solid var(--color-border-default)",
-                  }}
-                >
-                  <Skeleton className="h-3 w-16 rounded" />
-                  <Skeleton className="mt-1.5 h-3 w-full rounded" />
-                  <Skeleton className="mt-1.5 h-3 w-1/2 rounded" />
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     );

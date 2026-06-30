@@ -155,7 +155,7 @@ export default function PlaybookPage() {
                   Refreshing…
                 </p>
               )}
-              {listState === "empty" && <EmptyState />}
+              {listState === "empty" && !error && <EmptyState />}
               <div
                 className="space-y-2 transition-opacity"
                 aria-busy={listState === "refreshing"}

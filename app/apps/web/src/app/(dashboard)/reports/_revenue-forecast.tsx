@@ -63,8 +63,8 @@ export function RevenueForecast() {
   const [goalInput, setGoalInput] = useState("");
   const [savingGoal, setSavingGoal] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       const [fRes, gRes] = await Promise.all([
@@ -102,7 +102,7 @@ export function RevenueForecast() {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error || "Failed to save goal");
       }
-      await load();
+      await load({ silent: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save goal");
     } finally {
