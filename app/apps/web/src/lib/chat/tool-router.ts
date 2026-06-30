@@ -101,6 +101,11 @@ const TOOL_GROUPS: Record<string, string> = {
   // LinkedIn / Sales-Nav sourcing
   previewLinkedInSearch: "query",
   sourceFromLinkedIn: "action",
+  // LinkedIn search monitors (recurring saved searches)
+  createSearchMonitor: "create",
+  listSearchMonitors: "query",
+  setSearchMonitorStatus: "update",
+  deleteSearchMonitor: "action",
 
   // create (create.ts)
   createContact: "create",

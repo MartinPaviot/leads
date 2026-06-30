@@ -87,6 +87,7 @@ import { linkedinInboxSync } from "@/inngest/linkedin-inbox-sync";
 import { linkedinAccountHydrationCron } from "@/inngest/linkedin-account-hydration-cron";
 import { linkedinEngagementSourcingCron } from "@/inngest/linkedin-engagement-sourcing-cron";
 import { linkedinContactHydrationCron } from "@/inngest/linkedin-contact-hydration-cron";
+import { linkedinSearchMonitorCron } from "@/inngest/linkedin-search-monitor-cron";
 import { campaignWeeklyReport } from "@/inngest/campaign-weekly-report";
 // voice-cold-call Phase 1 — post-call LLM extraction + CRM sync
 import { postProcessCall } from "@/inngest/calls-post-process";
@@ -326,6 +327,9 @@ export const { GET, POST, PUT } = serve({
     // LinkedIn contact hydration — daily, behind LINKEDIN_CONTACT_HYDRATION_ENABLED.
     // Enriches existing contacts (warm-first) with their full profile; shared view budget.
     linkedinContactHydrationCron,
+    // LinkedIn search monitors — daily, behind LINKEDIN_SEARCH_MONITOR_ENABLED.
+    // Re-runs saved ICP queries and sources net-new matches (source-only, no enroll).
+    linkedinSearchMonitorCron,
     campaignWeeklyReport,
     // voice-cold-call Phase 1 — post-call LLM extraction + CRM sync
     postProcessCall,
