@@ -86,7 +86,10 @@ export function MoreMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-1 min-w-52 rounded-lg py-1"
+          // Cap at ~70vh + scroll internally so a long menu (many grouped
+          // actions / submenu items) never overruns the page bottom. Matches
+          // ColumnPicker / EnrichMenu.
+          className="absolute right-0 top-full z-50 mt-1 max-h-[70vh] min-w-52 overflow-y-auto overscroll-contain rounded-lg py-1"
           style={{
             background: "var(--color-bg-card)",
             border: "1px solid var(--color-border-moderate)",

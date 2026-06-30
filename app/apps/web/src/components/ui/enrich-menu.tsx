@@ -104,7 +104,11 @@ export function EnrichMenu({
 
       {open && (
         <div
-          className="absolute right-0 top-full z-50 mt-1 w-64 rounded-lg p-1.5"
+          // Cap at ~70vh + scroll INTERNALLY: the base+extra criteria (plus the
+          // Run button at the bottom) can exceed the viewport, and without this
+          // the menu overran the page bottom — you'd scroll the whole page (and
+          // see empty space) to reach the lower rows. Matches ColumnPicker.
+          className="absolute right-0 top-full z-50 mt-1 max-h-[70vh] w-64 overflow-y-auto overscroll-contain rounded-lg p-1.5"
           style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-moderate)", boxShadow: "var(--shadow-floating)" }}
         >
           <p className="px-2 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
