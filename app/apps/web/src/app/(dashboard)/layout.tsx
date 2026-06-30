@@ -4,7 +4,6 @@ import { db } from "@/db";
 import { chatThreads } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { Sidebar } from "@/components/sidebar";
-import { PersistentChatBar } from "@/components/persistent-chat-bar";
 import { ChatDock } from "@/components/chat/chat-dock";
 import { PostHogIdentify } from "@/components/posthog-provider";
 import { ThemeProvider } from "@/components/ui/theme-provider";
@@ -111,7 +110,6 @@ export default async function DashboardLayout({
                   any long page, e.g. the TAM list). This is the root scroll
                   container for every dashboard page. */}
               <div className="min-h-0 flex-1 overflow-auto">{children}</div>
-              <PersistentChatBar />
               <PostHogIdentify
                 userId={session.user.id}
                 traits={{
