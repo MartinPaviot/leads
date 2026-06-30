@@ -21,6 +21,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { upsertAccount, upsertContact } from "@/db/canonical/upsert";
 import { searchLinkedIn, type UnipileConfig, type LinkedInSearchResult } from "@/lib/providers/unipile/http";
 import { enrichAccountFromLinkedIn } from "@/lib/providers/unipile/enrichment";
+import { recordCompanySignal } from "@/lib/signals/record-signal";
 import { engagerToContact, sourceEngagersFromPost } from "./post-sourcing";
 import type { JobsSearchBody, PostsSearchBody } from "./jobs-posts";
 
@@ -147,6 +148,24 @@ export async function sourceHiringSignals(params: {
         .set({ properties: sql`coalesce(${companies.properties}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb` })
         .where(eq(companies.id, row.id));
       result.signalsRecorded += entry.signals.length;
+
+      // Feed the SCORING path too: properties.hiring is display-only, but the
+      // daily priority-score cron reads only properties.signals[]. Record a
+      // canonical 'hiring' signal (1.4× prior; a ≥5-role surge is 'hiring_surge',
+      // 1.5×) so a hiring company actually rises in the autopilot's ranking.
+      // detectedAt = the freshest posting (NOT the sourcing date) so a stale
+      // 30-day-old req decays correctly.
+      const latestPostedMs = entry.signals
+        .map((s) => (s.postedAt ? Date.parse(s.postedAt) : NaN))
+        .filter((n) => Number.isFinite(n));
+      const detectedAt = (latestPostedMs.length ? new Date(Math.max(...latestPostedMs)) : observedAt).toISOString();
+      const n = entry.signals.length;
+      await recordCompanySignal(tenantId, row.id, {
+        type: n >= 5 ? "hiring_surge" : "hiring",
+        detectedAt,
+        strength: n >= 4 ? "high" : n >= 2 ? "medium" : "low",
+        source: UNIPILE,
+      });
     }
   }
   return result;

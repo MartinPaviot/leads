@@ -23,6 +23,9 @@ vi.mock("@/lib/providers/unipile/http", () => ({ searchLinkedIn: (...a: unknown[
 const enrichAccountFromLinkedIn = vi.fn();
 vi.mock("@/lib/providers/unipile/enrichment", () => ({ enrichAccountFromLinkedIn: (...a: unknown[]) => enrichAccountFromLinkedIn(...a) }));
 
+const recordCompanySignal = vi.fn();
+vi.mock("@/lib/signals/record-signal", () => ({ recordCompanySignal: (...a: unknown[]) => recordCompanySignal(...a) }));
+
 const sourceEngagersFromPost = vi.fn();
 // engagerToContact stays real (pure); only the engager-sourcing is mocked.
 vi.mock("../post-sourcing", async (orig) => {
@@ -62,6 +65,23 @@ describe("sourceHiringSignals", () => {
     // The single Ethos signal write carries BOTH its open roles (grouped).
     const ethosWrite = setPatches.find((p) => JSON.stringify(p).includes("VP of Sales"));
     expect(JSON.stringify(ethosWrite)).toContain("Head of RevOps");
+    // Each hiring company also records a canonical 'hiring' signal for SCORING.
+    expect(recordCompanySignal).toHaveBeenCalledTimes(2);
+    expect(recordCompanySignal.mock.calls.map((c) => [c[1], c[2].type])).toEqual(
+      expect.arrayContaining([["acc-Ethos", "hiring"], ["acc-Acme", "hiring"]]),
+    );
+    // Ethos has 2 roles → medium; detectedAt = the freshest posting (06-22, not the run date).
+    const ethosSignal = recordCompanySignal.mock.calls.find((c) => c[1] === "acc-Ethos")![2];
+    expect(ethosSignal).toMatchObject({ strength: "medium", source: "unipile" });
+    expect(ethosSignal.detectedAt.startsWith("2026-06-22")).toBe(true);
+  });
+
+  it("records a 'hiring_surge' (high strength) when a company has >=5 open roles", async () => {
+    searchLinkedIn.mockResolvedValueOnce(
+      onePage(Array.from({ length: 6 }, (_, i) => ({ title: `Role ${i}`, posted_at: "2026-06-25", company: { id: "99", name: "Ethos" } }))),
+    );
+    await sourceHiringSignals({ cfg: CFG, tenantId: "t1", unipileAccountId: "acc-1", body: { api: "classic", category: "jobs" } });
+    expect(recordCompanySignal.mock.calls[0][2]).toMatchObject({ type: "hiring_surge", strength: "high" });
   });
 
   it("hydrates the company profile when hydrateAccounts is on", async () => {
