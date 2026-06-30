@@ -53,34 +53,23 @@ beforeEach(() => {
 });
 
 describe("CompanyLogo — flag off (V1 path)", () => {
-  it("renders Clearbit img as initial src", () => {
+  it("renders the Google favicon as initial src (no dead Clearbit hop)", () => {
     const { container } = render(
       <CompanyLogo domain="stripe.com" name="Stripe" size={24} />,
     );
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
-    expect(img!.src).toContain("logo.clearbit.com/stripe.com");
+    expect(img!.src).toContain("google.com/s2/favicons");
+    expect(img!.src).toContain("stripe.com");
+    // Clearbit's CDN is dead — we must never emit a request to it.
+    expect(img!.src).not.toContain("clearbit");
   });
 
-  it("falls back to Google Favicons V1 on Clearbit error", () => {
-    const { container } = render(
-      <CompanyLogo domain="unknown.com" name="Unknown" size={24} />,
-    );
-    const img = container.querySelector("img")!;
-    act(() => {
-      img.dispatchEvent(new Event("error"));
-    });
-    expect(img.src).toContain("google.com/s2/favicons");
-  });
-
-  it("falls back to initials on double error", () => {
+  it("falls back to initials when the favicon errors", () => {
     const { container } = render(
       <CompanyLogo domain="dead.com" name="Dead Corp" size={24} />,
     );
     const img = container.querySelector("img")!;
-    act(() => {
-      img.dispatchEvent(new Event("error"));
-    });
     act(() => {
       img.dispatchEvent(new Event("error"));
     });
