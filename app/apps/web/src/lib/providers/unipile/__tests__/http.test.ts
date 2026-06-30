@@ -2,9 +2,36 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   unipileApiBase,
   toHostedAuthBody,
+  toWebhookBody,
   verifyWebhookToken,
   readUnipileConfig,
 } from "../http";
+
+describe("toWebhookBody", () => {
+  it("maps camelCase → snake_case and omits empty optionals", () => {
+    expect(toWebhookBody({ source: "messaging", requestUrl: "https://x/cb" })).toEqual({
+      source: "messaging",
+      request_url: "https://x/cb",
+    });
+  });
+  it("includes name, account_ids and headers when provided", () => {
+    expect(
+      toWebhookBody({
+        source: "account_status",
+        requestUrl: "https://x/cb",
+        name: "wh",
+        accountIds: ["a1"],
+        headers: [{ key: "Unipile-Auth", value: "s" }],
+      }),
+    ).toEqual({
+      source: "account_status",
+      request_url: "https://x/cb",
+      name: "wh",
+      account_ids: ["a1"],
+      headers: [{ key: "Unipile-Auth", value: "s" }],
+    });
+  });
+});
 
 describe("unipileApiBase", () => {
   it("appends /api/v1 to a bare DSN host", () => {
