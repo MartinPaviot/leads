@@ -22,6 +22,8 @@ export function BulkActionsBar({
   actions,
   onClear,
   primary,
+  countLabel,
+  clearLabel,
   className = "",
 }: {
   count: number;
@@ -29,13 +31,17 @@ export function BulkActionsBar({
   onClear: () => void;
   /** Optional rich action rendered first (e.g. a split-button menu). */
   primary?: ReactNode;
+  /** Localized "{n} selected" text. Falls back to English when omitted. */
+  countLabel?: string;
+  /** Localized aria-label for the clear (×) button. */
+  clearLabel?: string;
   className?: string;
 }) {
   if (count <= 0) return null;
   return (
     <div
       role="toolbar"
-      aria-label={`${count} items selected`}
+      aria-label={countLabel ?? `${count} items selected`}
       className={`sticky top-0 z-20 flex items-center gap-2 border-b px-4 py-2 ${className}`.trim()}
       style={{
         background: "var(--color-bg-selected, var(--color-bg-card))",
@@ -43,7 +49,7 @@ export function BulkActionsBar({
       }}
     >
       <span className="shrink-0 text-[13px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-        {count} selected
+        {countLabel ?? `${count} selected`}
       </span>
       {/* flex-1 + flex-wrap so the actions stay reachable on a narrow / zoomed
           viewport (founder runs half-screen + 200% zoom): instead of overflowing
@@ -69,7 +75,7 @@ export function BulkActionsBar({
         ))}
         <button
           onClick={onClear}
-          aria-label="Clear selection"
+          aria-label={clearLabel ?? "Clear selection"}
           className="ml-1 flex h-6 w-6 items-center justify-center rounded transition-colors"
           style={{ color: "var(--color-text-tertiary)" }}
         >
