@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { activities, tasks, deals, contacts, companies } from "@/db/schema";
+import { activities, tasks, deals, contacts, companies, users } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { tracedGenerateText } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
@@ -7,6 +7,9 @@ import { openai } from "@ai-sdk/openai";
 import { autofillDealFromIntelligence } from "@/lib/deals/deal-autofill";
 import type { ThreadIntelligence, BuyingSignal } from "@/lib/emails/email-intelligence";
 import { applyMeetingQualificationToCrm } from "./meeting-crm";
+import { buildFollowUpPrompt } from "./follow-up-prompt";
+import { isInternalMeeting } from "@/lib/recording/branding";
+import { extractDomain } from "@/lib/util/email";
 import type { MeetingNotes } from "./notes-schema";
 
 export interface PostCallResult {
@@ -86,6 +89,7 @@ export async function processPostCall(opts: PostCallOptions): Promise<PostCallRe
   const createdTaskIds: string[] = [];
   let followUpDraft = "";
   let dealUpdated = false;
+  let meetingIsInternal = false;
 
   // 1. Create tasks from action items
   if (createTasks && notes.actionItems?.length) {
@@ -232,6 +236,24 @@ export async function processPostCall(opts: PostCallOptions): Promise<PostCallRe
         : null;
 
     if (model) {
+      // Detect an all-internal (cofounder) meeting so the draft is an
+      // internal recap, not a sales follow-up. Resolve the org domain from
+      // an admin user; fail toward "external" (the sales default) on any gap.
+      try {
+        const [admin] = await db
+          .select({ email: users.email })
+          .from(users)
+          .where(and(eq(users.tenantId, tenantId), eq(users.role, "admin")))
+          .limit(1);
+        const primaryDomain = admin?.email ? extractDomain(admin.email) : null;
+        const attendeeEmails = (
+          (meta.attendees as Array<{ email?: string }> | undefined) ?? []
+        ).map((a) => a.email ?? "");
+        meetingIsInternal = isInternalMeeting(attendeeEmails, primaryDomain);
+      } catch {
+        // Default to the sales follow-up on any lookup failure.
+      }
+
       let contactContext = "";
       if (activity.entityType === "contact" && activity.entityId !== "unknown") {
         const [contact] = await db
@@ -254,55 +276,25 @@ export async function processPostCall(opts: PostCallOptions): Promise<PostCallRe
 
       const { text } = await tracedGenerateText({
         model,
-        prompt: `Write a follow-up email after this sales meeting. The email should feel like it was written by someone who was in the meeting and paid close attention.
-
-MEETING: ${activity.summary}
-DATE: ${meta.startTime || activity.occurredAt}
-${contactContext}
-
-MEETING SUMMARY: ${notes.summary}
-
-KEY POINTS DISCUSSED:
-${notes.keyPoints?.map((p: string) => `- ${p}`).join("\n") || "None recorded"}
-
-ACTION ITEMS:
-${notes.actionItems?.map((a: { task: string; owner: string; deadline?: string | null }) => `- ${a.task} (owner: ${a.owner})${a.deadline ? ` — by ${a.deadline}` : ""}`).join("\n") || "None"}
-
-NEXT STEPS:
-${notes.buyingSignals?.nextSteps?.join("\n- ") || "None specified"}
-
-<example>
-MEETING: Product demo with Sarah Chen (CTO, Meridian Labs)
-KEY POINTS: Liked the reporting feature, concerned about SSO integration timeline, team of 12 developers
-ACTION ITEMS: Send pricing by Friday (us), Share SOC 2 report (us), Internal review with CFO (them)
-
-FOLLOW-UP EMAIL:
-Hi Sarah,
-
-Thanks for the deep-dive today — great questions from your team, especially around the reporting workflows.
-
-Two things I'm following up on:
-1. Pricing breakdown for 12 seats — I'll have this in your inbox by Friday
-2. Our SOC 2 report — sending separately this afternoon
-
-On your end, you mentioned running this by David before moving forward. Happy to jump on a quick call with him if that would help move things along.
-
-Talk soon,
-</example>
-
-RULES:
-- 3-4 short paragraphs, never more
-- Reference 2-3 SPECIFIC discussion points from the meeting (not generic)
-- List your action items with clear timelines
-- Acknowledge their action items without being pushy
-- Tone: professional, warm, like a colleague — not a vendor
-- Start with "Hi [first name]," — use actual names
-- End with a forward-looking close, never "let me know if you have questions"
-- Output ONLY the email body — no subject line, no "Subject:" prefix`,
+        prompt: buildFollowUpPrompt({
+          internal: meetingIsInternal,
+          meetingTitle: activity.summary ?? "",
+          date: String(meta.startTime || activity.occurredAt || ""),
+          contactContext,
+          summary: notes.summary,
+          keyPoints: notes.keyPoints ?? [],
+          actionItems: notes.actionItems ?? [],
+          nextSteps: notes.buyingSignals?.nextSteps ?? [],
+          decisions: notes.decisions ?? [],
+        }),
         providerOptions: {
           anthropic: { cacheControl: { type: "ephemeral" } },
         },
-        _trace: { agentId: "process-transcript", tenantId, inputPreview: `Follow-up email for meeting: ${activity.summary}` },
+        _trace: {
+          agentId: "process-transcript",
+          tenantId,
+          inputPreview: `${meetingIsInternal ? "Internal recap" : "Follow-up email"} for meeting: ${activity.summary}`,
+        },
       });
 
       followUpDraft = text;
@@ -317,6 +309,7 @@ RULES:
         ...meta,
         generatedTaskIds: createdTaskIds,
         followUpEmailDraft: followUpDraft,
+        meetingIsInternal,
         postCallProcessedAt: new Date().toISOString(),
       },
     })
