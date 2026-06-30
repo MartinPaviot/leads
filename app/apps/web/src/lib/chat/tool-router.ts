@@ -106,6 +106,8 @@ const TOOL_GROUPS: Record<string, string> = {
   listSearchMonitors: "query",
   setSearchMonitorStatus: "update",
   deleteSearchMonitor: "action",
+  // Signal recommender
+  recommendSignals: "query",
 
   // create (create.ts)
   createContact: "create",
