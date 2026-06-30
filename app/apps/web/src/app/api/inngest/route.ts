@@ -82,6 +82,7 @@ import { campaignDecisionEngine, bridgeTrackingEvents } from "@/inngest/campaign
 import { signalMonitorCron, signalTriggeredOutreach } from "@/inngest/signal-monitor";
 import { deliverabilityHealthCron } from "@/inngest/deliverability-monitor";
 import { linkedinInboxSync } from "@/inngest/linkedin-inbox-sync";
+import { linkedinAccountHydrationCron } from "@/inngest/linkedin-account-hydration-cron";
 import { campaignWeeklyReport } from "@/inngest/campaign-weekly-report";
 // voice-cold-call Phase 1 — post-call LLM extraction + CRM sync
 import { postProcessCall } from "@/inngest/calls-post-process";
@@ -308,6 +309,9 @@ export const { GET, POST, PUT } = serve({
     // LinkedIn inbound message sync (LINKEDIN-INBOUND) — */15, behind
     // LINKEDIN_INBOUND_ENABLED. Pulls inbound LinkedIn replies into activities.
     linkedinInboxSync,
+    // LinkedIn account hydration — daily, behind LINKEDIN_ACCOUNT_HYDRATION_ENABLED.
+    // Re-tags existing accounts with real LinkedIn firmographics (bounded/tenant).
+    linkedinAccountHydrationCron,
     campaignWeeklyReport,
     // voice-cold-call Phase 1 — post-call LLM extraction + CRM sync
     postProcessCall,

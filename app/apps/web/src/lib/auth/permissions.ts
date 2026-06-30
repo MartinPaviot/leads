@@ -292,6 +292,9 @@ const ROUTE_CAPABILITY_RULES: readonly RouteCapRule[] = [
   // Source a TAM from YOUR connected Sales-Nav seat = member self-serve (same
   // posture as connect; the per-tenant seat cap, not the role, gates spend).
   { prefix: "/api/linkedin/source", write: "outbound:send" },
+  // Hydrate existing accounts with LinkedIn firmographics from YOUR seat — same
+  // member self-serve posture as source (the per-tenant seat cap gates spend).
+  { prefix: "/api/linkedin/hydrate-accounts", write: "outbound:send" },
   { prefix: "/api/sequences", write: "sequences:write", del: "sequences:delete" },
   { prefix: "/api/meetings", write: "deals:write" }, // notes / follow-up = member
   { prefix: "/api/contacts", write: "contacts:write", del: "contacts:delete" },

@@ -16,8 +16,13 @@
  *     full industry list + specialties + HQ + headcount-growth live in
  *     properties.linkedin (multi-value fidelity the single column can't hold).
  *
- * Server-only (DB + live Unipile). Read-bounded by `limit`; each company costs
- * ~1-2 LinkedIn profile views against the seat's ~100/day quota.
+ *  3. QUOTA + PROGRESS — `limit` bounds the companies PROBED per run (≈ the
+ *     real Unipile spend, ~1-2 views each), not just the matches, and the
+ *     unhydrated filter runs in SQL with a no-match marker so the batch advances
+ *     across runs instead of re-probing the same newest rows every day.
+ *
+ * Server-only (DB + live Unipile). Bounded by `limit` against the seat's ~100
+ * profile-view/day quota (Unipile does NOT enforce it — we must).
  */
 
 import { db } from "@/db";
@@ -26,20 +31,27 @@ import { and, eq, isNotNull, sql, desc } from "drizzle-orm";
 import { upsertAccount } from "@/db/canonical/upsert";
 import { readUnipileConfig } from "@/lib/providers/unipile/http";
 import { resolveAndEnrichCompany, icpSegmentToPreserve, type KnownCompany } from "@/lib/providers/unipile/enrichment";
+import { clampHydrationLimit } from "@/lib/linkedin/hydration-seat";
 
 const UNIPILE = "unipile";
+
+/** A no-match row is stamped with an attempt and stays out of the unhydrated
+ * window for this many days (so a company with no LinkedIn page isn't re-probed
+ * every run, but is retried eventually in case it later gets a page). */
+const HYDRATION_RETRY_DAYS = 30;
 
 export interface HydrateExistingParams {
   tenantId: string;
   /** The connected seat's Unipile account_id (the search/profile viewer). */
   unipileAccountId: string;
-  /** Cap a single run (LinkedIn profile-view quota ~100/seat/day). */
+  /** Max companies PROBED this run (= the quota spend). Clamped to [1, 50]; 25 default. */
   limit?: number;
-  /** Skip accounts already hydrated (properties.linkedin.companyId present). */
+  /** SQL-exclude rows already matched OR no-match-attempted in the last 30 days. */
   onlyUnhydrated?: boolean;
 }
 
 export interface HydrateExistingResult {
+  /** Companies probed (Unipile calls spent ≈ processed × 1-2). */
   processed: number;
   hydrated: number;
   skippedNoMatch: number;
@@ -66,7 +78,24 @@ export async function hydrateExistingAccounts(params: HydrateExistingParams): Pr
   const cfg = readUnipileConfig();
   if (!cfg) throw new Error("Unipile not configured");
 
-  const limit = params.limit ?? 25;
+  // `limit` bounds the number of companies PROBED this run (≈1-2 Unipile views
+  // each) — i.e. the actual quota spend — not just the successful matches.
+  const limit = clampHydrationLimit(params.limit);
+
+  // onlyUnhydrated filters AT THE SQL LEVEL so the batch ADVANCES across runs:
+  // exclude already-matched rows (companyId set) AND no-match rows attempted in
+  // the last HYDRATION_RETRY_DAYS. Without this the query re-probed the newest
+  // 3×limit rows every run and never reached older accounts.
+  const unhydratedFilter = params.onlyUnhydrated
+    ? sql`coalesce(${companies.vendorIds} ->> 'linkedin_company', '') = ''
+        and coalesce(${companies.properties} -> 'linkedin' ->> 'companyId', '') = ''
+        and (
+          (${companies.properties} -> 'linkedinHydration' ->> 'attemptedAt') is null
+          or (${companies.properties} -> 'linkedinHydration' ->> 'attemptedAt')::timestamptz
+             < now() - make_interval(days => ${HYDRATION_RETRY_DAYS})
+        )`
+    : undefined;
+
   const rows = (await db
     .select({
       id: companies.id,
@@ -77,9 +106,11 @@ export async function hydrateExistingAccounts(params: HydrateExistingParams): Pr
       properties: companies.properties,
     })
     .from(companies)
-    .where(and(eq(companies.tenantId, params.tenantId), isNotNull(companies.name)))
-    .orderBy(desc(companies.createdAt))
-    .limit(params.onlyUnhydrated ? limit * 3 : limit)) as AccountRow[];
+    .where(and(eq(companies.tenantId, params.tenantId), isNotNull(companies.name), unhydratedFilter))
+    // Never-attempted rows first (nulls first), then newest — so the batch walks
+    // the WHOLE backlog round-robin instead of re-consuming the newest end.
+    .orderBy(sql`(${companies.properties} -> 'linkedinHydration' ->> 'attemptedAt') asc nulls first`, desc(companies.createdAt))
+    .limit(limit)) as AccountRow[];
 
   let processed = 0;
   let hydrated = 0;
@@ -87,20 +118,22 @@ export async function hydrateExistingAccounts(params: HydrateExistingParams): Pr
   let segmentsPreserved = 0;
 
   for (const row of rows) {
-    if (hydrated >= limit) break;
-    const linkedinCompanyId = knownLinkedInId(row);
-    if (params.onlyUnhydrated && linkedinCompanyId) continue;
-    processed++;
+    processed++; // one probe = bounded Unipile spend, whether or not it matches
+    const known: KnownCompany = { name: row.name, domain: row.domain, linkedinCompanyId: knownLinkedInId(row) };
 
-    const known: KnownCompany = { name: row.name, domain: row.domain, linkedinCompanyId };
-    let resolved;
+    let resolved = null;
+    let threw = false;
     try {
       resolved = await resolveAndEnrichCompany(cfg, params.unipileAccountId, known);
     } catch {
-      skippedNoMatch++;
-      continue;
+      threw = true; // transient (network / rate-limit) — retry next run, don't poison
     }
+
     if (!resolved) {
+      // Stamp ONLY a CLEAN no-match (a genuine "no LinkedIn page") so it leaves the
+      // window for 30 days. A thrown/transient error is NOT stamped — otherwise a
+      // mid-run rate-limit would misfile every later company as a 30-day skip.
+      if (!threw) await markHydrationAttempt(row.id);
       skippedNoMatch++;
       continue;
     }
@@ -147,4 +180,14 @@ export async function hydrateExistingAccounts(params: HydrateExistingParams): Pr
   }
 
   return { processed, hydrated, skippedNoMatch, segmentsPreserved };
+}
+
+/** Stamp a no-match attempt (no Unipile call) so the row drops out of the
+ * unhydrated window for HYDRATION_RETRY_DAYS instead of being re-probed daily. */
+async function markHydrationAttempt(companyId: string): Promise<void> {
+  const patch = { linkedinHydration: { attemptedAt: new Date().toISOString(), matched: false } };
+  await db
+    .update(companies)
+    .set({ properties: sql`coalesce(${companies.properties}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb` })
+    .where(eq(companies.id, companyId));
 }
