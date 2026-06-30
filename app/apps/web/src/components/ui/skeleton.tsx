@@ -158,14 +158,11 @@ export function DetailPageSkeleton({ avatar = "square" }: { avatar?: "square" | 
             <Skeleton className="mt-1.5 h-3 w-28 rounded" />
           </div>
         </div>
-        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="skeleton-row rounded-lg p-4" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
-              <Skeleton className="h-2.5 w-14 rounded" />
-              <Skeleton className="mt-2 h-4 w-20 rounded" />
-            </div>
-          ))}
-        </div>
+        {/* No 4-stat KPI grid here — none of the three detail consumers
+            (accounts/[id], contacts/[id], opportunities/[id]) render one below
+            the header (they show a targeting panel / activity timeline /
+            suggestion banner), so it was four phantom cards that vanished on
+            load. A single generic content block matches all three. */}
         <div className="skeleton-row mt-6 rounded-lg p-4" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
           <Skeleton className="h-4 w-32 rounded" />
           <Skeleton className="mt-3 h-3 w-full rounded" />
@@ -173,8 +170,8 @@ export function DetailPageSkeleton({ avatar = "square" }: { avatar?: "square" | 
           <Skeleton className="mt-2 h-3 w-1/2 rounded" />
         </div>
       </div>
-      <div className="w-full border-l lg:w-[360px]" style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)" }}>
-        <div className="p-4 space-y-3">
+      <div className="w-full border-l lg:w-[300px]" style={{ borderColor: "var(--color-border-default)", background: "var(--color-bg-page)" }}>
+        <div className="p-6 space-y-3">
           <Skeleton className="h-4 w-20 rounded" />
           <Skeleton className="h-8 w-full rounded-md" />
         </div>

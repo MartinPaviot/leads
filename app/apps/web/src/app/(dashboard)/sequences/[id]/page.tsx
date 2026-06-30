@@ -9,6 +9,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { CampaignWizard } from "@/components/campaign-wizard";
+import { SequenceDetailSkeleton } from "./_skeleton";
 import { DestructiveConfirm } from "@/components/ui/destructive-confirm";
 import { useToast } from "@/components/ui/toast";
 import { useCan } from "@/components/role-provider";
@@ -506,7 +507,7 @@ export default function SequenceDetailPage({ params }: { params: Promise<{ id: s
   );
   useRegisterPageActions(sequenceDetailActions);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--color-text-tertiary)" }} /></div>;
+  if (loading) return <SequenceDetailSkeleton />;
   if (!sequence) return <div className="p-6 text-sm" style={{ color: "var(--color-error)" }}>Sequence not found</div>;
 
   const statusVariant: Record<string, "success" | "warning" | "neutral" | "info"> = {

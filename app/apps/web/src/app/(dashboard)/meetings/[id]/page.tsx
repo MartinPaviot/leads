@@ -6,6 +6,7 @@ import { z } from "zod";
 import { formatSecondsAsTimestamp } from "@/lib/coaching/citation-parser";
 import { TranscriptChunks } from "@/components/coaching/transcript-chunks";
 import { TranscriptVideoPlayer } from "@/components/coaching/transcript-video-player";
+import { MeetingDetailSkeleton } from "./_skeleton";
 import {
   ArrowLeft, Calendar, Clock, MapPin, Users, ExternalLink,
   FileText, Upload, CheckCircle2, AlertTriangle,
@@ -765,11 +766,7 @@ export default function MeetingDetailPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-      </div>
-    );
+    return <MeetingDetailSkeleton />;
   }
 
   if (!data) {

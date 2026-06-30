@@ -326,13 +326,24 @@ export default function DeliverabilityPage() {
     return (
       <div className="flex h-full flex-col">
         <PageHeader title="Deliverability" subtitle="Email sending health and monitoring" />
-        <div className="px-4 py-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {[1, 2, 3].map((i) => (
+        <div className="flex-1 overflow-auto px-4 py-6">
+          {/* Domain authentication (SPF / DKIM / DMARC) card — full width */}
+          <div className="skeleton-row mb-4 rounded-lg p-4" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
+            <div className="mb-3">
+              <div className="skeleton h-3.5 w-64 rounded" />
+              <div className="skeleton mt-1.5 h-2.5 w-72 rounded" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="skeleton h-8 flex-1 rounded-md" />
+              <div className="skeleton h-8 w-24 rounded-md" />
+            </div>
+          </div>
+          {/* KPI grid — Sent / Open / Reply / Bounce / Spam / Replied */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="skeleton-row rounded-lg p-4" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)" }}>
-                <div className="skeleton h-3 w-20 rounded" />
-                <div className="skeleton mt-2 h-6 w-16 rounded" />
-                <div className="skeleton mt-3 h-1.5 w-full rounded-full" />
+                <div className="skeleton h-2.5 w-12 rounded" />
+                <div className="skeleton mt-2 h-6 w-14 rounded" />
               </div>
             ))}
           </div>
