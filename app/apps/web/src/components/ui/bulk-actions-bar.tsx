@@ -45,9 +45,14 @@ export function BulkActionsBar({
       // `relative` (not `sticky top-0`): the bar now sits in the non-scrolling
       // header stack BELOW the filter bar, so sticky-to-top would pin it to the
       // dashboard root scroll container and let it re-overlap the page header on
-      // scroll. `relative` gives it a stacking context for the menus' z-50;
+      // scroll. `relative z-30` gives it a stacking context for the menus AND
+      // keeps it ABOVE the table's sticky `.ls-table th` (z-index:20): the bar's
+      // grouped-action / enrich dropdowns open down over the table, so at z-20
+      // they tied with the sticky category headers and lost on paint order (the
+      // table is later in the DOM) — i.e. the dropdown rendered BEHIND the column
+      // headers. z-30 wins that overlap; modals/drawers stay above at z-40/z-50.
       // `shrink-0` holds its height in the flex column.
-      className={`relative z-20 shrink-0 flex items-center gap-2 border-b px-4 py-2 ${className}`.trim()}
+      className={`relative z-30 shrink-0 flex items-center gap-2 border-b px-4 py-2 ${className}`.trim()}
       style={{
         background: "var(--color-bg-selected, var(--color-bg-card))",
         borderColor: "var(--color-border-default)",
