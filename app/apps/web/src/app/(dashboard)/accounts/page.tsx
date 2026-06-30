@@ -2718,18 +2718,14 @@ export default function AccountsPage() {
               onEnrich={(criteria) => runEnrich(criteria, Array.from(selectedRows))}
             />
             <MoreMenu
-              label={t("bulk.menu.analyze")}
+              label={t("bulk.menu.prospect")}
               items={[
                 { label: t("bulk.score"), icon: <Target size={13} />, onClick: bulkScoreSelected },
                 { label: detectingSignals ? t("bulk.detecting") : t("bulk.detectSignals"), icon: <Radio size={13} />, onClick: detectSignals, disabled: detectingSignals },
-              ]}
-            />
-            <MoreMenu
-              label={t("bulk.menu.actions")}
-              items={[
                 {
                   label: extractingContacts ? t("bulk.extracting") : t("bulk.extractContacts"),
                   icon: <UserPlus size={13} />,
+                  divider: true,
                   // Open the ICP preview first — don't source blind.
                   onClick: () => {
                     const ids = Array.from(selectedRows);
