@@ -52,3 +52,20 @@ export function selectSeatsPerTenant(
   }
   return out;
 }
+
+/**
+ * Pure: one ANY-connected seat per tenant (NOT Sales-Nav-gated) — for surfaces
+ * that work on every connected seat (post-engagement reads), unlike the
+ * profile/company hydration which needs SN. Returns [tenantId, unipileAccountId].
+ */
+export function connectedSeatsPerTenant(
+  rows: Array<HydrationSeatRow & { tenantId: string }>,
+): Array<[string, string]> {
+  const byTenant = new Map<string, string>();
+  for (const r of rows) {
+    if (r.status === "connected" && r.unipileAccountId && !byTenant.has(r.tenantId)) {
+      byTenant.set(r.tenantId, r.unipileAccountId);
+    }
+  }
+  return [...byTenant.entries()];
+}

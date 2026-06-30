@@ -1,5 +1,34 @@
 import { describe, it, expect } from "vitest";
-import { clampHydrationLimit, pickHydrationSeat, selectSeatsPerTenant, type HydrationSeatRow } from "../hydration-seat";
+import {
+  clampHydrationLimit,
+  pickHydrationSeat,
+  selectSeatsPerTenant,
+  connectedSeatsPerTenant,
+  type HydrationSeatRow,
+} from "../hydration-seat";
+
+describe("connectedSeatsPerTenant — any connected seat per tenant (not SN-gated)", () => {
+  const r = (o: Partial<HydrationSeatRow> & { tenantId: string }) => ({
+    status: "connected",
+    unipileAccountId: "x",
+    seatType: "classic",
+    userId: "u",
+    ...o,
+  });
+  it("keeps one connected seat per tenant, including classic; drops disconnected / no-id", () => {
+    const rows = [
+      r({ tenantId: "tA", unipileAccountId: "a1", seatType: "classic" }),
+      r({ tenantId: "tA", unipileAccountId: "a2", seatType: "sales_navigator" }),
+      r({ tenantId: "tB", unipileAccountId: "b1", status: "disconnected" }),
+      r({ tenantId: "tC", unipileAccountId: null }),
+    ];
+    expect(connectedSeatsPerTenant(rows)).toEqual([["tA", "a1"]]);
+  });
+  it("returns empty for no connected seats", () => {
+    expect(connectedSeatsPerTenant([])).toEqual([]);
+    expect(connectedSeatsPerTenant([r({ tenantId: "tZ", status: "pending" })])).toEqual([]);
+  });
+});
 
 describe("clampHydrationLimit — protect the profile-view quota", () => {
   it("defaults to 25 on missing/invalid/non-positive input", () => {
