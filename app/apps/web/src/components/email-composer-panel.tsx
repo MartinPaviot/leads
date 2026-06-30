@@ -557,16 +557,17 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [], inl
 
   if (!mounted) return null;
 
-  // Inline (Gmail/Outlook reply): an in-flow block pinned under the thread. It is
-  // `flex-1 min-h-0` so it SHARES the pane height with the message list and can
-  // shrink — the body scrolls and the footer (Send) always stays inside the pane,
-  // even on the founder's half-screen + 200% zoom viewport where a fixed-height
-  // panel would push Send under the clipping ancestor. Drawer (default): the
-  // right-edge slide-over for standalone compose.
+  // Inline (Gmail/Outlook reply): an in-flow block under the thread. `flex-1 min-h-0`
+  // shares the pane height with the message list; `overflow-y-auto` makes the WHOLE
+  // composer (its tall To/Cc/Subject chrome + body + Send footer) scroll as one unit
+  // when squeezed — so Send is always reachable, even on the founder's half-screen +
+  // 200% zoom viewport where the chrome alone exceeds the composer's share and a
+  // body-only scroll would push Send off-screen. Drawer (default): the right-edge
+  // slide-over for standalone compose.
   const panel = (
       <div
         className={inline
-          ? "flex min-h-0 flex-1 flex-col"
+          ? "flex min-h-0 flex-1 flex-col overflow-y-auto"
           : "slide-in-right fixed right-0 top-0 z-50 flex h-full flex-col"}
         style={inline
           ? {
@@ -730,7 +731,7 @@ export function EmailComposerPanel({ draft, onClose, onSent, mailboxes = [], inl
         </div>
 
         {/* Body — plain textarea, keeps markdown formatting */}
-        <div className="flex-1 overflow-auto p-4">
+        <div className={inline ? "p-4" : "flex-1 overflow-auto p-4"}>
           {/* Rewrite toolbar (INBOX-C04): GTM presets + free-form, with undo. */}
           <div className="mb-2 flex items-center gap-2">
             <div className="relative">
