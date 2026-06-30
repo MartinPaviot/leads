@@ -15,6 +15,7 @@
 import { generateText, generateObject, streamText } from "ai";
 import { recordTrace, type TraceContext, AGENT_REGISTRY } from "../observability/observability";
 import { getActivePrompt, getFewShotExamples } from "../evals/flywheel";
+import { getPlaybookPromptBlock } from "../playbook/get-playbook";
 import { enforceLlmBudget } from "../billing/llm-budget";
 import logger from "../observability/logger";
 import { isAiDisabled } from "./ai-provider";
@@ -87,12 +88,27 @@ export function injectFewShotExamples(
  * to `getFewShotExamples` so the loop (high-quality / approved output →
  * example → injected next call) actually closes regardless of whether a
  * versioned prompt exists. The single seam also dedupes what were three
- * copy-pasted blocks across text/object/stream, and is the place to add
- * further learned context (playbook entries, recent objections) later.
+ * copy-pasted blocks across text/object/stream, and appends the tenant's
+ * learned playbook for outbound-drafting agents (see PLAYBOOK_AGENT_IDS).
  */
+
+/**
+ * Outbound-drafting agents that get the tenant's learned playbook
+ * (objections / openers / questions) appended to their system prompt.
+ * Other agents (classification, extraction, chat) are left untouched so
+ * we neither pay the tokens nor muddy unrelated prompts.
+ */
+const PLAYBOOK_AGENT_IDS = new Set([
+  "draft-email",
+  "follow-up-email",
+  "suggest-reply",
+  "send-sequence-step",
+]);
+
 export async function applyLearnedContext(
   agentId: string,
   aiParams: any,
+  tenantId?: string,
 ): Promise<void> {
   const activePrompt = await getActivePrompt(agentId).catch(() => null);
   if (activePrompt?.prompt && !aiParams.system) {
@@ -104,6 +120,16 @@ export async function applyLearnedContext(
     activePrompt?.fewShotExamples ??
     (await getFewShotExamples(agentId).catch(() => []));
   injectFewShotExamples(aiParams, examples);
+
+  // Append the tenant's learned playbook for outbound-drafting agents.
+  // It rides at the END of the system prompt so the stable prefix still
+  // prompt-caches, and is a no-op when the tenant has no entries.
+  if (tenantId && PLAYBOOK_AGENT_IDS.has(agentId)) {
+    const block = await getPlaybookPromptBlock(tenantId).catch(() => "");
+    if (block) {
+      aiParams.system = aiParams.system ? `${aiParams.system}\n\n${block}` : block;
+    }
+  }
 }
 
 // ─── tracedGenerateText ──────────────────────────────────────
@@ -123,8 +149,8 @@ export async function tracedGenerateText(
   // a bug). Tenants with no cap configured pass through cheaply.
   await enforceLlmBudget(_trace.tenantId);
 
-  // Inject the flywheel's learned prompt + few-shot examples.
-  await applyLearnedContext(_trace.agentId, aiParams as any);
+  // Inject the flywheel's learned prompt + few-shot examples + playbook.
+  await applyLearnedContext(_trace.agentId, aiParams as any, _trace.tenantId);
 
   try {
     const result = await generateText(aiParams);
@@ -186,7 +212,7 @@ export async function tracedGenerateObject(
 
   await enforceLlmBudget(_trace.tenantId);
 
-  await applyLearnedContext(_trace.agentId, aiParams);
+  await applyLearnedContext(_trace.agentId, aiParams, _trace.tenantId);
 
   try {
     const result = await generateObject(aiParams as any);
@@ -238,8 +264,8 @@ export async function tracedStreamText(
 
   await enforceLlmBudget(_trace.tenantId);
 
-  // Inject the flywheel's learned prompt + few-shot examples.
-  await applyLearnedContext(_trace.agentId, aiParams as any);
+  // Inject the flywheel's learned prompt + few-shot examples + playbook.
+  await applyLearnedContext(_trace.agentId, aiParams as any, _trace.tenantId);
 
   const originalOnFinish = (aiParams as any).onFinish;
 
