@@ -128,6 +128,48 @@ export function reasonTooltip(
   }
 }
 
+// P1 — deal-ranked inbox "why". Turn the raw importance factors (importance.ts)
+// into a concise, human reason for the row, ordered by signal strength so the
+// deal/intent leads. Pure + unit-tested.
+const WHY_TOKENS: Array<{ match: (f: string) => boolean; token: string }> = [
+  { match: (f) => f === "open deal", token: "open deal" },
+  { match: (f) => f === "advanced deal stage", token: "advanced stage" },
+  { match: (f) => /^intent: (meeting_request|demo_request|calendar_scheduling)$/.test(f), token: "wants a meeting" },
+  { match: (f) => f === "intent: interested", token: "interested" },
+  { match: (f) => /^intent: (pricing_inquiry|budget_mention)$/.test(f), token: "pricing intent" },
+  { match: (f) => /^intent: objection/.test(f), token: "objection" },
+  { match: (f) => /^intent: (question|timeline_mention)$/.test(f), token: "question" },
+  { match: (f) => f === "high urgency", token: "urgent" },
+  { match: (f) => f === "sentiment declining", token: "cooling" },
+  { match: (f) => f === "senior sender", token: "senior contact" },
+  { match: (f) => f === "recent", token: "recent" },
+];
+
+/** Concise "why this is important" from the importance factors — the strongest
+ *  `max` tokens, joined with " · " (e.g. "open deal · advanced stage · pricing intent"). */
+export function formatImportanceWhy(factors: string[] | undefined, max = 3): string {
+  if (!factors || factors.length === 0) return "";
+  const tokens: string[] = [];
+  for (const { match, token } of WHY_TOKENS) {
+    if (tokens.length >= max) break;
+    if (factors.some(match) && !tokens.includes(token)) tokens.push(token);
+  }
+  return tokens.join(" · ");
+}
+
+const PRIORITY_FACTOR = (f: string): boolean =>
+  f === "open deal" ||
+  f === "high urgency" ||
+  f === "sentiment declining" ||
+  /^intent: (meeting_request|demo_request|calendar_scheduling|interested|pricing_inquiry|budget_mention)$/.test(f);
+
+/** True when a thread carries a revenue-priority reason worth surfacing inline on
+ *  the row (open deal / buying intent / urgent / cooling) — gates the row "why" so
+ *  it shows only on genuinely-hot threads, not every row. */
+export function hasPriorityReason(factors: string[] | undefined): boolean {
+  return !!factors && factors.some(PRIORITY_FACTOR);
+}
+
 export interface SplitCount {
   id: string;
   name: string;

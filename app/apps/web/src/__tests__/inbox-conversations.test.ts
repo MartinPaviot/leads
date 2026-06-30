@@ -53,6 +53,39 @@ function triage(over: Partial<TriageRow> & { conversationKey: string }): TriageR
   };
 }
 
+describe("P1 — deal enrichment flows into the importance factors", () => {
+  it("a contact with an open proposal deal gets the deal factors; one without does not", () => {
+    const convs = buildConversations({
+      inbound: [
+        inbound({ id: "i-hot", contactId: "c-hot", intent: ["pricing_inquiry"] }),
+        inbound({ id: "i-cold", contactId: "c-cold", intent: ["pricing_inquiry"] }),
+      ],
+      outbound: [],
+      triage: [],
+      now: NOW,
+      importanceByContactId: new Map([
+        ["c-hot", { hasOpenDeal: true, dealStageRank: 4, senioritySenior: true }],
+      ]),
+    });
+    const hot = convs.find((c) => c.contactId === "c-hot")!;
+    const cold = convs.find((c) => c.contactId === "c-cold")!;
+    expect(hot.importanceFactors).toContain("open deal");
+    expect(hot.importanceFactors).toContain("advanced deal stage");
+    expect(hot.importanceFactors).toContain("senior sender");
+    expect(cold.importanceFactors).not.toContain("open deal");
+  });
+
+  it("is a no-op when no enrichment map is supplied (pre-P1 behaviour)", () => {
+    const convs = buildConversations({
+      inbound: [inbound({ id: "i1", contactId: "c1", intent: ["pricing_inquiry"] })],
+      outbound: [],
+      triage: [],
+      now: NOW,
+    });
+    expect(convs[0].importanceFactors).not.toContain("open deal");
+  });
+});
+
 describe("conversationKeyFor", () => {
   it("prefers threadId, then contact, then email id", () => {
     expect(conversationKeyFor({ threadId: "t1", contactId: "c1", id: "e1" })).toBe("t1");

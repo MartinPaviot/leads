@@ -18,7 +18,7 @@
 import { memo } from "react";
 import { AlarmClock, CheckSquare, Square, Star } from "lucide-react";
 import { mailTimestamp } from "./_time-ago";
-import { reasonTooltip, type ConversationListItem, type InboxLane } from "./_types";
+import { reasonTooltip, formatImportanceWhy, hasPriorityReason, type ConversationListItem, type InboxLane } from "./_types";
 import { dirOf } from "@/lib/inbox/text-direction";
 import { decodeDisplay } from "@/lib/inbox/text-decode";
 import { followupLabel } from "@/lib/inbox/followup-due";
@@ -64,6 +64,17 @@ export const InboxRow = memo(function InboxRow({
   const followupText = c.followup && c.slaHoursOverdue == null ? followupLabel(c.followup) : null;
   const reasonTitle = c.reason ? `${c.reason}${reasonTooltip(c.reasonSource) ? ` — ${reasonTooltip(c.reasonSource)}` : ""}` : undefined;
   const compact = density === "compact";
+
+  // P1 — deal-ranked "why": the importance factors as a concise reason. Shown
+  // inline only on genuinely-hot attention rows (open deal / buying intent /
+  // urgent / cooling) so the list isn't cluttered; the full reason is always in
+  // the row tooltip. Derived from c.importanceFactors (already on the item) — no
+  // new prop, so React.memo stays effective.
+  const whyInline = lane === "attention" ? formatImportanceWhy(c.importanceFactors) : "";
+  const showWhy = lane === "attention" && hasPriorityReason(c.importanceFactors) && whyInline !== "";
+  const whyFull = formatImportanceWhy(c.importanceFactors, 5);
+  const rowTitle =
+    [reasonTitle, whyFull ? `Priority: ${whyFull}` : ""].filter(Boolean).join(" · ") || undefined;
 
   // SLA / follow-up chip — shared by both densities (hover-revealed, calm).
   const chip =
@@ -120,7 +131,7 @@ export const InboxRow = memo(function InboxRow({
       onClick={() => onSelect(c.key)}
       onMouseEnter={() => onHoverStart?.(c.key)}
       onMouseLeave={onHoverEnd}
-      title={reasonTitle}
+      title={rowTitle}
       className={`group flex w-full items-center gap-2 border-b px-3 text-left transition-colors ${compact ? "" : "py-2"}`}
       style={{
         height: compact ? "var(--inbox-row-height-compact)" : "var(--inbox-row-height)",
@@ -242,6 +253,16 @@ export const InboxRow = memo(function InboxRow({
                 </span>
               )}
             </span>
+            {/* P1 deal-ranked "why" — concise reason on hot attention rows. */}
+            {showWhy && (
+              <span
+                className="shrink-0 truncate text-[11px] font-medium"
+                style={{ color: "var(--color-accent)", maxWidth: "45%" }}
+                title={`Priority: ${whyFull}`}
+              >
+                {whyInline}
+              </span>
+            )}
             {labels}
           </div>
         </div>

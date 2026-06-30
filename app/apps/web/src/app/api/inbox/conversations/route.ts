@@ -12,7 +12,7 @@ import { getReadMap, isUnread } from "@/lib/inbox/read-store";
 import { getTrashedKeys } from "@/lib/inbox/trash-store";
 import { getSpamKeys } from "@/lib/inbox/spam-store";
 import { getMailboxIdentities } from "@/lib/inbox/mailbox-identity";
-import { loadConversationRows, contactNameMap } from "@/lib/inbox/load";
+import { loadConversationRows, contactNameMap, importanceByContactId } from "@/lib/inbox/load";
 import { getInboxScope, scopeConversationRows } from "@/lib/inbox/user-scope";
 import { attributeMailbox, indexMailboxes } from "@/lib/inbox/mailbox-attribution";
 import { laneMatches, type MatchCandidate } from "@/lib/inbox/lane-match";
@@ -116,7 +116,19 @@ export async function GET(req: Request) {
 
     const scopedRows = scopeConversationRows(await loadConversationRows(authCtx.tenantId), scope);
     const noiseOverrides = await getNoiseOverrides(authCtx.userId);
-    const allConversations = buildConversations({ ...scopedRows, noiseOverrides });
+    // P1: batched per-contact deal/seniority enrichment for the importance score
+    // (fail-soft → empty map = pre-P1 scoring).
+    const importanceMap = await importanceByContactId(
+      authCtx.tenantId,
+      [...scopedRows.inbound, ...scopedRows.outbound]
+        .map((r) => r.contactId)
+        .filter(Boolean) as string[],
+    );
+    const allConversations = buildConversations({
+      ...scopedRows,
+      noiseOverrides,
+      importanceByContactId: importanceMap,
+    });
 
     // Attribute every conversation to its owning mailbox ONCE, up front — the
     // rail's per-box counts and the per-mailbox filter both read it.

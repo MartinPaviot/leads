@@ -266,6 +266,13 @@ export function buildConversations(input: {
   now?: Date;
   /** B4: the user's not-noise overrides (pure-builder input, like triage). */
   noiseOverrides?: NoiseOverride[];
+  /** P1: per-contact deal/seniority enrichment (loader joins it once, keyed by
+   *  contactId), fed into the importance score so an open deal / advanced stage /
+   *  senior sender lifts the thread. Absent → scored exactly as before. */
+  importanceByContactId?: Map<
+    string,
+    { hasOpenDeal?: boolean; dealStageRank?: number; senioritySenior?: boolean }
+  >;
 }): Conversation[] {
   const now = input.now ?? new Date();
   const nowMs = now.getTime();
@@ -450,12 +457,19 @@ export function buildConversations(input: {
 
     // Importance (INBOX-T04): rank the attention lane by revenue relevance from
     // already-persisted signals — intent, urgency/sentiment trend, recency — with
-    // automated senders pinned to the bottom. hasOpenDeal/seniority are residual
-    // (need a deal + role lookup); cited factors drive the "why important" tooltip.
+    // automated senders pinned to the bottom. P1: hasOpenDeal/dealStageRank/
+    // seniority now come from the loader's per-contact deal+title join (keyed by
+    // contactId), so an open deal / advanced stage / senior sender lifts the row.
+    // The cited factors drive the "why" shown on the row.
     const intel = (intelligence ?? {}) as Record<string, unknown>;
     const lastInAtMs = lastInbound ? toMs(lastInbound.occurredAt) : null;
+    const convContactId = lastInbound?.contactId ?? lastOutbound?.contactId ?? null;
+    const ci = convContactId ? input.importanceByContactId?.get(convContactId) : undefined;
     const importance = scoreImportance({
       intentLabel: topLabel ?? null,
+      hasOpenDeal: ci?.hasOpenDeal,
+      dealStageRank: ci?.dealStageRank,
+      senioritySenior: ci?.senioritySenior,
       urgencyLevel:
         typeof intel.urgencyLevel === "string"
           ? (intel.urgencyLevel as "none" | "low" | "medium" | "high")

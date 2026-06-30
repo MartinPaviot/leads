@@ -128,3 +128,22 @@ describe("InboxRow follow-up chip (B7 B2.3)", () => {
     expect(screen.queryByText(/Follow up/)).toBeNull(); // follow-up suppressed
   });
 });
+
+describe("InboxRow deal-ranked why (P1)", () => {
+  const props = { lane: "attention" as const, selected: false, multiSelected: false, hasSelection: false, onSelect: vi.fn() };
+
+  it("surfaces a concise 'why' on a hot attention row (open deal + advanced stage + pricing)", () => {
+    render(
+      <InboxRow
+        item={sample({ importanceFactors: ["open deal", "advanced deal stage", "intent: pricing_inquiry", "recent"] })}
+        {...props}
+      />,
+    );
+    expect(screen.getByText("open deal · advanced stage · pricing intent")).toBeTruthy();
+  });
+
+  it("suppresses the 'why' on a low-signal row", () => {
+    render(<InboxRow item={sample({ importanceFactors: ["intent: thank_you", "ageing"] })} {...props} />);
+    expect(screen.queryByText(/open deal|pricing intent|wants a meeting/)).toBeNull();
+  });
+});

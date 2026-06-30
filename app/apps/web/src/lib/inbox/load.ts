@@ -5,9 +5,10 @@
  */
 
 import { db } from "@/db";
-import { activities, outboundEmails, contacts, inboxTriage } from "@/db/schema";
+import { activities, outboundEmails, contacts, inboxTriage, deals } from "@/db/schema";
 import { and, eq, desc, isNull, isNotNull, inArray } from "drizzle-orm";
 import { withTenantTx } from "@/db/rls";
+import { contactImportance, type ContactImportance } from "@/lib/inbox/deal-importance";
 
 // Assembly is in-memory over the most recent slice of the mailbox. 500
 // each side covers months of founder-led volume; older threads simply
@@ -139,4 +140,49 @@ export async function contactNameMap(tenantId: string, contactIds: string[]) {
     };
   }
   return map;
+}
+
+/**
+ * P1 — deal-ranked inbox. One batched join (deals + contact titles) over every
+ * contact in the loaded slice → the per-contact importance enrichment the scorer
+ * folds in (open deal / advanced stage / senior sender). Keyed by contactId, like
+ * contactNameMap. FAIL-SOFT: any query hiccup returns an empty map so the inbox
+ * list still renders, scored exactly as it was pre-P1.
+ */
+export async function importanceByContactId(
+  tenantId: string,
+  contactIds: string[],
+): Promise<Map<string, ContactImportance>> {
+  const out = new Map<string, ContactImportance>();
+  const ids = [...new Set(contactIds.filter(Boolean))];
+  if (ids.length === 0) return out;
+  try {
+    const [dealRows, contactRows] = await Promise.all([
+      db
+        .select({ contactId: deals.contactId, stage: deals.stage })
+        .from(deals)
+        .where(and(eq(deals.tenantId, tenantId), inArray(deals.contactId, ids))),
+      db
+        .select({ id: contacts.id, title: contacts.title })
+        .from(contacts)
+        .where(and(eq(contacts.tenantId, tenantId), inArray(contacts.id, ids))),
+    ]);
+    const dealsByContact = new Map<string, Array<{ stage: string | null }>>();
+    for (const d of dealRows) {
+      if (!d.contactId) continue;
+      const arr = dealsByContact.get(d.contactId);
+      if (arr) arr.push({ stage: d.stage });
+      else dealsByContact.set(d.contactId, [{ stage: d.stage }]);
+    }
+    const titleById = new Map(contactRows.map((c) => [c.id, c.title]));
+    for (const id of ids) {
+      out.set(
+        id,
+        contactImportance({ deals: dealsByContact.get(id) ?? [], title: titleById.get(id) ?? null }),
+      );
+    }
+  } catch {
+    return new Map();
+  }
+  return out;
 }
