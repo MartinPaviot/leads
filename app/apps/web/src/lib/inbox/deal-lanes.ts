@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { deals } from "@/db/schema";
-import { and, eq, isNull, notInArray, gte, desc } from "drizzle-orm";
+import { and, eq, isNull, notInArray, gte, desc, or } from "drizzle-orm";
 
 /**
  * Deal folders (roadmap P1). The founder's worry with a score-reranked inbox is
@@ -57,7 +57,7 @@ export function isDealLaneId(laneId: string | null | undefined): boolean {
  * within a stage rank). Testable without a DB.
  */
 export function rankDealLanes(rows: DealRow[], limit = 12): DealLane[] {
-  return rows
+  const ranked = rows
     .map((r) => ({
       id: dealLaneId(r.id),
       dealId: r.id,
@@ -66,8 +66,17 @@ export function rankDealLanes(rows: DealRow[], limit = 12): DealLane[] {
       contactId: r.contactId ?? null,
       stageRank: STAGE_RANK[r.stage ?? "lead"] ?? 0,
     }))
-    .sort((a, b) => b.stageRank - a.stageRank)
-    .slice(0, Math.max(0, limit));
+    .sort((a, b) => b.stageRank - a.stageRank);
+  // Dedup by primary contact: two open deals on the same contact would render as
+  // identical folders (same threads). Keep the hottest (first after the sort).
+  const seen = new Set<string>();
+  const deduped = ranked.filter((l) => {
+    if (!l.contactId) return true;
+    if (seen.has(l.contactId)) return false;
+    seen.add(l.contactId);
+    return true;
+  });
+  return deduped.slice(0, Math.max(0, limit));
 }
 
 /**
@@ -89,12 +98,14 @@ export async function loadActiveDealLanes(
         and(
           eq(deals.tenantId, tenantId),
           isNull(deals.deletedAt),
-          notInArray(deals.stage, ["won", "lost"]),
+          // `NOT IN ('won','lost')` is NULL (excluded) for a NULL stage, but a
+          // stage-less deal is still OPEN — keep it.
+          or(isNull(deals.stage), notInArray(deals.stage, ["won", "lost"])),
           gte(deals.updatedAt, since),
         ),
       )
       .orderBy(desc(deals.updatedAt))
-      .limit(60); // buffer, then rank + cap to `limit`
+      .limit(80); // buffer; the route counts mail + caps after the has-mail filter
     return rankDealLanes(rows as DealRow[], limit);
   } catch {
     return [];

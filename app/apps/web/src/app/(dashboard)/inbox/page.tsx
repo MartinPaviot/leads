@@ -1216,7 +1216,11 @@ export default function InboxPage() {
         // the header): Inbox / Starred / Sent / Drafts / Scheduled / All Mail / …
         title={
           customLaneId
-            ? customLanes.find((l) => l.id === customLaneId)?.name ?? t("inbox.folder.attention")
+            // A deal folder's id lives in dealLanes (not customLanes) — resolve both
+            // so the header shows the deal name, not the generic inbox title.
+            ? customLanes.find((l) => l.id === customLaneId)?.name
+              ?? dealLanes.find((d) => d.id === customLaneId)?.name
+              ?? t("inbox.folder.attention")
             : tab === "attention"
               ? t("inbox.folder.attention")
               : tab === "outbound"

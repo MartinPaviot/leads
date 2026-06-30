@@ -94,7 +94,9 @@ export async function GET(req: Request) {
     // P1 deal folders: each active-open deal is a stable lane (`deal:<id>`); when
     // one is selected we filter to its contact's threads instead of re-ranking the
     // main inbox. Loaded once; counts computed over `visible` below.
-    const dealLanes = await loadActiveDealLanes(authCtx.tenantId);
+    // Load a buffer (40) so the has-mail filter + cap-to-12 happen below over the
+    // deals you actually correspond on, not just the 12 most-advanced.
+    const dealLanes = await loadActiveDealLanes(authCtx.tenantId, { limit: 40 });
     const selectedDealLane = isDealLaneId(laneParam) ? dealLanes.find((d) => d.id === laneParam) ?? null : null;
     const toLaneCandidate = (row: {
       c: { fromAddress: string; subject: string };
@@ -266,7 +268,11 @@ export async function GET(req: Request) {
         stage: d.stage,
         count: d.contactId ? visible.filter(({ c }) => c.contactId === d.contactId).length : 0,
       }))
-      .filter((d) => d.count > 0);
+      // Show deals you actually correspond on (count > 0), but ALWAYS keep the
+      // currently-selected deal so the rail never loses the folder you're in (an
+      // empty selected deal otherwise vanishes + nothing is highlighted). Then cap.
+      .filter((d) => d.count > 0 || d.id === selectedDealLane?.id)
+      .slice(0, 12);
 
     // Built-in category-split counts over the INBOX set (attention + handled, i.e.
     // lane ∉ {done, snoozed}) so a caught-up/handled mail still counts toward its
