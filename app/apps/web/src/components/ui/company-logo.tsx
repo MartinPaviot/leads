@@ -60,7 +60,9 @@ export function CompanyLogoV1({
   const bg = colorForSeed(seed);
   const fontSize = size <= 20 ? 9 : size <= 28 ? 10 : 11;
 
-  if (!domain || fallbackLevel >= 2) {
+  // One real-logo tier now (Google favicon); on its error we go straight to
+  // initials. (Was 2 tiers when Clearbit led — see `src` below.)
+  if (!domain || fallbackLevel >= 1) {
     return (
       <div
         className={`flex items-center justify-center rounded font-semibold text-white shrink-0 ${className}`}
@@ -72,10 +74,12 @@ export function CompanyLogoV1({
     );
   }
 
-  const src =
-    fallbackLevel === 0
-      ? `https://logo.clearbit.com/${domain}`
-      : `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+  // logo.clearbit.com's CDN is dead (DNS gone), so its tier is removed: a
+  // clearbit-first <img> guaranteed a failed request before EVERY logo render
+  // (18+ console 404s on the marketing hero alone, which mounts the real
+  // accounts page). Go straight to the Google favicon, then initials on error.
+  // (V2, behind the logo.v2.cascade flag, uses the resolver + Apollo logo_url.)
+  const src = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
 
   return (
     <div className={`relative shrink-0 ${className}`} style={{ width: size, height: size }}>

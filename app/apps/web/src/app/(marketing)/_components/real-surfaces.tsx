@@ -39,6 +39,10 @@ export function RealAccounts() {
         "/api/accounts": ACCOUNTS_DEMO,
         // Auxiliary GETs the page fires on load — empty objects so the page's
         // `data.x ?? []` fallbacks kick in (no 401 noise, graceful empties).
+        // account-lists shipped to the real page after this mock map was first
+        // written; without it the hero hit /api/account-lists unauthenticated
+        // (307 -> HTML -> "lists fetch failed" JSON parse). Page reads data.lists.
+        "/api/account-lists": { lists: [] },
         "/api/icps": {},
         "/api/custom-signals": {},
         "/api/custom-fields": {},
