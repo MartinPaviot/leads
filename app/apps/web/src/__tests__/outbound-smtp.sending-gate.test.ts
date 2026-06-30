@@ -178,6 +178,18 @@ describe("C3 dispatchOutboundSmtp — opt-out gap closed + gate wired", () => {
     expect(res.skipped).toBe(1);
   });
 
+  // P4 (volume hardening): a tenant-rate-limit hit is the SAME transient-
+  // condition shape as primary-cap-hit (a window that resets shortly) — it
+  // must requeue, not permanently fail the row.
+  it("rate_limited -> left queued (skipped), no send (transient, not a permanent failure)", async () => {
+    store = [row({ id: "o1" })];
+    evaluateSend.mockResolvedValue({ send: false, code: "rate_limited", reason: "rate limit" });
+    const res = await handler({ step: fakeStep });
+    expect(store[0].status).toBe("queued");
+    expect(sendViaSmtp).not.toHaveBeenCalled();
+    expect(res.skipped).toBe(1);
+  });
+
   it("allowed -> sends via SMTP (gate on the path)", async () => {
     store = [row({ id: "o1" })];
     evaluateSend.mockResolvedValue({ send: true, reason: "ok" });

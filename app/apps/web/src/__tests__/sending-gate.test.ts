@@ -62,7 +62,7 @@ vi.mock("@/db", () => ({
 
 // getTenantSettings + DEFAULTS — DEFAULTS mirrors tenant-settings.ts. Hoisted so
 // the vi.mock factory (also hoisted) can reference it without a TDZ error.
-const { DEFAULTS, settingsState, suppressionState, emailStatusState, targetingState, lawfulState, guardState } = vi.hoisted(() => ({
+const { DEFAULTS, settingsState, suppressionState, emailStatusState, targetingState, lawfulState, guardState, rateLimitState } = vi.hoisted(() => ({
   DEFAULTS: {
     sendingMailboxMode: "primary-with-caps" as const,
     sendingDailyCapPrimary: 20,
@@ -85,6 +85,10 @@ const { DEFAULTS, settingsState, suppressionState, emailStatusState, targetingSt
   lawfulState: { result: { allowed: true } as { allowed: boolean; reason?: string } },
   // Spec-27 deliverability guard — mocked at the boundary. Default not tripped.
   guardState: { tripped: false },
+  // P4 (volume hardening) — tenant rate limit, mocked at the boundary so the
+  // OTHER 90+ cases in this file (which all share tenantId "t1") never trip
+  // the real in-memory rate-limit store. Default: always allowed.
+  rateLimitState: { burstOk: true, hourlyOk: true },
 }));
 
 vi.mock("@/lib/suppression/db-store", () => ({
@@ -118,6 +122,21 @@ vi.mock("@/lib/targeting/status", () => ({
     accountKey: targetingState.accountKey,
   })),
 }));
+// P4 (volume hardening) — tenant rate limit mocked at the boundary; default
+// always-allowed so the rest of this file's 90+ cases are unaffected. The
+// dedicated describe block below flips rateLimitState to exercise the gate.
+vi.mock("@/lib/infra/rate-limit", () => ({
+  rateLimitTenantSendBurst: vi.fn(async () =>
+    rateLimitState.burstOk
+      ? { success: true, remaining: 59, resetAt: Date.now() + 60_000 }
+      : { success: false, remaining: 0, resetAt: Date.now() + 60_000 },
+  ),
+  rateLimitTenantSendHourly: vi.fn(async () =>
+    rateLimitState.hourlyOk
+      ? { success: true, remaining: 599, resetAt: Date.now() + 3_600_000 }
+      : { success: false, remaining: 0, resetAt: Date.now() + 3_600_000 },
+  ),
+}));
 
 import { evaluateSend, isSuppressed, isColdRecipient, emailBracketLikePattern, isInteractiveRecipientSendable } from "@/lib/guardrails/sending-gate";
 
@@ -137,6 +156,8 @@ beforeEach(() => {
   delete process.env.OUTBOUND_TEST_ALLOWLIST;
   lawfulState.result = { allowed: true };
   guardState.tripped = false;
+  rateLimitState.burstOk = true;
+  rateLimitState.hourlyOk = true;
 });
 
 describe("isInteractiveRecipientSendable — reply to your inbox in test mode", () => {
@@ -207,6 +228,37 @@ describe("emailBracketLikePattern (reply-recipient header match)", () => {
   });
   it("escapes LIKE metacharacters (_ %) so the match is literal", () => {
     expect(emailBracketLikePattern("a_b%c@x.com")).toBe("%<a\\_b\\%c@x.com>%");
+  });
+});
+
+describe("evaluateSend — P4 tenant rate limit (volume hardening, checked FIRST)", () => {
+  it("a burst-window hit blocks with code 'rate_limited', before any DB check runs", async () => {
+    rateLimitState.burstOk = false;
+    // Deliberately leave optoutRows/etc unset — if the rate limit weren't
+    // checked first, this would otherwise pass straight through as allowed.
+    const r = await evaluateSend({ tenantId: "t1", toAddress: "x@a.com", sentTodayFromPrimary: 0 });
+    expect(r.send).toBe(false);
+    if (!r.send) expect(r.code).toBe("rate_limited");
+  });
+  it("an hourly-window hit also blocks with code 'rate_limited'", async () => {
+    rateLimitState.hourlyOk = false;
+    const r = await evaluateSend({ tenantId: "t1", toAddress: "x@a.com", sentTodayFromPrimary: 0 });
+    expect(r.send).toBe(false);
+    if (!r.send) expect(r.code).toBe("rate_limited");
+  });
+  it("under both limits -> proceeds past the rate check into the rest of the gate", async () => {
+    // Warm the recipient so DEFAULTS' cold-on-primary-blocked rule doesn't
+    // also block this — isolates the assertion to the rate-limit check.
+    activityRows = [{ tenantId: "t1", to: "x@a.com" }];
+    const r = await evaluateSend({ tenantId: "t1", toAddress: "x@a.com", sentTodayFromPrimary: 0 });
+    expect(r.send).toBe(true);
+  });
+  it("rate_limited beats an otherwise-allowed mode (it is the FIRST check, before opt-out)", async () => {
+    rateLimitState.burstOk = false;
+    settingsState.settingsToReturn = { ...DEFAULTS, sendingMailboxMode: "external-connected" };
+    const r = await evaluateSend({ tenantId: "t1", toAddress: "x@a.com", sentTodayFromPrimary: 0 });
+    expect(r.send).toBe(false);
+    if (!r.send) expect(r.code).toBe("rate_limited");
   });
 });
 

@@ -45,6 +45,7 @@ import {
 import { evaluateLawfulBasisForSend } from "@/lib/compliance/lawful-basis/db-gate";
 import { guardTrippedForTenant } from "@/lib/deliverability/db-guard";
 import { isRecipientAllowed } from "@/lib/emails/recipient-guardrail";
+import { rateLimitTenantSendBurst, rateLimitTenantSendHourly } from "@/lib/infra/rate-limit";
 
 /** Spec 35 — SAFE_MODE targeting gate rollout guard (default off; flipped on at
  *  T14 after the targeting backfill so no currently-allowed send breaks). */
@@ -59,6 +60,7 @@ export type SendingGateOutcome =
       send: false;
       code:
         | SendingBlockReason
+        | "rate_limited"
         | "opted_out"
         | "suppressed"
         | "invalid_email"
@@ -213,6 +215,29 @@ export async function evaluateSend(
   args: EvaluateSendArgs,
 ): Promise<SendingGateOutcome> {
   try {
+    // P4 (volume hardening) — tenant-scoped rate limit, checked FIRST: cheapest
+    // (in-memory/Upstash, no DB round-trip) and an ATTEMPT counter (hit() always
+    // increments), so a buggy retry loop trips it even if every individual
+    // attempt would also be blocked by a later check — it must count attempts,
+    // not successful sends, to actually catch a runaway loop. A safety net, not
+    // a product throttle (see lib/infra/rate-limit.ts for the numbers/reasoning).
+    const burst = await rateLimitTenantSendBurst(args.tenantId);
+    if (!burst.success) {
+      return {
+        send: false,
+        code: "rate_limited",
+        reason: `Tenant send rate limit hit (burst) — retry after ${new Date(burst.resetAt).toISOString()}`,
+      };
+    }
+    const hourly = await rateLimitTenantSendHourly(args.tenantId);
+    if (!hourly.success) {
+      return {
+        send: false,
+        code: "rate_limited",
+        reason: `Tenant send rate limit hit (hourly) — retry after ${new Date(hourly.resetAt).toISOString()}`,
+      };
+    }
+
     if (await isSuppressed(args.tenantId, args.toAddress)) {
       return {
         send: false,

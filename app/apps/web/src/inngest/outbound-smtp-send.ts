@@ -112,7 +112,11 @@ export const dispatchOutboundSmtp = inngest.createFunction(
           contactId: o.contactId, // spec 35 — account-scope suppression + targeting
         });
         if (!smtpGate.send) {
-          if (smtpGate.code === "primary-cap-hit") return "skipped";
+          // P4: rate_limited is the same transient-condition shape as
+          // primary-cap-hit (a window that resets shortly) — requeue, don't
+          // fail the row, or a tenant-level rate-limit hit would silently
+          // drop a legitimate queued send instead of retrying it.
+          if (smtpGate.code === "primary-cap-hit" || smtpGate.code === "rate_limited") return "skipped";
           await db
             .update(outboundEmails)
             .set({
