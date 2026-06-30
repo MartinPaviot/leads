@@ -2,13 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the flywheel so applyLearnedContext is exercised without a DB.
 // vi.hoisted keeps these defined before the hoisted vi.mock factory runs.
-const { getActivePrompt, getFewShotExamples, getPlaybookPromptBlock } = vi.hoisted(() => ({
-  getActivePrompt: vi.fn(),
-  getFewShotExamples: vi.fn(),
-  getPlaybookPromptBlock: vi.fn(),
-}));
+const { getActivePrompt, getFewShotExamples, getPlaybookPromptBlock, getCoachingPromptBlock } =
+  vi.hoisted(() => ({
+    getActivePrompt: vi.fn(),
+    getFewShotExamples: vi.fn(),
+    getPlaybookPromptBlock: vi.fn(),
+    getCoachingPromptBlock: vi.fn(),
+  }));
 vi.mock("@/lib/evals/flywheel", () => ({ getActivePrompt, getFewShotExamples }));
 vi.mock("@/lib/playbook/get-playbook", () => ({ getPlaybookPromptBlock }));
+vi.mock("@/lib/coaching/get-coaching-guidance", () => ({ getCoachingPromptBlock }));
 
 // Stub the infra siblings traced-ai imports at module load so the unit
 // under test stays hermetic (these are never called by the functions we
@@ -26,8 +29,10 @@ beforeEach(() => {
   getActivePrompt.mockReset();
   getFewShotExamples.mockReset();
   getPlaybookPromptBlock.mockReset();
-  // Default: no playbook entries -> the block is empty (the common case).
+  getCoachingPromptBlock.mockReset();
+  // Default: no entries -> both blocks empty (the common cold-start case).
   getPlaybookPromptBlock.mockResolvedValue("");
+  getCoachingPromptBlock.mockResolvedValue("");
 });
 
 describe("injectFewShotExamples", () => {
@@ -185,6 +190,52 @@ describe("applyLearnedContext — playbook injection", () => {
 
   it("never throws on the hot path when the playbook lookup fails", async () => {
     getPlaybookPromptBlock.mockRejectedValue(new Error("db down"));
+
+    const params: Record<string, unknown> = { system: "BASE", prompt: "q" };
+    await expect(applyLearnedContext("draft-email", params, "tenant-1")).resolves.toBeUndefined();
+    expect(params.system).toBe("BASE");
+  });
+});
+
+describe("applyLearnedContext — coaching injection", () => {
+  beforeEach(() => {
+    getActivePrompt.mockResolvedValue(null);
+    getFewShotExamples.mockResolvedValue([]);
+  });
+
+  it("appends recent coaching after the playbook for a drafting agent", async () => {
+    getPlaybookPromptBlock.mockResolvedValue("PLAYBOOK BLOCK");
+    getCoachingPromptBlock.mockResolvedValue("COACHING BLOCK");
+
+    const params: Record<string, unknown> = { system: "BASE", prompt: "write a cold email" };
+    await applyLearnedContext("draft-email", params, "tenant-1");
+
+    expect(getCoachingPromptBlock).toHaveBeenCalledWith("tenant-1");
+    // Order: base, then playbook (what worked), then coaching (what to fix).
+    expect(params.system).toBe("BASE\n\nPLAYBOOK BLOCK\n\nCOACHING BLOCK");
+  });
+
+  it("appends coaching alone when the playbook is empty", async () => {
+    getPlaybookPromptBlock.mockResolvedValue("");
+    getCoachingPromptBlock.mockResolvedValue("COACHING BLOCK");
+
+    const params: Record<string, unknown> = { system: "BASE", prompt: "q" };
+    await applyLearnedContext("follow-up-email", params, "tenant-1");
+
+    expect(params.system).toBe("BASE\n\nCOACHING BLOCK");
+  });
+
+  it("does not fetch coaching for a non-drafting agent", async () => {
+    const params: Record<string, unknown> = { system: "BASE", prompt: "classify" };
+    await applyLearnedContext("process-reply", params, "tenant-1");
+
+    expect(getCoachingPromptBlock).not.toHaveBeenCalled();
+    expect(params.system).toBe("BASE");
+  });
+
+  it("never throws on the hot path when the coaching lookup fails", async () => {
+    getPlaybookPromptBlock.mockResolvedValue("");
+    getCoachingPromptBlock.mockRejectedValue(new Error("db down"));
 
     const params: Record<string, unknown> = { system: "BASE", prompt: "q" };
     await expect(applyLearnedContext("draft-email", params, "tenant-1")).resolves.toBeUndefined();
