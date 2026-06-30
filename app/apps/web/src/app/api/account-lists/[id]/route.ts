@@ -3,7 +3,7 @@ import { accountLists, accountListMembers } from "@/db/schema";
 import { getAuthContext } from "@/lib/auth/auth-utils";
 import { and, eq, inArray } from "drizzle-orm";
 import { apiError } from "@/lib/infra/api-errors";
-import { addMembers, listLiveCount } from "@/lib/accounts/account-lists-db";
+import { insertMembers, listLiveCount, isUniqueViolation } from "@/lib/accounts/account-lists-db";
 import { z } from "zod";
 
 const patchSchema = z.object({
@@ -36,29 +36,42 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
       });
     }
-    const { name, addCompanyIds, removeCompanyIds } = parsed.data;
+    const { name } = parsed.data;
+    // De-dupe + drop empties up front so the "did anything change?" guard below
+    // (which gates the updatedAt bump) reflects REAL changes, not raw input length.
+    const addIds = [...new Set((parsed.data.addCompanyIds ?? []).filter(Boolean))];
+    const removeIds = [...new Set((parsed.data.removeCompanyIds ?? []).filter(Boolean))];
 
-    if (name && name !== list.name) {
-      const [dupe] = await db
-        .select({ id: accountLists.id })
-        .from(accountLists)
-        .where(and(eq(accountLists.tenantId, authCtx.tenantId), eq(accountLists.name, name)))
-        .limit(1);
-      if (dupe && dupe.id !== id) {
+    // All mutations atomic — a partial PATCH must not leave the list half-updated.
+    // A name collision (checked here + enforced by the UNIQUE index) rolls the
+    // whole thing back and maps to 409, never a generic 500.
+    try {
+      await db.transaction(async (tx) => {
+        if (name && name !== list.name) {
+          const [dupe] = await tx
+            .select({ id: accountLists.id })
+            .from(accountLists)
+            .where(and(eq(accountLists.tenantId, authCtx.tenantId), eq(accountLists.name, name)))
+            .limit(1);
+          if (dupe && dupe.id !== id) throw new ListNameConflict();
+        }
+        if (removeIds.length > 0) {
+          await tx
+            .delete(accountListMembers)
+            .where(and(eq(accountListMembers.listId, id), inArray(accountListMembers.companyId, removeIds)));
+        }
+        if (addIds.length > 0) {
+          await insertMembers(tx, id, authCtx.tenantId, addIds);
+        }
+        if (name || addIds.length > 0 || removeIds.length > 0) {
+          await tx.update(accountLists).set({ ...(name ? { name } : {}), updatedAt: new Date() }).where(eq(accountLists.id, id));
+        }
+      });
+    } catch (e) {
+      if (e instanceof ListNameConflict || isUniqueViolation(e)) {
         return apiError("CONFLICT", `A list named "${name}" already exists.`);
       }
-    }
-
-    if (removeCompanyIds && removeCompanyIds.length > 0) {
-      await db
-        .delete(accountListMembers)
-        .where(and(eq(accountListMembers.listId, id), inArray(accountListMembers.companyId, [...new Set(removeCompanyIds)])));
-    }
-    if (addCompanyIds && addCompanyIds.length > 0) {
-      await addMembers(id, authCtx.tenantId, addCompanyIds);
-    }
-    if (name || addCompanyIds?.length || removeCompanyIds?.length) {
-      await db.update(accountLists).set({ ...(name ? { name } : {}), updatedAt: new Date() }).where(eq(accountLists.id, id));
+      throw e;
     }
 
     return Response.json({
@@ -84,5 +97,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   } catch (error) {
     console.error("Failed to delete account list:", error);
     return apiError("INTERNAL_ERROR", "Failed to delete list");
+  }
+}
+
+/** Sentinel for the in-transaction dup-name check → mapped to 409. */
+class ListNameConflict extends Error {
+  constructor() {
+    super("list name conflict");
   }
 }

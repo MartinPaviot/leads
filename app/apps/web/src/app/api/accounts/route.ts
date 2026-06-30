@@ -124,11 +124,16 @@ export async function GET(req: Request) {
     if (f.domain) refineConds.push(ilike(companies.domain, `%${f.domain}%`));
     // Account-list membership (fList) — scope to one curated list. Narrows the
     // working set like a column filter (so the All/Sourced/Added + enrichment
-    // badges reflect the list). Tenant-safe by construction: the subquery joins
-    // back to THIS tenant's companies, so a foreign list id matches no rows.
+    // badges reflect the list). The subquery is explicitly tenant-scoped (joins
+    // account_lists and checks its tenant_id) so a foreign list id matches no
+    // rows — defence-in-depth on top of the outer companies.tenantId filter.
     if (f.listId) {
       refineConds.push(
-        sql`${companies.id} IN (SELECT company_id FROM account_list_members WHERE list_id = ${f.listId})`,
+        sql`${companies.id} IN (
+          SELECT m.company_id FROM account_list_members m
+          JOIN account_lists l ON l.id = m.list_id
+          WHERE m.list_id = ${f.listId} AND l.tenant_id = ${authCtx.tenantId}
+        )`,
       );
     }
     if (f.scoreMin != null) refineConds.push(gte(companies.score, f.scoreMin));
