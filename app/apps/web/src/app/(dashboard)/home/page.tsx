@@ -10,6 +10,7 @@ import { WarmLeadPrompt } from "@/components/WarmLeadPrompt";
 import { TAMRevealNotification } from "@/components/TAMRevealNotification";
 import { ScalingPathPrompt } from "@/components/ScalingPathPrompt";
 import { VisitorIdCapBanner } from "@/components/visitor-id-cap-banner";
+import { AutonomyNudgeBanner } from "@/components/autonomy-nudge-banner";
 import { HotInboundsWidget } from "@/components/hot-inbounds-widget";
 import { HotVisitorsWidget } from "@/components/hot-visitors-widget";
 import { HOT_INBOUNDS_WIDGET_ENABLED } from "@/lib/inbound/widget-visibility";
@@ -198,6 +199,7 @@ export default function DashboardPage() {
       <div className="flex-1 overflow-auto px-4 py-6">
         <div className="mx-auto max-w-[1080px] space-y-4">
           <VisitorIdCapBanner />
+          <AutonomyNudgeBanner />
 
           {/* Speed-to-lead: hot inbounds + visitors. Each self-hides when empty,
               so this row vanishes on a quiet day. Hot inbounds is hidden in
