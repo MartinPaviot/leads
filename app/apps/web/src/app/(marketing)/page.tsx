@@ -279,7 +279,7 @@ export default function LandingPage() {
           a green band before). Solid bg renders identically everywhere. */}
       <nav
         aria-label="Primary"
-        className={`sticky top-0 z-50 bg-white transition-[transform,box-shadow] duration-300 motion-reduce:transition-none ${navHidden ? "-translate-y-full" : "translate-y-0"} ${scrolled && !navHidden ? "shadow-[0_1px_3px_rgba(0,0,0,0.06)]" : ""}`}
+        className={`sticky top-0 z-50 bg-white transition-[translate,box-shadow] duration-300 motion-reduce:transition-none ${navHidden ? "-translate-y-full" : "translate-y-0"} ${scrolled && !navHidden ? "shadow-[0_1px_3px_rgba(0,0,0,0.06)]" : ""}`}
       >
         <div className="mx-auto flex h-14 max-w-[1240px] items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2">
