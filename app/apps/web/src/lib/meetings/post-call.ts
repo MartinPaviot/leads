@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { activities, tasks, deals, contacts, companies, users } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
+import { inngest } from "@/inngest/client";
 import { tracedGenerateText } from "@/lib/ai/traced-ai";
 import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
@@ -314,6 +315,22 @@ export async function processPostCall(opts: PostCallOptions): Promise<PostCallRe
       },
     })
     .where(eq(activities.id, activityId));
+
+  // Feed the meeting into post-interaction coaching + playbook extraction (both
+  // fan in from "coaching/post-interaction"). The CALLS path and the manual
+  // upload route already emit this; the Recall/Jibri webhook + manual-confirm
+  // paths all funnel through processPostCall, which never did — so the
+  // production-default recorded meeting taught the brain nothing. Emitting here
+  // covers every processPostCall caller at once. Only fires on a real run (the
+  // already-processed path returns above), so it's emitted at most once per
+  // meeting. Consumers self-gate on an LLM key + load the activity by id;
+  // fire-and-forget + fail-soft, never affects the post-call result.
+  await inngest
+    .send({
+      name: "coaching/post-interaction",
+      data: { tenantId, activityId, userId: userId ?? undefined },
+    })
+    .catch((e) => console.warn("post-call: coaching/post-interaction emit failed (non-blocking)", e));
 
   return { success: true, tasks: createdTaskIds.length, followUpDraft, dealUpdated };
 }
