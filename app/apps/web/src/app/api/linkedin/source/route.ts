@@ -12,6 +12,8 @@ import {
   type IcpSearchCriteria,
   type SalesNavSearchBody,
 } from "@/lib/linkedin/icp-to-salesnav";
+import { resolveJobsQuery, buildPostsSearchBody, type JobsSearchCriteria } from "@/lib/linkedin/jobs-posts";
+import { sourceHiringSignals, sourcePostAuthors } from "@/lib/linkedin/jobs-posts-sourcing";
 import logger from "@/lib/observability/logger";
 
 /**
@@ -75,7 +77,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown> & {
     url?: string;
     keywords?: string;
-    category?: LinkedInSearchCategory;
+    category?: string;
     maxResults?: number;
     preview?: boolean;
     hydrateAccounts?: boolean;
@@ -123,6 +125,88 @@ export async function POST(req: Request) {
     if (!departments.length) return undefined;
     return { departments, min: asNum(o.min), max: asNum(o.max) };
   };
+
+  const previewMode = body.preview === true;
+  const maxResultsCap = Math.min(500, Math.max(1, Number(body.maxResults) || 100));
+  const hydrate = body.hydrateAccounts !== false; // default on
+
+  // JOBS / POSTS run on the `classic` api tier (the SN tier has no jobs/posts
+  // search), regardless of the seat type. Handled here, separate from the
+  // people/companies ICP path.
+  if (body.category === "jobs") {
+    const criteria: JobsSearchCriteria = {
+      keywords: asStr(body.keywords),
+      sortBy: body.sortBy === "date" ? "date" : undefined,
+      datePostedDays: asNum(body.datePostedDays),
+      locations: asList(body.locations),
+      withinAreaMiles: asNum(body.withinAreaMiles),
+      industries: asList(body.industries),
+      functions: asList(body.functions),
+      roles: asList(body.roles ?? body.jobTitles),
+      companies: asList(body.companies),
+      seniorities: asList(body.seniorities),
+      jobTypes: asList(body.jobTypes),
+      presence: asList(body.presence),
+      easyApply: asBool(body.easyApply),
+      under10Applicants: asBool(body.under10Applicants),
+      inYourNetwork: asBool(body.inYourNetwork),
+    };
+    try {
+      const { body: jobsBody, report, usable } = await resolveJobsQuery(cfg, seat.unipileAccountId, criteria);
+      if (!usable) {
+        return NextResponse.json(
+          { error: "Add at least a keyword, role, location, or company for the jobs search.", resolution: report },
+          { status: 422 },
+        );
+      }
+      if (previewMode) {
+        const total = await previewSalesNavCount(cfg, seat.unipileAccountId, jobsBody as never);
+        return NextResponse.json({ ok: true, preview: true, total, resolution: report });
+      }
+      const result = await sourceHiringSignals({
+        cfg,
+        tenantId: authCtx.tenantId,
+        unipileAccountId: seat.unipileAccountId,
+        body: jobsBody,
+        maxResults: maxResultsCap,
+        hydrateAccounts: hydrate,
+      });
+      return NextResponse.json({ ok: true, ...result, resolution: report });
+    } catch (err) {
+      logger.error("linkedin/source: jobs sourcing failed", { tenantId: authCtx.tenantId, err });
+      return NextResponse.json({ error: "LinkedIn jobs search failed. Check the seat is still connected." }, { status: 502 });
+    }
+  }
+
+  if (body.category === "posts") {
+    const postsBody = buildPostsSearchBody({
+      keywords: asStr(body.keywords),
+      sortBy: body.sortBy === "date" ? "date" : undefined,
+      datePosted: asStr(body.datePosted),
+      contentType: asStr(body.contentType),
+    });
+    if (!postsBody.keywords) {
+      return NextResponse.json({ error: "Posts search needs at least a keyword." }, { status: 400 });
+    }
+    try {
+      if (previewMode) {
+        const total = await previewSalesNavCount(cfg, seat.unipileAccountId, postsBody as never);
+        return NextResponse.json({ ok: true, preview: true, total });
+      }
+      const result = await sourcePostAuthors({
+        cfg,
+        tenantId: authCtx.tenantId,
+        unipileAccountId: seat.unipileAccountId,
+        body: postsBody,
+        maxResults: Math.min(100, maxResultsCap),
+        includeEngagers: body.includeEngagers === true,
+      });
+      return NextResponse.json({ ok: true, ...result });
+    } catch (err) {
+      logger.error("linkedin/source: posts sourcing failed", { tenantId: authCtx.tenantId, err });
+      return NextResponse.json({ error: "LinkedIn posts search failed. Check the seat is still connected." }, { status: 502 });
+    }
+  }
 
   const url = typeof body.url === "string" ? body.url.trim() : "";
   const keywords = typeof body.keywords === "string" ? body.keywords.trim() : "";

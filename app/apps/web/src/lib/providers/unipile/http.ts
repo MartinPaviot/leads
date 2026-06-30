@@ -335,8 +335,10 @@ export interface LinkedInSearchPage {
  */
 export async function searchLinkedIn(
   cfg: UnipileConfig,
+  // `category` is a string (not just people/companies) because the classic tier
+  // also exposes `jobs` and `posts` searches — see jobs-posts.ts.
   accountId: string,
-  body: { api: LinkedInSearchApi; category?: LinkedInSearchCategory; keywords?: string; url?: string; [k: string]: unknown },
+  body: { api: LinkedInSearchApi; category?: string; keywords?: string; url?: string; [k: string]: unknown },
   opts: { cursor?: string | null; limit?: number } = {},
 ): Promise<LinkedInSearchPage> {
   const q = `account_id=${encodeURIComponent(accountId)}&limit=${opts.limit ?? 25}${opts.cursor ? `&cursor=${encodeURIComponent(opts.cursor)}` : ""}`;

@@ -90,6 +90,45 @@ const REVENUE: Array<{ key: string; label: string; range: { min: number; max: nu
   { key: "1B+", label: "1B+", range: { min: 1000, max: 1001 } },
 ];
 
+// Jobs search vocab.
+const JOB_SENIORITY: Array<{ value: string; label: string }> = [
+  { value: "executive", label: "Executive" },
+  { value: "director", label: "Director" },
+  { value: "mid_senior", label: "Mid-Senior" },
+  { value: "associate", label: "Associate" },
+  { value: "entry", label: "Entry" },
+  { value: "intern", label: "Intern" },
+];
+const JOB_TYPE: Array<{ value: string; label: string }> = [
+  { value: "full_time", label: "Full-time" },
+  { value: "part_time", label: "Part-time" },
+  { value: "contract", label: "Contract" },
+  { value: "temporary", label: "Temporary" },
+  { value: "internship", label: "Internship" },
+];
+const JOB_PRESENCE: Array<{ value: string; label: string }> = [
+  { value: "on_site", label: "On-site" },
+  { value: "hybrid", label: "Hybrid" },
+  { value: "remote", label: "Remote" },
+];
+const JOB_DATE: Array<{ key: string; label: string; days: number }> = [
+  { key: "1", label: "24 h", days: 1 },
+  { key: "7", label: "Past week", days: 7 },
+  { key: "30", label: "Past month", days: 30 },
+];
+// Posts search vocab.
+const POST_RECENCY: Array<{ value: string; label: string }> = [
+  { value: "past_day", label: "24 h" },
+  { value: "past_week", label: "Past week" },
+  { value: "past_month", label: "Past month" },
+];
+const POST_CONTENT: Array<{ value: string; label: string }> = [
+  { value: "videos", label: "Videos" },
+  { value: "images", label: "Images" },
+  { value: "documents", label: "Documents" },
+  { value: "collaborative_articles", label: "Articles" },
+];
+
 function Chip({ on, onClick, children, disabled }: { on: boolean; onClick: () => void; children: React.ReactNode; disabled?: boolean }) {
   return (
     <button
@@ -112,7 +151,7 @@ function Chip({ on, onClick, children, disabled }: { on: boolean; onClick: () =>
 
 export function SalesNavSourcing() {
   const { toast } = useToast();
-  const [category, setCategory] = useState<"people" | "companies">("people");
+  const [category, setCategory] = useState<"people" | "companies" | "jobs" | "posts">("people");
   const [sourceQuery, setSourceQuery] = useState(""); // URL or keywords
   const [industries, setIndustries] = useState("");
   const [locations, setLocations] = useState("");
@@ -136,6 +175,17 @@ export function SalesNavSourcing() {
   const [leadListId, setLeadListId] = useState("");
   const [hydrateAccounts, setHydrateAccounts] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // Jobs search
+  const [jobSeniority, setJobSeniority] = useState<Set<string>>(new Set());
+  const [jobType, setJobType] = useState<Set<string>>(new Set());
+  const [jobPresence, setJobPresence] = useState<Set<string>>(new Set());
+  const [jobDate, setJobDate] = useState("");
+  const [jobEasyApply, setJobEasyApply] = useState(false);
+  const [jobInNetwork, setJobInNetwork] = useState(false);
+  // Posts search
+  const [postRecency, setPostRecency] = useState("");
+  const [postContentType, setPostContentType] = useState("");
+  const [includeEngagers, setIncludeEngagers] = useState(false);
 
   const [collections, setCollections] = useState<Collections | null>(null);
   const [previewTotal, setPreviewTotal] = useState<number | null | "loading">(null);
@@ -181,6 +231,29 @@ export function SalesNavSourcing() {
     }
     if (savedSearchId) {
       payload.savedSearchId = savedSearchId; // overrides everything else server-side
+      return payload;
+    }
+    if (category === "jobs") {
+      if (q) payload.keywords = q;
+      if (industries.trim()) payload.industries = toList(industries);
+      if (locations.trim()) payload.locations = toList(locations);
+      if (titles.trim()) payload.roles = toList(titles);
+      if (functions.trim()) payload.functions = toList(functions);
+      if (companies.trim()) payload.companies = toList(companies);
+      if (jobSeniority.size) payload.seniorities = [...jobSeniority];
+      if (jobType.size) payload.jobTypes = [...jobType];
+      if (jobPresence.size) payload.presence = [...jobPresence];
+      const d = JOB_DATE.find((x) => x.key === jobDate);
+      if (d) payload.datePostedDays = d.days;
+      if (jobEasyApply) payload.easyApply = true;
+      if (jobInNetwork) payload.inYourNetwork = true;
+      return payload;
+    }
+    if (category === "posts") {
+      if (q) payload.keywords = q;
+      if (postRecency) payload.datePosted = postRecency;
+      if (postContentType) payload.contentType = postContentType;
+      if (includeEngagers) payload.includeEngagers = true;
       return payload;
     }
     if (q) payload.keywords = q;
@@ -233,6 +306,15 @@ export function SalesNavSourcing() {
     revenueKey,
     fastGrowing,
     leadListId,
+    jobSeniority,
+    jobType,
+    jobPresence,
+    jobDate,
+    jobEasyApply,
+    jobInNetwork,
+    postRecency,
+    postContentType,
+    includeEngagers,
   ]);
 
   const hasAnyInput = useMemo(() => {
@@ -250,6 +332,9 @@ export function SalesNavSourcing() {
       const body = (await res.json().catch(() => ({}))) as {
         accountsUpserted?: number;
         contactsUpserted?: number;
+        signalsRecorded?: number;
+        authorsUpserted?: number;
+        engagersSourced?: number;
         total?: number | null;
         resolution?: ResolvedRow[];
         dropped?: string[];
@@ -299,17 +384,24 @@ export function SalesNavSourcing() {
         return;
       }
       const accounts = body.accountsUpserted ?? 0;
-      const contacts = body.contactsUpserted ?? 0;
+      const contacts = (body.contactsUpserted ?? 0) + (body.authorsUpserted ?? 0) + (body.engagersSourced ?? 0);
       setSourceResult({ accounts, contacts });
-      toast(`Sourced ${accounts} account${accounts === 1 ? "" : "s"} and ${contacts} contact${contacts === 1 ? "" : "s"} from LinkedIn.`, "success");
+      const msg =
+        category === "jobs"
+          ? `Sourced ${accounts} hiring compan${accounts === 1 ? "y" : "ies"} (${body.signalsRecorded ?? 0} open role${(body.signalsRecorded ?? 0) === 1 ? "" : "s"}).`
+          : category === "posts"
+            ? `Sourced ${contacts} warm lead${contacts === 1 ? "" : "s"} from posts.`
+            : `Sourced ${accounts} account${accounts === 1 ? "" : "s"} and ${contacts} contact${contacts === 1 ? "" : "s"} from LinkedIn.`;
+      toast(msg, "success");
     } catch {
       toast("LinkedIn sourcing failed", "error");
     } finally {
       setBusy(false);
     }
-  }, [hasAnyInput, post, toast]);
+  }, [hasAnyInput, post, toast, category]);
 
   const fmt = (n: number) => new Intl.NumberFormat().format(n);
+  const isPC = category === "people" || category === "companies";
   const savedSearches = collections?.savedSearches ?? [];
   const leadLists = collections?.leadLists ?? [];
   const personas = collections?.personas ?? [];
@@ -320,17 +412,20 @@ export function SalesNavSourcing() {
         <label className="text-[12px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
           Source your TAM from Sales Navigator
         </label>
-        <div className="flex gap-1">
-          {(["people", "companies"] as const).map((c) => (
+        <div className="flex flex-wrap gap-1">
+          {(["people", "companies", "jobs", "posts"] as const).map((c) => (
             <Chip key={c} on={category === c} onClick={() => setCategory(c)} disabled={busy}>
-              {c === "people" ? "People" : "Companies"}
+              {c === "people" ? "People" : c === "companies" ? "Companies" : c === "jobs" ? "Jobs (hiring)" : "Posts"}
             </Chip>
           ))}
         </div>
       </div>
       <p className="mt-0.5 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-        Paste a Sales Navigator search URL, type keywords, or target by ICP below. Results land in Accounts &amp;
-        Contacts, deduped against your CRM and matched to your network for warm intros.
+        {category === "jobs"
+          ? "Find companies HIRING for a role — a job opening is a GTM-scaling signal. Each hiring company lands in Accounts with the open role."
+          : category === "posts"
+            ? "Find people POSTING about a topic — warm, intent-rich leads. Authors (and optionally everyone who engaged) land in Contacts."
+            : "Paste a Sales Navigator search URL, type keywords, or target by ICP below. Results land in Accounts & Contacts, deduped against your CRM and matched to your network for warm intros."}
       </p>
 
       {/* URL / keywords */}
@@ -341,22 +436,30 @@ export function SalesNavSourcing() {
           onKeyDown={(e) => {
             if (e.key === "Enter") void runSource();
           }}
-          placeholder="Paste a Sales Navigator search URL, or type keywords"
+          placeholder={
+            category === "jobs"
+              ? "Job keywords (e.g. revenue operations)"
+              : category === "posts"
+                ? "Topic keywords (e.g. cold outbound) — required"
+                : "Paste a Sales Navigator search URL, or type keywords"
+          }
           disabled={busy}
         />
       </div>
 
-      {/* Core ICP free-text */}
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Input value={industries} onChange={(e) => setIndustries(e.target.value)} placeholder="Industries (e.g. software, fintech)" disabled={busy} />
-        <Input value={locations} onChange={(e) => setLocations(e.target.value)} placeholder="Locations (e.g. France, United States)" disabled={busy} />
-        {category === "people" && (
-          <Input value={titles} onChange={(e) => setTitles(e.target.value)} placeholder="Titles (e.g. Head of Sales, CRO)" disabled={busy} />
-        )}
-        {category === "people" && (
-          <Input value={companies} onChange={(e) => setCompanies(e.target.value)} placeholder="Companies (e.g. Stripe, Datadog)" disabled={busy} />
-        )}
-      </div>
+      {/* Core free-text — shown for everything except posts (keyword-only) */}
+      {category !== "posts" && (
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Input value={industries} onChange={(e) => setIndustries(e.target.value)} placeholder="Industries (e.g. software, fintech)" disabled={busy} />
+          <Input value={locations} onChange={(e) => setLocations(e.target.value)} placeholder="Locations (e.g. France, United States)" disabled={busy} />
+          {(category === "people" || category === "jobs") && (
+            <Input value={titles} onChange={(e) => setTitles(e.target.value)} placeholder={category === "jobs" ? "Roles hiring for (e.g. Head of Sales)" : "Titles (e.g. Head of Sales, CRO)"} disabled={busy} />
+          )}
+          {(category === "people" || category === "jobs") && (
+            <Input value={companies} onChange={(e) => setCompanies(e.target.value)} placeholder="Companies (e.g. Stripe, Datadog)" disabled={busy} />
+          )}
+        </div>
+      )}
 
       {/* Seniority (people) — the decision-maker filter */}
       {category === "people" && (
@@ -373,16 +476,76 @@ export function SalesNavSourcing() {
       )}
 
       {/* Company size */}
-      <div className="mt-2">
-        <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Company size</p>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {HEADCOUNT.map((h) => (
-            <Chip key={h.key} on={headcount.has(h.key)} onClick={() => toggle(setHeadcount, h.key)} disabled={busy}>
-              {h.label}
-            </Chip>
-          ))}
+      {isPC && (
+        <div className="mt-2">
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Company size</p>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {HEADCOUNT.map((h) => (
+              <Chip key={h.key} on={headcount.has(h.key)} onClick={() => toggle(setHeadcount, h.key)} disabled={busy}>
+                {h.label}
+              </Chip>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Jobs filters */}
+      {category === "jobs" && (
+        <>
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Experience level</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {JOB_SENIORITY.map((s) => (
+                <Chip key={s.value} on={jobSeniority.has(s.value)} onClick={() => toggle(setJobSeniority, s.value)} disabled={busy}>{s.label}</Chip>
+              ))}
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Job type</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {JOB_TYPE.map((t) => (
+                <Chip key={t.value} on={jobType.has(t.value)} onClick={() => toggle(setJobType, t.value)} disabled={busy}>{t.label}</Chip>
+              ))}
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Workplace &amp; recency</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {JOB_PRESENCE.map((p) => (
+                <Chip key={p.value} on={jobPresence.has(p.value)} onClick={() => toggle(setJobPresence, p.value)} disabled={busy}>{p.label}</Chip>
+              ))}
+              {JOB_DATE.map((d) => (
+                <Chip key={d.key} on={jobDate === d.key} onClick={() => setJobDate((k) => (k === d.key ? "" : d.key))} disabled={busy}>{d.label}</Chip>
+              ))}
+              <Chip on={jobEasyApply} onClick={() => setJobEasyApply((v) => !v)} disabled={busy}>Easy apply</Chip>
+              <Chip on={jobInNetwork} onClick={() => setJobInNetwork((v) => !v)} disabled={busy}>In my network</Chip>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Posts filters */}
+      {category === "posts" && (
+        <>
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Posted</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {POST_RECENCY.map((p) => (
+                <Chip key={p.value} on={postRecency === p.value} onClick={() => setPostRecency((k) => (k === p.value ? "" : p.value))} disabled={busy}>{p.label}</Chip>
+              ))}
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Content type</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {POST_CONTENT.map((c) => (
+                <Chip key={c.value} on={postContentType === c.value} onClick={() => setPostContentType((k) => (k === c.value ? "" : c.value))} disabled={busy}>{c.label}</Chip>
+              ))}
+              <Chip on={includeEngagers} onClick={() => setIncludeEngagers((v) => !v)} disabled={busy}>+ Source engagers too</Chip>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Spotlights / signals */}
       {category === "people" ? (
@@ -416,7 +579,7 @@ export function SalesNavSourcing() {
             </div>
           </div>
         </>
-      ) : (
+      ) : category === "companies" ? (
         <>
           <div className="mt-2">
             <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Buying signals</p>
@@ -441,10 +604,10 @@ export function SalesNavSourcing() {
             </div>
           </div>
         </>
-      )}
+      ) : null}
 
       {/* Saved lists / searches / personas — reuse what the founder already built in SN */}
-      {(savedSearches.length > 0 || (category === "people" && (leadLists.length > 0 || personas.length > 0))) && (
+      {isPC && (savedSearches.length > 0 || (category === "people" && (leadLists.length > 0 || personas.length > 0))) && (
         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {savedSearches.length > 0 && (
             <label className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
@@ -528,28 +691,45 @@ export function SalesNavSourcing() {
         <Button size="sm" onClick={() => void runSource()} disabled={busy || !hasAnyInput}>
           {busy && previewTotal !== "loading" ? "Sourcing…" : "Source"}
         </Button>
-        <Chip on={hydrateAccounts} onClick={() => setHydrateAccounts((v) => !v)} disabled={busy}>
-          {hydrateAccounts ? "Enriching company profiles" : "Enrich company profiles"}
-        </Chip>
+        {category !== "posts" && (
+          <Chip on={hydrateAccounts} onClick={() => setHydrateAccounts((v) => !v)} disabled={busy}>
+            {hydrateAccounts ? "Enriching company profiles" : "Enrich company profiles"}
+          </Chip>
+        )}
         {typeof previewTotal === "number" && (
           <span className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-            ≈ {fmt(previewTotal)} {category === "people" ? "prospects" : "companies"}
+            ≈ {fmt(previewTotal)}{" "}
+            {category === "people" ? "prospects" : category === "companies" ? "companies" : category === "jobs" ? "open jobs" : "posts"}
             {previewTotal >= 2500 ? " (LinkedIn caps a single search at 2,500)" : ""}
           </span>
         )}
       </div>
-      {hydrateAccounts && (
+      {hydrateAccounts && category !== "posts" && (
         <p className="mt-1 text-[10px]" style={{ color: "var(--color-text-muted)" }}>
-          Enrichment fetches each employer&apos;s LinkedIn company profile (domain, industries, HQ, size) — uses ~1 profile view per company against your daily quota.
+          Enrichment fetches each {category === "jobs" ? "hiring" : "employer"} company&apos;s LinkedIn profile (domain, industries, HQ, size) — uses ~1 profile view per company against your daily quota.
         </p>
       )}
 
       {/* Result + resolution report + dropped warnings */}
       {sourceResult && (
         <p className="mt-2 text-[11px]" style={{ color: "var(--color-text-secondary)" }}>
-          Added {sourceResult.accounts} account{sourceResult.accounts === 1 ? "" : "s"} + {sourceResult.contacts} contact
-          {sourceResult.contacts === 1 ? "" : "s"}.{" "}
-          <a href="/accounts" style={{ color: "var(--color-accent)" }}>View in Accounts</a>
+          {category === "posts" ? (
+            <>
+              Added {sourceResult.contacts} contact{sourceResult.contacts === 1 ? "" : "s"}.{" "}
+              <a href="/contacts" style={{ color: "var(--color-accent)" }}>View in Contacts</a>
+            </>
+          ) : category === "jobs" ? (
+            <>
+              Added {sourceResult.accounts} hiring compan{sourceResult.accounts === 1 ? "y" : "ies"}.{" "}
+              <a href="/accounts" style={{ color: "var(--color-accent)" }}>View in Accounts</a>
+            </>
+          ) : (
+            <>
+              Added {sourceResult.accounts} account{sourceResult.accounts === 1 ? "" : "s"} + {sourceResult.contacts} contact
+              {sourceResult.contacts === 1 ? "" : "s"}.{" "}
+              <a href="/accounts" style={{ color: "var(--color-accent)" }}>View in Accounts</a>
+            </>
+          )}
         </p>
       )}
       {resolution && resolution.length > 0 && (

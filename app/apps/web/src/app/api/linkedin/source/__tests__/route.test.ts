@@ -41,6 +41,21 @@ vi.mock("@/lib/linkedin/icp-to-salesnav", () => ({
   previewSalesNavCount: (...a: unknown[]) => previewSalesNavCount(...a),
 }));
 
+// Jobs/posts search + sourcing — mocked (own unit tests; keeps the canonical
+// upsert chain out of this route test).
+const resolveJobsQuery = vi.fn();
+const buildPostsSearchBody = vi.fn();
+vi.mock("@/lib/linkedin/jobs-posts", () => ({
+  resolveJobsQuery: (...a: unknown[]) => resolveJobsQuery(...a),
+  buildPostsSearchBody: (...a: unknown[]) => buildPostsSearchBody(...a),
+}));
+const sourceHiringSignals = vi.fn();
+const sourcePostAuthors = vi.fn();
+vi.mock("@/lib/linkedin/jobs-posts-sourcing", () => ({
+  sourceHiringSignals: (...a: unknown[]) => sourceHiringSignals(...a),
+  sourcePostAuthors: (...a: unknown[]) => sourcePostAuthors(...a),
+}));
+
 import { getAuthContext } from "@/lib/auth/auth-utils";
 const route = await import("@/app/api/linkedin/source/route");
 
@@ -60,6 +75,14 @@ beforeEach(() => {
     usable: true,
   });
   previewSalesNavCount.mockResolvedValue(12480);
+  resolveJobsQuery.mockResolvedValue({
+    body: { api: "classic", category: "jobs", role: ["592"] },
+    report: [{ field: "roles", label: "Head of Sales", id: "592", matched: "Head of Sales" }],
+    usable: true,
+  });
+  buildPostsSearchBody.mockReturnValue({ api: "classic", category: "posts", keywords: "ai" });
+  sourceHiringSignals.mockResolvedValue({ jobsScanned: 30, accountsUpserted: 12, signalsRecorded: 18, skippedNoCompany: 0 });
+  sourcePostAuthors.mockResolvedValue({ postsScanned: 40, authorsUpserted: 22, engagersSourced: 0, skipped: 5 });
 });
 
 describe("POST /api/linkedin/source", () => {
@@ -189,5 +212,41 @@ describe("POST /api/linkedin/source", () => {
     const res = await post({ jobTitles: ["wizard"] });
     expect(res.status).toBe(422);
     expect(sourceFromSalesNav).not.toHaveBeenCalled();
+  });
+
+  it("category=jobs routes to the hiring-signal sourcer (not sourceFromSalesNav)", async () => {
+    authed();
+    seatRows = [{ id: "a1", status: "connected", unipileAccountId: "acc-1", seatType: "sales_navigator", userId: "u1" }];
+    const res = await post({ category: "jobs", keywords: "revops", roles: ["Head of Sales"] });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({ ok: true, accountsUpserted: 12, signalsRecorded: 18 });
+    expect(sourceHiringSignals).toHaveBeenCalledTimes(1);
+    expect(sourceFromSalesNav).not.toHaveBeenCalled();
+    // jobs run on the classic tier even from a Sales-Nav seat
+    expect(resolveJobsQuery.mock.calls[0][2]).toMatchObject({ keywords: "revops", roles: ["Head of Sales"] });
+  });
+
+  it("category=jobs preview returns the segment total without sourcing", async () => {
+    authed();
+    seatRows = [{ id: "a1", status: "connected", unipileAccountId: "acc-1", seatType: "sales_navigator", userId: "u1" }];
+    const res = await post({ category: "jobs", keywords: "revops", preview: true });
+    const json = await res.json();
+    expect(json).toMatchObject({ ok: true, preview: true, total: 12480 });
+    expect(sourceHiringSignals).not.toHaveBeenCalled();
+  });
+
+  it("category=posts sources authors; 400 without a keyword", async () => {
+    authed();
+    seatRows = [{ id: "a1", status: "connected", unipileAccountId: "acc-1", seatType: "sales_navigator", userId: "u1" }];
+    const res = await post({ category: "posts", keywords: "cold outbound", includeEngagers: true });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({ ok: true, authorsUpserted: 22 });
+    expect(sourcePostAuthors.mock.calls[0][0]).toMatchObject({ includeEngagers: true });
+
+    buildPostsSearchBody.mockReturnValueOnce({ api: "classic", category: "posts" }); // no keyword
+    const res2 = await post({ category: "posts" });
+    expect(res2.status).toBe(400);
   });
 });
