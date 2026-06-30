@@ -190,10 +190,10 @@ export default function CampaignsPage() {
         title="Campaigns"
         subtitle={`${sequences.length}`}
       >
-        <Button variant="outline" onClick={() => router.push("/sequences/templates")}>
+        <Button size="sm" variant="outline" onClick={() => router.push("/sequences/templates")}>
           <LayoutTemplate size={14} /> Modèles
         </Button>
-        <Button variant="gradient" onClick={() => setShowWizard(true)}>
+        <Button size="sm" variant="gradient" onClick={() => setShowWizard(true)}>
           <Plus size={14} /> New campaign
         </Button>
       </PageHeader>

@@ -379,13 +379,11 @@ export default function DeliverabilityPage() {
         {data.totalSent === 0 ? (
           <Badge variant="info" size="md">No emails sent yet</Badge>
         ) : (
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Health Score</p>
-              <p className={`text-2xl font-bold ${getHealthColor(data.healthLabel)}`}>
-                {data.healthScore}
-              </p>
-            </div>
+          <div className="flex h-7 items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Health Score</span>
+            <span className={`text-sm font-semibold ${getHealthColor(data.healthLabel)}`}>
+              {data.healthScore}
+            </span>
             <Badge variant={getHealthBadgeVariant(data.healthLabel)} size="md">
               {data.healthLabel.toUpperCase()}
             </Badge>
