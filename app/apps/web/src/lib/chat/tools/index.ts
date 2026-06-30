@@ -27,6 +27,7 @@ import { buildPageActionTools } from "./page-actions";
 import { buildAccountListTools } from "./account-lists";
 import { buildLinkedInSourcingTools } from "./linkedin-sourcing";
 import { buildSearchMonitorTools } from "./search-monitors";
+import { buildSignalRecommenderTools } from "./signal-recommender";
 
 export type { ToolContext } from "./context";
 export { makeTool } from "./context";
@@ -61,5 +62,6 @@ export function buildAllChatTools(ctx: ToolContext) {
     ...buildAccountListTools(ctx),
     ...buildLinkedInSourcingTools(ctx),
     ...buildSearchMonitorTools(ctx),
+    ...buildSignalRecommenderTools(ctx),
   };
 }
