@@ -195,7 +195,7 @@ export async function POST(req: Request) {
       }
       query = resolved.body;
       resolution = resolved.report;
-      dropped = resolved.dropped.length ? resolved.dropped : undefined;
+      dropped = resolved.dropped?.length ? resolved.dropped : undefined;
     } else {
       query = { api, category, keywords };
     }

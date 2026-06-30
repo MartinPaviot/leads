@@ -33,9 +33,13 @@ vi.mock("@/lib/sending/linkedin/graph-sync", () => ({
   rematchStoredRelations: vi.fn(async () => ({ seats: 1, matched: 0, edgesCreated: 0, edgesUpdated: 0 })),
 }));
 
-// ICP→Sales-Nav resolver (#2) — mocked; it has its own unit test.
+// ICP→Sales-Nav resolver + TAM preview (#2) — mocked; they have their own unit tests.
 const resolveIcpToSalesNavQuery = vi.fn();
-vi.mock("@/lib/linkedin/icp-to-salesnav", () => ({ resolveIcpToSalesNavQuery: (...a: unknown[]) => resolveIcpToSalesNavQuery(...a) }));
+const previewSalesNavCount = vi.fn();
+vi.mock("@/lib/linkedin/icp-to-salesnav", () => ({
+  resolveIcpToSalesNavQuery: (...a: unknown[]) => resolveIcpToSalesNavQuery(...a),
+  previewSalesNavCount: (...a: unknown[]) => previewSalesNavCount(...a),
+}));
 
 import { getAuthContext } from "@/lib/auth/auth-utils";
 const route = await import("@/app/api/linkedin/source/route");
@@ -52,8 +56,10 @@ beforeEach(() => {
   resolveIcpToSalesNavQuery.mockResolvedValue({
     body: { api: "sales_navigator", category: "people", industry: { include: [4] } },
     report: [{ type: "INDUSTRY", label: "software", id: "4", matched: "Software Development" }],
+    dropped: [],
     usable: true,
   });
+  previewSalesNavCount.mockResolvedValue(12480);
 });
 
 describe("POST /api/linkedin/source", () => {
@@ -124,12 +130,62 @@ describe("POST /api/linkedin/source", () => {
     expect(icpArg.locations).toEqual(["France", "United States"]);
     // the resolved structured body (not url/keywords) is what gets sourced
     expect(sourceFromSalesNav.mock.calls[0][0].query).toMatchObject({ industry: { include: [4] } });
+    // hydrateAccounts defaults on so sourced employers aren't name-only
+    expect(sourceFromSalesNav.mock.calls[0][0].hydrateAccounts).toBe(true);
+  });
+
+  it("parses the full criteria set (structured + spotlights) onto the ICP", async () => {
+    authed();
+    seatRows = [{ id: "a1", status: "connected", unipileAccountId: "acc-1", seatType: "sales_navigator", userId: "u1" }];
+    await post({
+      seniorities: ["cxo", "vice_president"],
+      companyHeadcount: [{ min: 51, max: 200 }],
+      changedJobs: true,
+      companies: "Stripe, Datadog",
+    });
+    const icp = resolveIcpToSalesNavQuery.mock.calls[0][2];
+    expect(icp.seniorities).toEqual(["cxo", "vice_president"]);
+    expect(icp.companyHeadcount).toEqual([{ min: 51, max: 200 }]);
+    expect(icp.changedJobs).toBe(true);
+    expect(icp.companies).toEqual(["Stripe", "Datadog"]);
+  });
+
+  it("preview mode returns the TAM total without sourcing", async () => {
+    authed();
+    seatRows = [{ id: "a1", status: "connected", unipileAccountId: "acc-1", seatType: "sales_navigator", userId: "u1" }];
+    const res = await post({ industries: ["software"], preview: true });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({ ok: true, preview: true, total: 12480 });
+    expect(previewSalesNavCount).toHaveBeenCalledTimes(1);
+    expect(sourceFromSalesNav).not.toHaveBeenCalled();
+  });
+
+  it("respects hydrateAccounts:false", async () => {
+    authed();
+    seatRows = [{ id: "a1", status: "connected", unipileAccountId: "acc-1", seatType: "sales_navigator", userId: "u1" }];
+    await post({ keywords: "fintech", hydrateAccounts: false });
+    expect(sourceFromSalesNav.mock.calls[0][0].hydrateAccounts).toBe(false);
+  });
+
+  it("returns dropped-filter notes when the resolver drops invalid structured values", async () => {
+    authed();
+    seatRows = [{ id: "a1", status: "connected", unipileAccountId: "acc-1", seatType: "sales_navigator", userId: "u1" }];
+    resolveIcpToSalesNavQuery.mockResolvedValue({
+      body: { api: "sales_navigator", category: "people", seniority: { include: ["cxo"] } },
+      report: [],
+      dropped: ['seniority "emperor" ignored (not a LinkedIn seniority value)'],
+      usable: true,
+    });
+    const res = await post({ seniorities: ["cxo", "emperor"] });
+    const json = await res.json();
+    expect(json.dropped).toEqual(['seniority "emperor" ignored (not a LinkedIn seniority value)']);
   });
 
   it("422 when the ICP criteria resolve to nothing usable", async () => {
     authed();
     seatRows = [{ id: "a1", status: "connected", unipileAccountId: "acc-1", seatType: "sales_navigator", userId: "u1" }];
-    resolveIcpToSalesNavQuery.mockResolvedValue({ body: { api: "sales_navigator", category: "people" }, report: [{ type: "JOB_TITLE", label: "wizard", id: null, matched: null }], usable: false });
+    resolveIcpToSalesNavQuery.mockResolvedValue({ body: { api: "sales_navigator", category: "people" }, report: [{ type: "JOB_TITLE", label: "wizard", id: null, matched: null }], dropped: [], usable: false });
     const res = await post({ jobTitles: ["wizard"] });
     expect(res.status).toBe(422);
     expect(sourceFromSalesNav).not.toHaveBeenCalled();
