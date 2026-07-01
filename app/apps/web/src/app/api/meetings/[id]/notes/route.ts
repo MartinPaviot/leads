@@ -145,6 +145,7 @@ export async function GET(
     hasTranscript: !!meta.hasTranscript || !!meta.structuredNotes,
     transcriptSource: meta.transcriptSource,
     notes: meta.structuredNotes || null,
+    conversationMetrics: meta.conversationMetrics || null,
     followUpDraft,
     followUpSentAt: meta.followUpSentAt || null,
     tasks: linkedTasks,

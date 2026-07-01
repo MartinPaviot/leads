@@ -171,3 +171,119 @@ export function conversationFromTranscript(raw: unknown): ConversationMetrics | 
   if (!Array.isArray(raw)) return null;
   return computeConversationMetrics(raw as TranscriptChunk[]);
 }
+
+// ── Meeting variant (N named speakers) ──────────────────────────────
+//
+// A recorded VIDEO meeting has N participants with real names, not the
+// agent/prospect duo a cold call has — so computeConversationMetrics (2-role,
+// char-based, tsMs) does not apply. This variant reads the speaker-aware,
+// timestamped segments now indexed for every meeting (recallSegmentsToChunkSegments
+// → transcript_chunks, #579) and reports a per-speaker talk SHARE by wall time,
+// plus the same interactivity shape. No "us vs them" assumption — talk-share per
+// participant is unambiguous whoever hosted.
+
+export interface MeetingSegment {
+  speaker: string | null;
+  /** Start offset in seconds. */
+  startSec: number;
+  /** End offset in seconds. Must be ≥ startSec. */
+  endSec: number;
+  text: string;
+}
+
+export interface SpeakerShare {
+  speaker: string;
+  /** Share of total spoken time across the meeting, 0-100. */
+  talkPct: number;
+  talkSeconds: number;
+  questionsAsked: number;
+}
+
+export interface MeetingConversationMetrics {
+  /** Descending by talkPct — the loudest voice first. */
+  perSpeaker: SpeakerShare[];
+  participantCount: number;
+  speakerSwitches: number;
+  durationSec: number;
+  /** Longest uninterrupted single-speaker stretch, seconds. */
+  longestMonologueSec: number;
+  /** Speaker switches per minute — higher = more of a back-and-forth. */
+  interactivityPerMin: number;
+}
+
+/**
+ * Characterise a meeting's dialogue from its diarised segments. Returns null
+ * when there isn't a real multi-party exchange (< 3 turns, < 2 speakers, or a
+ * thin transcript) — a monologue or a two-line clip is not a conversation to
+ * score. Pure + unit-tested.
+ */
+export function computeMeetingConversationMetrics(
+  segments: MeetingSegment[],
+): MeetingConversationMetrics | null {
+  const turns = segments.filter(
+    (s) =>
+      !!s.speaker &&
+      !!s.text &&
+      s.text.trim().length > 0 &&
+      Number.isFinite(s.startSec) &&
+      Number.isFinite(s.endSec) &&
+      s.endSec >= s.startSec,
+  );
+  if (turns.length < 3) return null;
+
+  const speakers = new Set(turns.map((t) => t.speaker as string));
+  if (speakers.size < 2) return null;
+
+  const dur = (t: MeetingSegment) => Math.max(0, t.endSec - t.startSec);
+  const totalTalk = turns.reduce((a, t) => a + dur(t), 0);
+  if (totalTalk < 30) return null; // thin — < 30s of speech
+
+  const bySpeaker = new Map<string, { seconds: number; questions: number }>();
+  for (const t of turns) {
+    const s = t.speaker as string;
+    const cur = bySpeaker.get(s) ?? { seconds: 0, questions: 0 };
+    cur.seconds += dur(t);
+    cur.questions += countQuestions(t.text ?? "");
+    bySpeaker.set(s, cur);
+  }
+  const perSpeaker: SpeakerShare[] = [...bySpeaker.entries()]
+    .map(([speaker, v]) => ({
+      speaker,
+      talkSeconds: Math.round(v.seconds),
+      talkPct: Math.round((v.seconds / totalTalk) * 100),
+      questionsAsked: v.questions,
+    }))
+    .sort((a, b) => b.talkPct - a.talkPct);
+
+  let speakerSwitches = 0;
+  for (let i = 1; i < turns.length; i++) {
+    if (turns[i].speaker !== turns[i - 1].speaker) speakerSwitches++;
+  }
+
+  const durationSec = Math.round(turns[turns.length - 1].endSec - turns[0].startSec);
+
+  // Longest consecutive same-speaker run, by wall time.
+  let longest = 0;
+  let runStart = turns[0].startSec;
+  for (let i = 1; i <= turns.length; i++) {
+    const cur = turns[i];
+    const prev = turns[i - 1];
+    if (!cur || cur.speaker !== prev.speaker) {
+      longest = Math.max(longest, prev.endSec - runStart);
+      if (cur) runStart = cur.startSec;
+    }
+  }
+  const longestMonologueSec = Math.round(longest);
+
+  const interactivityPerMin =
+    durationSec > 0 ? +(speakerSwitches / (durationSec / 60)).toFixed(1) : 0;
+
+  return {
+    perSpeaker,
+    participantCount: speakers.size,
+    speakerSwitches,
+    durationSec,
+    longestMonologueSec,
+    interactivityPerMin,
+  };
+}

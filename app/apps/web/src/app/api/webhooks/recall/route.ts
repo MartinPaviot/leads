@@ -364,16 +364,36 @@ async function processTranscriptFromBot(
   // "cold_call"). Until now only the ~3k-char head reached RAG via embedEntity;
   // long meetings lost their middle + tail. Idempotent (wipes prior chunks for
   // this meeting) + fail-soft. rawText is the fallback when segments are empty.
+  const chunkSegments = recallSegmentsToChunkSegments(botSegments);
   try {
     await indexTranscript({
       tenantId,
       meetingId: activityId,
-      segments: recallSegmentsToChunkSegments(botSegments),
+      segments: chunkSegments,
       rawText: transcriptText,
       source: "recall_bot",
     });
   } catch (e) {
     console.warn(`[Recall] indexTranscript failed for activity ${activityId} (non-blocking)`, e);
+  }
+
+  // 6c. Conversation metrics — per-speaker talk share, switches, longest
+  // monologue (the Gong-grade read calls already get via leverScores). Only from
+  // the diarised segments; stored on the activity for the fiche to render.
+  // Fail-soft, and a no-op (null) when there wasn't a real multi-party exchange.
+  try {
+    const { computeMeetingConversationMetrics } = await import("@/lib/voice/conversation-metrics");
+    const cm = computeMeetingConversationMetrics(chunkSegments);
+    if (cm) {
+      await db
+        .update(activities)
+        .set({
+          metadata: sql`jsonb_set(COALESCE(${activities.metadata}, '{}')::jsonb, '{conversationMetrics}', ${JSON.stringify(cm)}::jsonb)`,
+        })
+        .where(eq(activities.id, activityId));
+    }
+  } catch (e) {
+    console.warn(`[Recall] conversation metrics failed for activity ${activityId} (non-blocking)`, e);
   }
 
   // 7. Ingest to context graph

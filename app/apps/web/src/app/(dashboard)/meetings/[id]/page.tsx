@@ -105,6 +105,14 @@ interface MeetingData {
   hasTranscript: boolean;
   transcriptSource: string | null;
   notes: MeetingNotes | null;
+  conversationMetrics: {
+    perSpeaker: Array<{ speaker: string; talkPct: number; talkSeconds: number; questionsAsked: number }>;
+    participantCount: number;
+    speakerSwitches: number;
+    durationSec: number;
+    longestMonologueSec: number;
+    interactivityPerMin: number;
+  } | null;
   followUpDraft: { subject: string; body: string } | null;
   followUpSentAt: string | null;
   tasks: Array<{ id: string; title: string; status: string }>;
@@ -1257,6 +1265,36 @@ export default function MeetingDetailPage() {
               </div>
             )}
           </CollapsibleSection>
+
+          {/* Conversation — per-speaker talk share + interactivity, from the
+              diarised transcript (the Gong-grade read calls get via leverScores). */}
+          {data.conversationMetrics && data.conversationMetrics.perSpeaker.length > 0 && (
+            <CollapsibleSection title="Conversation" icon={Users} defaultOpen={false}>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  {data.conversationMetrics.perSpeaker.map((s) => (
+                    <div key={s.speaker}>
+                      <div className="flex items-center justify-between text-[12px]">
+                        <span style={{ color: "var(--color-text-primary)" }}>{s.speaker}</span>
+                        <span style={{ color: "var(--color-text-tertiary)" }}>
+                          {s.talkPct}%{s.questionsAsked > 0 ? ` · ${s.questionsAsked} question${s.questionsAsked > 1 ? "s" : ""}` : ""}
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1.5 rounded-full" style={{ background: "var(--color-border-default)" }}>
+                        <div className="h-1.5 rounded-full" style={{ width: `${s.talkPct}%`, background: "var(--color-accent)" }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  <span>{data.conversationMetrics.participantCount} participants</span>
+                  <span>{data.conversationMetrics.speakerSwitches} exchanges</span>
+                  <span>{data.conversationMetrics.interactivityPerMin}/min interactivity</span>
+                  <span>longest turn {Math.round(data.conversationMetrics.longestMonologueSec)}s</span>
+                </div>
+              </div>
+            </CollapsibleSection>
+          )}
 
           {/* Buying Signals */}
           {notes.buyingSignals && (
