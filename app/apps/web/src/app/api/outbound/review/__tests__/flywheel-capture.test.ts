@@ -11,8 +11,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   rows: [
-    { subject: "Subject line", bodyHtml: "<p>final body</p>", contactId: "c-1", stepNumber: 2 },
-  ] as Array<{ subject: string | null; bodyHtml: string | null; contactId: string | null; stepNumber: number | null }>,
+    { subject: "Subject line", bodyHtml: "<p>final body</p>", contactId: "c-1", stepNumber: 2, enrollmentId: null },
+  ] as Array<{
+    subject: string | null;
+    bodyHtml: string | null;
+    contactId: string | null;
+    stepNumber: number | null;
+    enrollmentId: string | null;
+  }>,
 }));
 
 vi.mock("@/db", () => {
@@ -38,6 +44,7 @@ vi.mock("@/db/schema", () => ({
     bodyHtml: "outbound_emails.body_html",
     contactId: "outbound_emails.contact_id",
     stepNumber: "outbound_emails.step_number",
+    enrollmentId: "outbound_emails.enrollment_id",
     status: "outbound_emails.status",
   },
   contacts: { id: "contacts.id", tenantId: "contacts.tenant_id", deletedAt: "contacts.deleted_at" },
@@ -81,7 +88,8 @@ function postReq(payload: Record<string, unknown>) {
 describe("PUT /api/outbound/review — single approve feeds the flywheel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    h.rows = [{ subject: "Subject line", bodyHtml: "<p>final body</p>", contactId: "c-1", stepNumber: 2 }];
+    // interactive draft (no enrollment) → agentId "draft-email"
+    h.rows = [{ subject: "Subject line", bodyHtml: "<p>final body</p>", contactId: "c-1", stepNumber: 2, enrollmentId: null }];
     (getAuthContext as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       tenantId: "tenant-1",
       userId: "user-1",
@@ -128,16 +136,20 @@ describe("POST /api/outbound/review — bulk approve_all (the real UI path) feed
     });
   });
 
-  it("records one user_approved candidate per approved draft, with step in the input", async () => {
+  it("captures sequence drafts under the GENERATING agent (send-sequence-step), one per row", async () => {
+    // campaign review rows are sequence drafts → they carry an enrollmentId.
     h.rows = [
-      { subject: "S1", bodyHtml: "<p>b1</p>", contactId: "c-1", stepNumber: 1 },
-      { subject: "S2", bodyHtml: "<p>b2</p>", contactId: "c-2", stepNumber: 3 },
+      { subject: "S1", bodyHtml: "<p>b1</p>", contactId: "c-1", stepNumber: 1, enrollmentId: "enr-1" },
+      { subject: "S2", bodyHtml: "<p>b2</p>", contactId: "c-2", stepNumber: 3, enrollmentId: "enr-2" },
     ];
     await route.POST(postReq({ emailIds: ["e-1", "e-2"], action: "approve_all" }));
 
     expect(fw()).toHaveBeenCalledTimes(2);
     for (const call of fw().mock.calls) {
-      expect(call[0]).toBe("draft-email");
+      // NOT "draft-email": a campaign approval must feed the agent that
+      // generated it (personalizeStepEmail → send-sequence-step), or the loop
+      // never closes for the sequence generator.
+      expect(call[0]).toBe("send-sequence-step");
       expect(call[4]).toBe("user_approved");
       expect(call[3]).toBe("tenant-1");
     }
@@ -148,13 +160,20 @@ describe("POST /api/outbound/review — bulk approve_all (the real UI path) feed
     expect(inputs[0]).not.toBe(inputs[1]);
   });
 
+  it("captures a non-enrollment draft under draft-email", async () => {
+    h.rows = [{ subject: "S", bodyHtml: "<p>b</p>", contactId: "c-3", stepNumber: null, enrollmentId: null }];
+    await route.POST(postReq({ emailIds: ["e-3"], action: "approve_all" }));
+    expect(fw()).toHaveBeenCalledTimes(1);
+    expect(fw().mock.calls[0][0]).toBe("draft-email");
+  });
+
   it("does not record for a non-approve_all bulk action", async () => {
     await route.POST(postReq({ emailIds: ["e-1"], action: "something_else" }));
     expect(fw()).not.toHaveBeenCalled();
   });
 
   it("omits the step suffix when stepNumber is null", async () => {
-    h.rows = [{ subject: "S", bodyHtml: "<p>b</p>", contactId: "c-9", stepNumber: null }];
+    h.rows = [{ subject: "S", bodyHtml: "<p>b</p>", contactId: "c-9", stepNumber: null, enrollmentId: null }];
     await route.POST(postReq({ emailIds: ["e-9"], action: "approve_all" }));
     expect(fw()).toHaveBeenCalledTimes(1);
     expect(fw().mock.calls[0][1]).toBe("Draft email to contact c-9");
