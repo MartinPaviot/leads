@@ -1,6 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+
+// sanitizeHtml is a DOM-walking sanitizer (Node.ELEMENT_NODE, attribute
+// stripping) meant for a real browser; in happy-dom it isn't the unit under
+// test. Stub it so these tests exercise the edit/approve behaviour, not the
+// sanitizer's DOM internals.
+vi.mock("@/lib/infra/sanitize-html", () => ({ sanitizeHtml: (s: string) => s }));
+
 import { DraftReviewCard, htmlToText, textToHtml, type ReviewEmail } from "../campaign-draft-card";
 
 const baseEmail: ReviewEmail = {
