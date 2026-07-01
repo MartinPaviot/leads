@@ -40,22 +40,47 @@ Copy of the implementation plan. Design rationale lives in office-hours.md + des
   `resolveCapabilities(surface: {type:"mcp"}, allowDestructive: false — HARD-CODED, not a param)`.
   15 tests (10 unit + regression coverage for the traced-ai.ts fix).
   Independently correct and tested WITHOUT a transport/OAuth in front of it.
-- **B.5 / B.6** 🛑 NOT STARTED — the real remaining unknown. Needs an actual
-  OAuth 2.1 **authorization server** implementation (LeadSens issuing
-  tokens to external clients), not just "reuse NextAuth" (NextAuth makes
-  US a Google/MS OAuth *client*, not a *provider* — see design.md's
-  correction to office-hours.md's premise). The SDK's `ProxyOAuthServerProvider`
-  is Express-`Response`-coupled, not Fetch-API compatible — using it as-is
-  inside a Next.js Route Handler doesn't work. The transport itself IS
-  solved: `WebStandardStreamableHTTPServerTransport.handleRequest(req: Request): Promise<Response>`
-  maps directly onto a Next.js route handler once auth exists in front of
-  it. This is its own multi-day pass.
+- **B.5 / B.6** ✅ DONE (2026-07-01) — full OAuth 2.1 authorization server,
+  hand-rolled as plain Next.js Route Handlers (the SDK's
+  `ProxyOAuthServerProvider` is Express-`Response`-coupled, confirmed via
+  source read — not usable inside a Route Handler). RFC 7591 dynamic
+  client registration (`POST /api/mcp/register`), RFC 7636 PKCE-mandatory
+  (S256-only) authorization code flow (`GET /api/mcp/authorize` →
+  `/mcp/consent` → `POST /api/mcp/authorize/decision`), refresh-token
+  rotation (`POST /api/mcp/token`), RFC 8414 metadata discovery at
+  `/.well-known/oauth-authorization-server` (via a `next.config.ts`
+  rewrite, not a literal dot-folder route). New tables
+  `mcp_oauth_clients` / `mcp_oauth_authorization_codes` / `mcp_oauth_tokens`
+  (migration `0110_mcp_oauth.sql`, applied to localdev). Tokens stored
+  SHA-256-hashed (never raw); auth-code consumption and refresh rotation
+  are both atomic (`UPDATE ... WHERE ... IS NULL RETURNING`, so a race
+  loses the second caller instead of double-issuing). 46 tests
+  (pkce/tokens/clients/authorization-codes/access-tokens + authorize/token
+  route tests), tsc clean, full suite green (894 files / 8205 tests, 5
+  unrelated pre-existing LLM-tier eval-gate timeouts excluded).
+
+  **Mid-build discovery — legacy MCP server replaced.** Found a
+  pre-existing, live, hand-rolled JSON-RPC MCP server at `/api/mcp/route.ts`
+  (created 2026-05-05, ~2 months before CHAT-08): 12 tools, auth via
+  tenant-wide bcrypt-hashed API keys (`tenants.settings.mcpApiKeys`), zero
+  role-based filtering (any key could call create_contact/create_deal).
+  Verified every legacy tool has a superior equivalent in the modern
+  `buildAllChatTools` registry before touching anything. Asked the founder
+  how to reconcile (replace / coexist / just patch the legacy bug) —
+  **decision: replace legacy entirely.** `/api/mcp/route.ts` now serves
+  only the OAuth-authenticated transport; `POST /api/mcp/keys` (create-key)
+  returns 410 with a clear message; GET/DELETE stay so existing tenants
+  can still see/revoke old keys; `settings/mcp/mcp-client.tsx` rewritten
+  to describe OAuth setup instead of API keys. See design.md for the full
+  decision record.
 - **B.7** Subdomain `mcp.leadsens.com` via DNS + route config. Infra change — confirm with Martin first.
 - **B.8** E2E with Claude Desktop, Cursor, ChatGPT.
 
 ## Phase C — Hardening + launch (≈1 week)
 
-- **C.1** Rate limits: Slack per-tenant, MCP per-user.
+- **C.1** Rate limits: Slack per-tenant, MCP per-user. PARTIAL — MCP OAuth
+  endpoints are rate-limited (`register`: 20/hour/IP, `token`: 60/min/IP);
+  per-user tool-call rate limiting on the transport itself is still open.
 - **C.2** /admin/evals per-surface dashboard overlap (CHAT-09).
 - **C.3** Public docs at docs.leadsens.com/mcp + /slack.
 - **C.4** Feature flag flip to true.

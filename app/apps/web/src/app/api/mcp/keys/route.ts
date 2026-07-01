@@ -1,22 +1,7 @@
 import { getAuthContext, requireAdmin } from "@/lib/auth/auth-utils";
 import { requireCapabilityForRequest } from "@/lib/auth/permissions";
 import { getTenantSettings, updateTenantSettings } from "@/lib/config/tenant-settings";
-import type { McpApiKeyEntry } from "@/lib/config/tenant-settings";
-import { hash } from "bcryptjs";
 import logger from "@/lib/observability/logger";
-
-/**
- * Generate a cryptographically random MCP API key.
- * Format: mcp_<32 hex chars> = 36 chars total
- */
-function generateApiKey(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  const hex = Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return `mcp_${hex}`;
-}
 
 // ── GET: List existing MCP API keys (masked) ──
 
@@ -45,82 +30,23 @@ export async function GET() {
   }
 }
 
-// ── POST: Generate a new MCP API key ──
-
-export async function POST(req: Request) {
-  const authCtx = await getAuthContext();
-  if (!authCtx) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const adminCheck = requireAdmin(authCtx);
-  if (adminCheck) return adminCheck;
-  // CLE-12 — belt-and-braces matrix gate on the fresh DB role (mcp:manage).
-  const denied = requireCapabilityForRequest(authCtx, req);
-  if (denied) return denied;
-
-  try {
-    const body = await req.json().catch(() => ({}));
-    const name = String(body.name || "Default key").trim().slice(0, 100);
-
-    const settings = await getTenantSettings(authCtx.tenantId);
-    const existingKeys = settings.mcpApiKeys || [];
-
-    // Limit to 5 active keys per tenant
-    if (existingKeys.length >= 5) {
-      return Response.json(
-        { error: "Maximum 5 MCP API keys allowed. Revoke an existing key first." },
-        { status: 400 }
-      );
-    }
-
-    // Generate key
-    const rawKey = generateApiKey();
-    const keyHash = await hash(rawKey, 10);
-    const keyPrefix = rawKey.slice(0, 8) + "...";
-
-    const now = new Date().toISOString();
-    const entry: McpApiKeyEntry = {
-      id: crypto.randomUUID(),
-      name,
-      keyHash,
-      keyPrefix,
-      createdAt: now,
-      keyCreatedAt: now,
-      keyOwnerId: authCtx.userId,
-    };
-
-    await updateTenantSettings(authCtx.tenantId, {
-      mcpApiKeys: [...existingKeys, entry],
-    });
-
-    logger.info("mcp: api key created", {
-      tenantId: authCtx.tenantId,
-      keyId: entry.id,
-      keyName: entry.name,
-      keyPrefix: entry.keyPrefix,
-      keyOwnerId: authCtx.userId,
-      createdAt: now,
-    });
-
-    // Return the raw key ONCE — it cannot be retrieved again
-    return Response.json(
-      {
-        key: {
-          id: entry.id,
-          name: entry.name,
-          keyPrefix: entry.keyPrefix,
-          createdAt: entry.createdAt,
-          // This is the only time the full key is returned
-          rawKey,
-        },
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error("Failed to create MCP key:", error);
-    return Response.json({ error: "Failed to create key" }, { status: 500 });
-  }
+// ── POST: DEPRECATED — API-key MCP auth is replaced by OAuth 2.1 ──
+//
+// CHAT-08: /api/mcp now authenticates via OAuth (see ./authorize, ./token),
+// which is per-user (not tenant-wide) and role-filtered (via
+// resolveCapabilities) — a legacy API key can't express either of those, so
+// generating new ones would just create credentials that don't work
+// against the current /api/mcp transport. GET (list) and DELETE (revoke)
+// stay functional so tenants with existing keys can see and clean them up.
+export async function POST() {
+  return Response.json(
+    {
+      error: "mcp_api_keys_deprecated",
+      error_description:
+        "MCP API keys are deprecated — connect via OAuth instead (Settings > MCP Integration shows the new connection URL). Existing keys can still be viewed and revoked here.",
+    },
+    { status: 410 },
+  );
 }
 
 // ── DELETE: Revoke an MCP API key ──

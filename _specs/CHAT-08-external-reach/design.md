@@ -157,19 +157,122 @@ falling back to `"unknown"` — no exhaustive registry; add cases as new
 clients are tested (AC5's "Claude Desktop" is the only one in v1 exit
 criteria; Cursor/ChatGPT are mentioned but not gated on).
 
+## Part B, second pass (2026-07-01) — the OAuth 2.1 authorization server (B.5/B.6)
+
+Built as plain Next.js Route Handlers, not the SDK's auth layer — confirmed
+via source read that `ProxyOAuthServerProvider` imports `express` directly
+(`import { Response } from "express"`), and that the SDK's actual
+Express-based auth router (`mcpAuthRouter`) lives in the older
+`@modelcontextprotocol/server-legacy` package per Context7. Neither is
+Fetch-API compatible, so the whole authorization server is hand-rolled
+against the SDK's reusable Zod wire-format schemas
+(`OAuthClientMetadataSchema`, `OAuthClientInformationFullSchema`,
+`OAuthTokensSchema`, `OAuthMetadataSchema`, `shared/auth.js`) rather than
+its Express router.
+
+- **Discovery**: `GET /.well-known/oauth-authorization-server` (RFC 8414),
+  routed via a `next.config.ts` `rewrites()` entry to
+  `/api/mcp/well-known-metadata` — avoids relying on undocumented literal
+  dot-folder App Router behavior.
+- **Registration**: `POST /api/mcp/register` (RFC 7591), rate-limited
+  20/hour/IP. Public clients (Claude Desktop, Cursor) get no secret;
+  confidential clients get a one-time-shown secret, stored hashed.
+- **Authorization**: `GET /api/mcp/authorize` validates `response_type=code`,
+  `code_challenge_method=S256`-only, and — critically — validates
+  `isRedirectUriRegistered` **before issuing any redirect** (open-redirect
+  prevention; a request naming an unregistered `redirect_uri` gets a plain
+  400, never a 307 to the attacker-controlled URL — this exact case is a
+  dedicated test). No session → redirects to `/sign-in?callbackUrl=<relative
+  /mcp/consent?...>` (uses the existing `sanitizeCallbackUrl` contract,
+  which requires a relative path). Session exists → redirects straight to
+  `/mcp/consent`.
+- **Consent**: `app/mcp/consent/page.tsx`, a Server Component that
+  independently RE-validates auth + client + redirect_uri rather than
+  trusting the `/authorize` redirect as proof (defense in depth — a forged
+  direct hit on `/mcp/consent` re-derives everything from scratch). Plain
+  HTML form posting to `/api/mcp/authorize/decision`.
+- **Decision + code issuance**: `POST /api/mcp/authorize/decision` —
+  `deny` redirects back with `error=access_denied`; `approve` calls
+  `issueAuthorizationCode` (5-min TTL) and 303-redirects with `code`+`state`.
+- **Token exchange + refresh**: `POST /api/mcp/token` (rate-limited
+  60/min/IP), `grant_type=authorization_code` (consumes the code, verifies
+  PKCE, issues tokens) and `grant_type=refresh_token` (rotates: old token
+  revoked and a new pair issued atomically, never a bare update-in-place).
+  Access tokens: 1hr TTL. Refresh tokens: 90-day TTL.
+- **Storage**: 3 new tables (`mcp_oauth_clients`,
+  `mcp_oauth_authorization_codes`, `mcp_oauth_tokens`; migration
+  `0110_mcp_oauth.sql`, applied to localdev). Access/refresh tokens and
+  the client secret are stored **SHA-256-hashed, never raw** — deliberately
+  different from `lib/crypto/oauth-token-crypto.ts`'s reversible AES-256-GCM
+  (used for Google/MS tokens we must show the provider again); MCP tokens
+  are ours to verify, never to display again after issuance, so a one-way
+  hash is the correct primitive here, not encryption.
+- **Race safety**: both `consumeAuthorizationCode` and `refreshTokens` use
+  `UPDATE ... WHERE ... IS NULL RETURNING` (mirrors the optimistic-lock
+  pattern already used in `sequence-drafts/approve`) — a racing double-use
+  updates 0 rows and is rejected, rather than double-issuing tokens.
+- **`/api/mcp/route.ts`** (the transport itself) now requires a Bearer
+  token verified via `verifyAccessToken` before building the MCP server —
+  no more direct transport access without OAuth.
+- **Tests**: 32 unit tests (pkce/tokens/clients/authorization-codes/
+  access-tokens) + 17 route tests (authorize: 8, token: 9) = 49 new tests.
+  tsc clean; full suite green (894 files / 8205 tests; 5 unrelated
+  pre-existing LLM-tier eval-gate timeouts in `inbox-*-gate.test.ts`,
+  gated behind `HAS_LLM` and hitting real models, excluded as unrelated).
+
+### Mid-build discovery: a live legacy MCP server already existed — replaced, not merged
+
+While about to write the new `/api/mcp/route.ts`, the Write tool refused
+with "File has not been read yet" — the file already existed. Investigation
+(`git log --oneline --follow`) found a hand-rolled JSON-RPC 2.0 MCP server,
+created 2026-05-05 (commit "feat: custom objects system + MCP server"),
+~2 months before this spec. It had:
+- 12 tools (search_records/get_contact/get_company/get_deal/list_contacts/
+  list_companies/list_deals/create_contact/create_deal/log_note/
+  list_activities/search_crm), no SDK, no Zod-to-JSON-Schema layer.
+- Auth via bcrypt-hashed `mcp_`-prefixed API keys stored **tenant-wide** in
+  `tenants.settings.mcpApiKeys` (type `McpApiKeyEntry`, `lib/config/tenant-settings.ts`)
+  — one key, shared by the whole tenant, not per-user.
+- **Zero role-based filtering** — any valid key could call
+  create_contact/create_deal regardless of who generated it or what role
+  they hold today.
+- A real, live settings UI (`settings/mcp/mcp-client.tsx`) and key-management
+  route (`api/mcp/keys/route.ts`, GET list + POST create + DELETE revoke).
+
+Before touching anything, verified every one of the 12 legacy tools has a
+strictly superior equivalent already in the modern `buildAllChatTools`
+registry (queryContacts/queryAccounts/queryDeals/createContact/createDeal/
+createNote/logActivity/queryActivities/searchCRM — all Zod-validated,
+role-filtered via `resolveCapabilities`, MCP-scoped `allowDestructive:false`
+that the legacy server never had). No functional regression from removal.
+
+Per CLAUDE.md's "unfamiliar file/branch/configuration → investigate before
+deleting or overwriting" and this session's own earlier lesson about
+verifying current state before building, this was NOT guessed — the founder
+was asked directly: replace the legacy system with OAuth, make both
+coexist at different paths, or just patch the legacy auth bug and stop.
+**Decision: replace.** Executed as:
+- `/api/mcp/route.ts` — fully replaced; now OAuth-only.
+- `POST /api/mcp/keys` — returns 410 `mcp_api_keys_deprecated` with a clear
+  message; **GET (list) and DELETE (revoke) still work** — existing keys
+  stay visible/revocable, not silently deleted (no data loss, no silent
+  breakage).
+- `settings/mcp/mcp-client.tsx` — rewritten to describe the OAuth
+  connection (no key to copy/manage); the API key section is relabeled
+  "Legacy API Keys (deprecated)", explains they no longer work, and only
+  offers revoke.
+
 ## Deferred out of this pass (tracked in tasks.md, not silently dropped)
 
 - A.2–A.8 (Slack Bolt app, OAuth, slash command, mentions, interactive
   approval, e2e) — blocked on Martin registering a Slack app.
-- B.5/B.6's OAuth wiring (`/api/mcp/authorize`, `/api/mcp/token`, the
-  `OAuthServerProvider` implementation, dynamic client registration) — the
-  MCP tool-list/tool-call core (this pass) is complete and independently
-  testable, but unreachable by a REAL external client until OAuth exists.
-  This is the single largest remaining unknown in the whole spec and
-  deserves its own dedicated pass, not a rushed implementation here.
 - B.7 (DNS subdomain `mcp.leadsens.com`) — infra change, confirm with
   Martin before touching DNS.
-- B.8, Phase C entirely.
+- B.8 (E2E with a REAL Claude Desktop/Cursor/ChatGPT client) — not
+  attempted this pass; setting up a live external OAuth client round-trip
+  is its own step and hasn't been raised with the founder yet.
+- Phase C entirely (per-user MCP rate limiting on the transport itself,
+  /admin/evals per-surface dashboard, public docs, feature flag flip).
 
 ## Exit bar for THIS pass specifically (not all of CHAT-08)
 

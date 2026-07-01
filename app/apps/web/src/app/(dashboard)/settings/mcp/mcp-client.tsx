@@ -3,12 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { SettingsHeader } from "@/components/ui/settings-header";
-import { Input } from "@/components/ui/input";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Copy, Trash2, Plus, Key, ExternalLink } from "lucide-react";
+import { Copy, Trash2, Key } from "lucide-react";
 
 interface McpKeyDisplay {
   id: string;
@@ -21,10 +20,6 @@ interface McpKeyDisplay {
 export default function McpSettingsPage() {
   const [keys, setKeys] = useState<McpKeyDisplay[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [newKeyName, setNewKeyName] = useState("");
-  const [showNameInput, setShowNameInput] = useState(false);
-  const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,31 +39,6 @@ export default function McpSettingsPage() {
   useEffect(() => {
     fetchKeys();
   }, [fetchKeys]);
-
-  async function handleCreate() {
-    setCreating(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/mcp/keys", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newKeyName.trim() || "Default key" }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to create key");
-      }
-      const data = await res.json();
-      setRevealedKey(data.key.rawKey);
-      setNewKeyName("");
-      setShowNameInput(false);
-      await fetchKeys();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create key");
-    } finally {
-      setCreating(false);
-    }
-  }
 
   // E5 — MCP key revocation routes through ConfirmDialog. Busy flag
   // lets the button reflect the pending DELETE.
@@ -157,10 +127,12 @@ export default function McpSettingsPage() {
 
               <div>
                 <label className="text-[12px] font-medium" style={{ color: "var(--color-text-tertiary)" }}>
-                  Protocol
+                  Authentication
                 </label>
                 <p className="mt-0.5 text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
-                  JSON-RPC 2.0 over HTTP POST with Bearer token authentication
+                  OAuth 2.1 (per-user, scoped to your role — the same permissions you have in the LeadSens app).
+                  Your MCP client discovers the connection automatically from this URL; you&apos;ll be redirected here
+                  to sign in and approve the first time it connects. No key to copy or manage.
                 </p>
               </div>
             </div>
@@ -168,107 +140,20 @@ export default function McpSettingsPage() {
         </Card>
       </section>
 
-      {/* Revealed key banner */}
-      {revealedKey && (
-        <div
-          className="mt-6 rounded-lg p-4"
-          style={{
-            background: "var(--color-success-soft)",
-            border: "1px solid var(--color-success)",
-          }}
-        >
-          <p className="text-[13px] font-semibold" style={{ color: "var(--color-success)" }}>
-            API key created. Copy it now - it won't be shown again.
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <code
-              className="flex-1 rounded px-3 py-1.5 text-[13px] font-mono select-all"
-              style={{
-                background: "var(--color-bg-card)",
-                color: "var(--color-text-primary)",
-                border: "1px solid var(--color-border-default)",
-              }}
-            >
-              {revealedKey}
-            </code>
-            <Button
-              variant="solid"
-              size="sm"
-              onClick={() => handleCopy(revealedKey)}
-              icon={<Copy size={13} />}
-            >
-              Copy
-            </Button>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setRevealedKey(null)}
-            className="mt-2"
-          >
-            Dismiss
-          </Button>
-        </div>
-      )}
-
-      {/* API Keys */}
+      {/* Legacy API Keys — deprecated, kept read-only for cleanup */}
       <section className="mt-8">
         <div className="flex items-center justify-between">
           <h2
             className="text-[12px] font-semibold uppercase tracking-wider"
             style={{ color: "var(--color-text-tertiary)" }}
           >
-            API Keys
+            Legacy API Keys (deprecated)
           </h2>
-          {!showNameInput && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowNameInput(true)}
-              icon={<Plus size={13} />}
-            >
-              Create key
-            </Button>
-          )}
         </div>
-
-        {/* Create key form */}
-        {showNameInput && (
-          <Card className="mt-3">
-            <CardBody>
-              <div className="flex items-end gap-3">
-                <div className="flex-1">
-                  <Input
-                    label="Key name"
-                    placeholder="e.g. Claude Desktop, Cursor"
-                    value={newKeyName}
-                    onChange={(e) => setNewKeyName(e.target.value)}
-                    autoFocus
-                    onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                  />
-                </div>
-                <Button
-                  variant="solid"
-                  size="md"
-                  onClick={handleCreate}
-                  loading={creating}
-                >
-                  Generate
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="md"
-                  onClick={() => {
-                    setShowNameInput(false);
-                    setNewKeyName("");
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </CardBody>
-          </Card>
-        )}
+        <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+          API keys no longer work with the MCP connection above — it now uses OAuth. Existing keys are listed here
+          so you can revoke ones you no longer need; you can&apos;t create new ones.
+        </p>
 
         {error && (
           <p className="mt-2 text-[13px]" style={{ color: "var(--color-error)" }}>
@@ -310,10 +195,10 @@ export default function McpSettingsPage() {
                     className="mt-3 text-[13px] font-medium"
                     style={{ color: "var(--color-text-secondary)" }}
                   >
-                    No API keys yet
+                    No legacy API keys
                   </p>
                   <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-                    Create an API key to connect external AI tools to your CRM.
+                    Nothing to clean up — connect external AI tools via the OAuth flow above instead.
                   </p>
                 </div>
               </CardBody>
@@ -402,14 +287,15 @@ export default function McpSettingsPage() {
 {`{
   "mcpServers": {
     "elevay": {
-      "url": "${mcpUrl}",
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY"
-      }
+      "url": "${mcpUrl}"
     }
   }
 }`}
               </pre>
+              <p className="mt-2 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                No API key — Claude Desktop discovers the OAuth connection automatically and opens a browser tab for
+                you to sign in and approve on first connect.
+              </p>
             </div>
 
             <div
@@ -435,10 +321,7 @@ export default function McpSettingsPage() {
                   border: "1px solid var(--color-border-default)",
                 }}
               >
-{`claude mcp add elevay \\
-  --transport http \\
-  --url ${mcpUrl} \\
-  --header "Authorization: Bearer YOUR_API_KEY"`}
+{`claude mcp add elevay --transport http --url ${mcpUrl}`}
               </pre>
             </div>
 
@@ -452,8 +335,12 @@ export default function McpSettingsPage() {
                 className="text-[13px] font-semibold"
                 style={{ color: "var(--color-text-primary)" }}
               >
-                Test with cURL
+                Check the connection is live
               </h3>
+              <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                This confirms LeadSens is advertising the OAuth connection correctly — actually calling a tool
+                requires completing the sign-in + approval step through a real MCP client (above), not cURL alone.
+              </p>
               <pre
                 className="mt-2 rounded p-3 text-[12px] font-mono overflow-x-auto"
                 style={{
@@ -462,10 +349,7 @@ export default function McpSettingsPage() {
                   border: "1px solid var(--color-border-default)",
                 }}
               >
-{`curl -X POST ${mcpUrl} \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`}
+{`curl ${typeof window !== "undefined" ? window.location.origin : "https://your-domain.com"}/.well-known/oauth-authorization-server`}
               </pre>
             </div>
 
@@ -481,37 +365,11 @@ export default function McpSettingsPage() {
               >
                 Available Tools
               </h3>
-              <div className="mt-2 space-y-1.5">
-                {[
-                  ["search_records", "Search contacts, companies, or deals by name"],
-                  ["get_contact", "Get a single contact by ID"],
-                  ["get_company", "Get a single company by ID"],
-                  ["get_deal", "Get a single deal by ID"],
-                  ["list_contacts", "List contacts with optional search"],
-                  ["list_companies", "List companies with optional search"],
-                  ["list_deals", "List deals with optional stage filter"],
-                  ["create_contact", "Create a new contact"],
-                  ["create_deal", "Create a new deal"],
-                  ["log_note", "Add a note to an entity"],
-                  ["list_activities", "List recent activities"],
-                  ["search_crm", "Semantic search across all CRM data"],
-                ].map(([name, desc]) => (
-                  <div key={name} className="flex items-start gap-2">
-                    <code
-                      className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-mono"
-                      style={{
-                        background: "var(--color-bg-hover)",
-                        color: "var(--color-accent)",
-                      }}
-                    >
-                      {name}
-                    </code>
-                    <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-                      {desc}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <p className="mt-1 text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+                40+ tools spanning contacts, accounts, deals, notes, activities, and search — scoped to your role
+                (the same permissions you have in the LeadSens app). Destructive actions (delete/merge) are never
+                available over MCP.
+              </p>
             </div>
           </CardBody>
         </Card>
@@ -519,8 +377,8 @@ export default function McpSettingsPage() {
 
       <ConfirmDialog
         open={revokeKeyId !== null}
-        title="Revoke this API key?"
-        description="Any integration using this key will stop working immediately. You can generate a new key anytime."
+        title="Revoke this legacy API key?"
+        description="This key no longer works against the MCP connection (which now uses OAuth) — revoking just removes it from this list."
         confirmLabel="Revoke key"
         variant="destructive"
         onConfirm={confirmRevoke}
