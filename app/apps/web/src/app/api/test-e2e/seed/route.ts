@@ -40,11 +40,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Seed endpoint disabled" }, { status: 404 });
   }
 
-  const authHeader = req.headers.get("authorization");
-  const expectedSecret = process.env.CRON_SECRET || process.env.E2E_SECRET;
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // A later hardening pass bolted a `CRON_SECRET`/`E2E_SECRET` bearer check
+  // onto this route, but never wired the secret anywhere (not in
+  // tests/e2e/helpers.ts's seedUser(), not in playwright.config.ts's
+  // webServer env, no docs) — it silently 401'd every e2e run through the
+  // ONLY documented path (`pnpm e2e`). The M5 dual gate above is already the
+  // canonical, intentional gate for this route (ENABLE_E2E_SEED is only ever
+  // set by the Playwright pipeline itself, per the doc comment above) — a
+  // redundant unwired secret adds no real protection, just a silent outage.
+  // Removed rather than re-wired.
 
   const body = (await req.json().catch(() => ({}))) as {
     tenantSlug?: string;

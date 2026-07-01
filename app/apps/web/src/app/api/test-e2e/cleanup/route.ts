@@ -37,11 +37,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Cleanup endpoint disabled" }, { status: 404 });
   }
 
-  const authHeader = req.headers.get("authorization");
-  const expectedSecret = process.env.CRON_SECRET || process.env.E2E_SECRET;
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // See seed/route.ts — a later hardening pass added a CRON_SECRET/E2E_SECRET
+  // bearer check here too, never wired anywhere (helpers.ts's cleanupTenant()
+  // sends no header, playwright.config.ts sets no such env var), silently
+  // 401'ing the only documented e2e cleanup path. The M5 dual gate above is
+  // already the canonical, intentional gate. Removed rather than re-wired.
 
   const body = (await req.json().catch(() => ({}))) as {
     tenantId?: string;
