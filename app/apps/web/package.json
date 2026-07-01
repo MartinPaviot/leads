@@ -82,7 +82,7 @@
     "@vitest/coverage-v8": "^4.1.8",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.0.0",
-    "eslint-config-next": "^15.5.15",
+    "eslint-config-next": "^16.2.9",
     "happy-dom": "^20.10.2",
     "postcss": "^8.5.15",
     "tailwindcss": "^4.3.0",
