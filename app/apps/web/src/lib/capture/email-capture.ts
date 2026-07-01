@@ -44,8 +44,7 @@ import {
   getTenantSettings,
   buildIgnoredDomains,
 } from "@/lib/config/tenant-settings";
-import { embedEntity } from "@/lib/ai/embeddings";
-import { ingestEpisode } from "@/lib/ai/context-graph";
+import { captureInboundEmailToBrain } from "@/lib/capture/inbound-email-brain";
 import { inngest } from "@/inngest/client";
 import { classifyInboundSender } from "@/lib/inbound/lead-classification";
 import { stripDangerousHtml } from "@/lib/inbox/sanitize-email";
@@ -412,21 +411,21 @@ export async function captureInboundEmail(
     summary: input.subject || null,
   });
 
-  // Make the inbound searchable in chat/RAG + memory graph (non-blocking,
-  // and only once the activity is actually live — not while pending review).
-  if (res.applied && input.text) {
-    // Skip entity-keyed embedding for an unattributed capture (no entity to
-    // anchor it to); the episode below still makes it searchable in chat/RAG.
-    if (process.env.OPENAI_API_KEY && entityType !== "unassigned" && entityId) {
-      const toEmbed = `Email: ${input.subject || ""}\nFrom: ${input.fromHeader}\n\n${input.text.slice(0, 5000)}`;
-      void embedEntity(tenantId, entityType, `${entityId}-email-${messageId ?? occurredAt.getTime()}`, toEmbed).catch(() => {});
-    }
-    void ingestEpisode(
+  // Make the inbound searchable in chat/RAG + memory graph (non-blocking, and
+  // only once the activity is actually live — not while pending review). The
+  // shared inbound seam skips the entity-keyed embed for an unattributed capture
+  // (no entity to anchor to) and still ingests the graph episode.
+  if (res.applied) {
+    captureInboundEmailToBrain({
       tenantId,
-      `Inbound email from ${input.fromHeader}:\nSubject: ${input.subject || ""}\n\n${input.text.slice(0, 3000)}`,
-      "email",
-      messageId ?? undefined,
-    ).catch(() => {});
+      entityType,
+      entityId,
+      fromHeader: input.fromHeader,
+      subject: input.subject ?? null,
+      text: input.text ?? null,
+      messageId,
+      occurredAt,
+    });
   }
 
   return {

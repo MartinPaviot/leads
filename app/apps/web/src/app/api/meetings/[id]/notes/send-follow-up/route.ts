@@ -9,6 +9,7 @@ import { Resend } from "resend";
 import { buildCtaFootersForActivity, appendFooterIfExternal } from "@/lib/recording/cta";
 import { isRecipientAllowed, recipientBlockReason } from "@/lib/emails/recipient-guardrail";
 import { evaluateSend } from "@/lib/guardrails/sending-gate";
+import { captureOutboundEmail } from "@/lib/capture/outbound-email-capture";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -218,6 +219,30 @@ export async function POST(
       .update(activities)
       .set({ metadata: nextMeta })
       .where(and(eq(activities.id, id), eq(activities.tenantId, authCtx.tenantId), isNull(activities.deletedAt)));
+
+    // Capture the SENT follow-up into the brain (RAG + memory graph), the
+    // outbound mirror of the inbound seam — this route never captured, so the
+    // meeting follow-up (often the "next steps" recap) was invisible to
+    // brain/RAG/graph. Per matched contact; body is the footer-free draft.
+    // Fire-and-forget, fail-soft.
+    const contactIdByEmail = new Map<string, string>();
+    for (const m of meta.matchedContacts ?? []) {
+      if (m.email && m.contactId) contactIdByEmail.set(m.email.toLowerCase(), m.contactId);
+    }
+    for (let i = 0; i < toEmails.length; i++) {
+      const recipient = toEmails[i];
+      // The per-recipient send pushes one id per recipient in order; the bulk
+      // send pushes a single id shared by all recipients.
+      const msgId = messageIds.length === toEmails.length ? messageIds[i] : messageIds[0] ?? null;
+      captureOutboundEmail({
+        tenantId: authCtx.tenantId,
+        contactId: contactIdByEmail.get(recipient.toLowerCase()) ?? null,
+        subject: draft.subject ?? null,
+        body: draft.body ?? null,
+        messageId: msgId ?? null,
+      });
+    }
+
     return NextResponse.json({ ok: true, recipients: toEmails, ctaFootersSent: footerCount });
   } catch (err) {
     logger.error("meetings: follow-up send threw", { err, meetingId: id });

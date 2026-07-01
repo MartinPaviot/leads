@@ -22,6 +22,7 @@ import { db } from "@/db";
 import { activities, contacts, connectedMailboxes } from "@/db/schema";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { listInstantlyEmails } from "@/lib/providers/instantly-client";
+import { captureInboundEmailToBrain } from "@/lib/capture/inbound-email-brain";
 
 /** First non-empty string among the candidate fields, lowercased+trimmed. */
 function pickEmail(obj: Record<string, unknown>, keys: string[]): string {
@@ -238,6 +239,25 @@ export async function ingestInstantlyUnibox(ctx: {
   });
 
   const inserted = await db.insert(activities).values(values).returning({ id: activities.id });
+
+  // Make each captured reply searchable in chat/RAG + the memory graph. Unibox
+  // historically inserted the activities row but bypassed the brain fan-out that
+  // Gmail/IMAP inbound gets (email-capture.ts), so its replies never reached
+  // graph or RAG. Attributed replies embed to their contact; unknown senders get
+  // the graph episode only. Fail-soft, fire-and-forget — never blocks the sync.
+  for (const n of fresh) {
+    const contactId = contactByEmail.get(n.fromEmail) ?? null;
+    captureInboundEmailToBrain({
+      tenantId: ctx.tenantId,
+      entityType: contactId ? "contact" : "unassigned",
+      entityId: contactId ?? "",
+      fromHeader: n.fromEmail,
+      subject: n.subject,
+      text: n.bodyText,
+      messageId: n.instantlyEmailId ?? null,
+      occurredAt: n.occurredAt,
+    });
+  }
 
   return {
     ok: true,

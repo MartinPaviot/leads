@@ -27,6 +27,7 @@ import { evaluateSend } from "@/lib/guardrails/sending-gate";
 import { isSendableBody } from "@/lib/guardrails/empty-body";
 import { getTenantSettings } from "@/lib/config/tenant-settings";
 import { isWithinSendWindow } from "@/lib/emails/send-window";
+import { captureOutboundEmail } from "@/lib/capture/outbound-email-capture";
 
 const BATCH = 25;
 
@@ -188,6 +189,19 @@ export const dispatchOutboundSmtp = inngest.createFunction(
               updatedAt: new Date(),
             })
             .where(eq(outboundEmails.id, o.id));
+
+          // Capture the SENT email into the brain (RAG + memory graph), the
+          // outbound mirror of the inbound seam. The custom-SMTP drain shares the
+          // outbound_emails queue but never captured, so smtp_custom tenants' sent
+          // mail was invisible to brain/RAG/graph. Fire-and-forget, fail-soft.
+          captureOutboundEmail({
+            tenantId: o.tenantId,
+            contactId: o.contactId ?? null,
+            subject: o.subject,
+            body: o.bodyText,
+            messageId: messageId ?? null,
+          });
+
           await db
             .update(connectedMailboxes)
             .set({
