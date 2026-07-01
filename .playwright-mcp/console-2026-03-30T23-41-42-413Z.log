@@ -1,6 +1,0 @@
-[  337743ms] [ERROR] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.
-
-If you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.
-
-For more information, see https://radix-ui.com/primitives/docs/components/dialog @ https://crm.lightfield.app/_next/static/chunks/pages/_app-c5f6d8fa48470bcd.js?dpl=dpl_H1CG2tDWaF4PAQLMdnNq6NSjmSRK:4071
-[  337746ms] [WARNING] Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}. @ https://crm.lightfield.app/_next/static/chunks/pages/_app-c5f6d8fa48470bcd.js?dpl=dpl_H1CG2tDWaF4PAQLMdnNq6NSjmSRK:4068
