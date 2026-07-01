@@ -1,8 +1,0 @@
-[    7271ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ https://x.com/i/flow/login?redirect_after_login=%2Fsearch%3Fq%3Dmonaco.com%26f%3Dimage:0
-[   11179ms] [ERROR] Not signed in with the identity provider. @ https://x.com/i/flow/login?redirect_after_login=%2Fsearch%3Fq%3Dmonaco.com%26f%3Dimage:0
-[   11180ms] [ERROR] [GSI_LOGGER]: FedCM get() rejects with AbortError: signal is aborted without reason @ https://accounts.google.com/gsi/client:81
-[   11181ms] [ERROR] Not signed in with the identity provider. @ https://x.com/i/flow/login?redirect_after_login=%2Fsearch%3Fq%3Dmonaco.com%26f%3Dimage:0
-[   11188ms] [ERROR] Not signed in with the identity provider. @ https://x.com/i/flow/login?redirect_after_login=%2Fsearch%3Fq%3Dmonaco.com%26f%3Dimage:0
-[   11191ms] [ERROR] [GSI_LOGGER]: FedCM get() rejects with AbortError: signal is aborted without reason @ https://accounts.google.com/gsi/client:81
-[   14114ms] [WARNING] [GSI_LOGGER]: google.accounts.id.initialize() is called multiple times. This could cause unexpected behavior and only the last initialized instance will be used. @ https://accounts.google.com/gsi/client:80
-[   19268ms] [ERROR] [GSI_LOGGER]: FedCM get() rejects with NetworkError: Error retrieving a token. @ https://accounts.google.com/gsi/client:81

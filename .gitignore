@@ -58,18 +58,16 @@ app/apps/web/screenshots/
 # Supabase CLI scratch (linked-project state) — machine-local
 supabase/.temp/
 
-# ── Inbox/upstream/call-mode audit scratch (loose root screenshots) ──────
-# Throwaway eval shots from the inbox-parity + call-mode audits. Committed
-# deliverable contact sheets keep their own names (batch*, ai-ui-contact-sheet).
-/OURS-*.png
-/UP-*.png
-/before-*.png
-/after-*.png
-/inbox-*.png
-/PROD-*.png
-/state-*.png
-/starred*.png
-/callmode*.png
+# ── Loose images at repo ROOT are always scratch/eval evidence — never ───
+# commit them. Real product/brand images live under app/, docs/, orion/.
+# This blanket rule supersedes the per-prefix whack-a-mole (OURS-*, inbox-*,
+# callmode-*, batch*, leadsens-*, clerk-*, showcase-*, ui-*, ...) that kept
+# letting each new screenshot batch slip into git history.
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.webp
 # Heavy competitor-capture + merge-prep scratch (raw HTML/PNG/network dumps —
 # kept locally as evidence, far too large to belong in git history).
 /_research/upstream/
