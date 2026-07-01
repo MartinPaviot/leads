@@ -233,6 +233,49 @@ describe("resolveCapabilities", () => {
   });
 });
 
+// Regression: 2026-07-01 live CHAT-08 MCP OAuth verification found 4
+// delete-prefixed tools (deleteSharedPrompt/deleteWorkflow/
+// deleteAccountList/deleteSearchMonitor) present in the REAL registry but
+// missing from DESTRUCTIVE_TOOLS — every other test above uses a synthetic
+// fakeRegistry() fixture, which can never catch this class of drift because
+// it only ever contains names someone remembered to list. This suite uses
+// the real buildAllChatTools registry instead, so a newly-added delete/merge
+// tool that isn't also added to DESTRUCTIVE_TOOLS fails CI immediately.
+describe("resolveCapabilities — DESTRUCTIVE_TOOLS matches the real registry", () => {
+  it("every delete/merge-prefixed tool in the real registry is in DESTRUCTIVE_TOOLS", async () => {
+    const { buildAllChatTools } = await import("@/lib/chat/tools");
+    const fakeCtx = {
+      tenantId: "t1",
+      userId: "u1",
+      authCtx: { userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" } as any,
+      settings: {} as any,
+      agentApprovalMode: "auto" as any,
+    };
+    const registry = buildAllChatTools(fakeCtx);
+    const destructiveByName = Object.keys(registry).filter((name) => /^(delete|merge)/.test(name));
+    // Sanity: this must find tools, otherwise the assertion below is vacuous.
+    expect(destructiveByName.length).toBeGreaterThan(0);
+
+    const missing = destructiveByName.filter((name) => !DESTRUCTIVE_TOOLS.has(name));
+    expect(missing, `delete/merge tool(s) missing from DESTRUCTIVE_TOOLS: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("real registry: no delete/merge tool is reachable over MCP (allowDestructive hard-coded false)", async () => {
+    const { buildAllChatTools } = await import("@/lib/chat/tools");
+    const fakeCtx = {
+      tenantId: "t1",
+      userId: "u1",
+      authCtx: { userId: "u1", tenantId: "t1", appUserId: "u1", role: "admin" } as any,
+      settings: {} as any,
+      agentApprovalMode: "auto" as any,
+    };
+    const registry = buildAllChatTools(fakeCtx);
+    const res = resolveCapabilities(registry, { role: "admin", surface: { type: "mcp" }, allowDestructive: false });
+    const stillReachable = Object.keys(res.tools).filter((name) => /^(delete|merge)/.test(name));
+    expect(stillReachable, `delete/merge tool(s) still reachable over MCP: ${stillReachable.join(", ")}`).toEqual([]);
+  });
+});
+
 describe("resolveCapabilities — viewer (read-only role)", () => {
   function viewerRegistry(): Record<string, { name: string }> {
     const names = [
