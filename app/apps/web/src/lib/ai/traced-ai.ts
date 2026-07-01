@@ -121,7 +121,10 @@ export async function applyLearnedContext(
   tenantId?: string,
   entity?: { contactId?: string; companyId?: string; dealId?: string },
 ): Promise<void> {
-  const activePrompt = await getActivePrompt(agentId).catch(() => null);
+  // Scope few-shots to this tenant: a few-shot output is an approved email
+  // body, so an unscoped fetch would inject another tenant's copy into this
+  // draft (getFewShotExamples fails closed on rows without a tenant tag).
+  const activePrompt = await getActivePrompt(agentId, tenantId).catch(() => null);
   if (activePrompt?.prompt && !aiParams.system) {
     aiParams.system = activePrompt.prompt;
   }
@@ -129,7 +132,7 @@ export async function applyLearnedContext(
   // them separately when there is no active version to bundle them.
   const examples =
     activePrompt?.fewShotExamples ??
-    (await getFewShotExamples(agentId).catch(() => []));
+    (await getFewShotExamples(agentId, tenantId).catch(() => []));
   injectFewShotExamples(aiParams, examples);
 
   // Append learned context for outbound-drafting agents, at the END of

@@ -497,7 +497,10 @@ export async function curateFewShotExamples(
       output: trace.output,
       evalScore: trace.evalScore!,
       sourceTraceId: trace.id,
-      tags: [agentId, "auto-curated"],
+      // tenant tag is load-bearing: getFewShotExamples scopes reads by it, so
+      // a tenant's own auto-curated example must carry it or it can never be
+      // injected (and, worse, an untagged row would be readable cross-tenant).
+      tags: [agentId, "auto-curated", `tenant:${tenantId}`],
     });
     added++;
 
@@ -600,16 +603,34 @@ export async function promoteApprovedCandidates(agentId: string): Promise<number
 /**
  * Get the active few-shot examples for an agent.
  * Inject these into the system prompt for better output quality.
+ *
+ * TENANT ISOLATION: a few-shot `output` holds an approved email body (subject +
+ * body) — tenant-specific content (company, positioning, pricing, deal facts).
+ * Stripping emails/phones at write time is NOT enough to share these across
+ * tenants, so reads are scoped to the tenant whose `tenant:<id>` tag the row
+ * carries. A row with NO tenant tag (e.g. a legacy auto-curated example written
+ * before this scoping) is EXCLUDED — fail closed, never leak one tenant's copy
+ * into another's prompt. Pass tenantId at every live-injection call; omit it
+ * only for background eval callers that don't feed a customer draft.
  */
-export async function getFewShotExamples(agentId: string): Promise<Array<{ input: string; output: string }>> {
+export async function getFewShotExamples(
+  agentId: string,
+  tenantId?: string,
+): Promise<Array<{ input: string; output: string }>> {
+  const conditions = [
+    eq(agentFewShotExamples.agentId, agentId),
+    eq(agentFewShotExamples.isActive, true),
+  ];
+  if (tenantId) {
+    conditions.push(
+      sql`${agentFewShotExamples.tags} @> ${JSON.stringify([`tenant:${tenantId}`])}::jsonb`,
+    );
+  }
   const examples = await db.select({
     input: agentFewShotExamples.input,
     output: agentFewShotExamples.output,
   }).from(agentFewShotExamples)
-    .where(and(
-      eq(agentFewShotExamples.agentId, agentId),
-      eq(agentFewShotExamples.isActive, true),
-    ))
+    .where(and(...conditions))
     .orderBy(desc(agentFewShotExamples.evalScore))
     .limit(3); // inject max 3 to keep context short
 
@@ -620,7 +641,7 @@ export async function getFewShotExamples(agentId: string): Promise<Array<{ input
  * Get the active system prompt for an agent.
  * Returns the versioned prompt if one exists, otherwise null (use default).
  */
-export async function getActivePrompt(agentId: string): Promise<{
+export async function getActivePrompt(agentId: string, tenantId?: string): Promise<{
   prompt: string;
   version: number;
   fewShotExamples: Array<{ input: string; output: string }>;
@@ -634,7 +655,7 @@ export async function getActivePrompt(agentId: string): Promise<{
 
   if (!activeVersion) return null;
 
-  const examples = await getFewShotExamples(agentId);
+  const examples = await getFewShotExamples(agentId, tenantId);
 
   return {
     prompt: activeVersion.systemPrompt,
@@ -735,7 +756,7 @@ export async function runFlywheelCycle(
   let promptActivated = false;
 
   if (patterns.length > 0) {
-    const activePrompt = await getActivePrompt(agentId);
+    const activePrompt = await getActivePrompt(agentId, tenantId);
     const currentPrompt = activePrompt?.prompt || getDefaultPrompt(agentId);
 
     const refinement = await refinePrompt(agentId, currentPrompt);

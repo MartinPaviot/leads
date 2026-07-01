@@ -96,7 +96,7 @@ describe("applyLearnedContext", () => {
     const params: Record<string, unknown> = { prompt: "real question" };
     await applyLearnedContext("draft-email", params);
 
-    expect(getFewShotExamples).toHaveBeenCalledWith("draft-email");
+    expect(getFewShotExamples).toHaveBeenCalledWith("draft-email", undefined);
     expect(params.prompt).toBeUndefined();
     expect(params.messages).toEqual([
       { role: "user", content: "q1" },
@@ -336,5 +336,27 @@ describe("applyLearnedContext — per-company win/loss injection", () => {
       applyLearnedContext("draft-email", params, "tenant-1", { companyId: "co1" }),
     ).resolves.toBeUndefined();
     expect(params.system).toBe("BASE");
+  });
+});
+
+describe("applyLearnedContext — few-shot tenant scoping (no cross-tenant leak)", () => {
+  // A few-shot `output` is an approved email body. It must be fetched scoped to
+  // the caller's tenant, or one tenant's copy leaks into another tenant's draft.
+  beforeEach(() => {
+    getActivePrompt.mockResolvedValue(null);
+    getFewShotExamples.mockResolvedValue([]);
+  });
+
+  it("threads tenantId into getActivePrompt", async () => {
+    getActivePrompt.mockResolvedValue({ prompt: "P", version: 1, fewShotExamples: [] });
+    const params: Record<string, unknown> = { messages: [{ role: "user", content: "hi" }] };
+    await applyLearnedContext("draft-email", params, "tenant-9");
+    expect(getActivePrompt).toHaveBeenCalledWith("draft-email", "tenant-9");
+  });
+
+  it("threads tenantId into the getFewShotExamples fallback when there is no active prompt", async () => {
+    const params: Record<string, unknown> = { prompt: "q" };
+    await applyLearnedContext("draft-email", params, "tenant-9");
+    expect(getFewShotExamples).toHaveBeenCalledWith("draft-email", "tenant-9");
   });
 });
