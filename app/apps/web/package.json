@@ -9,7 +9,7 @@
     "lint": "next lint",
     "tsc": "tsc --noEmit",
     "test": "vitest run",
-    "eval:run": "vitest run --reporter=verbose src/__tests__/chat-eval-suite.test.ts src/__tests__/golden-eval-gate.test.ts src/__tests__/inbox-reply-worthy-gate.test.ts src/__tests__/inbox-derive-style-gate.test.ts src/__tests__/inbox-splits-gate.test.ts src/__tests__/inbox-noise-gate.test.ts src/__tests__/inbox-ask-agent-gate.test.ts src/__tests__/inbox-refine-gate.test.ts src/__tests__/inbox-summary-gate.test.ts src/__tests__/inbox-draft-gate.test.ts src/__tests__/inbox-nudge-gate.test.ts src/__tests__/inbox-nofabrication-gate.test.ts",
+    "eval:run": "vitest run --reporter=verbose src/__tests__/chat-eval-suite.test.ts src/__tests__/golden-eval-gate.test.ts src/__tests__/inbox-reply-worthy-gate.test.ts src/__tests__/inbox-derive-style-gate.test.ts src/__tests__/inbox-splits-gate.test.ts src/__tests__/inbox-noise-gate.test.ts src/__tests__/inbox-ask-agent-gate.test.ts src/__tests__/inbox-refine-gate.test.ts src/__tests__/inbox-summary-gate.test.ts src/__tests__/inbox-draft-gate.test.ts src/__tests__/inbox-nudge-gate.test.ts src/__tests__/inbox-nofabrication-gate.test.ts src/__tests__/deal-signal-recall-gate.test.ts",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:install": "playwright install chromium",

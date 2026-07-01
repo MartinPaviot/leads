@@ -54,7 +54,7 @@ import type {
   GetCompanyBrainOpts,
 } from "./types";
 import { deriveFreshness } from "./freshness";
-import { activityExcerpt } from "./excerpt";
+import { decisionAwareExcerpt } from "./excerpt";
 
 const DEFAULT_RECENT_ACTIVITY_CAP = 50;
 const DEFAULT_CONTACT_CAP = 50;
@@ -202,9 +202,11 @@ export async function getCompanyBrain(
         summary: activitiesTable.summary,
         entityType: activitiesTable.entityType,
         entityId: activitiesTable.entityId,
-        // Bounded head of the body (email text, note, …). left() caps the DB
-        // transfer so a 500k body is never pulled just to be trimmed.
-        excerptRaw: sql<string | null>`left(${activitiesTable.rawContent}, 300)`,
+        // Body window for the decision-aware excerpt. left() caps the DB
+        // transfer (a 500k body is never pulled); 2000 chars is wide enough for
+        // a mid-thread "go"/objection to be in range (a cue past it is out of
+        // reach — bounded + documented in decisionAwareExcerpt).
+        excerptRaw: sql<string | null>`left(${activitiesTable.rawContent}, 2000)`,
       })
       .from(activitiesTable)
       .where(
@@ -487,7 +489,7 @@ export async function getCompanyBrain(
       summary: a.summary,
       entityType: a.entityType,
       entityId: a.entityId,
-      excerpt: activityExcerpt(a.excerptRaw),
+      excerpt: decisionAwareExcerpt(a.excerptRaw),
     })),
     meetings: meetingsHydrated,
     knowledgeEntries: knowledgeRows.map((k) => ({

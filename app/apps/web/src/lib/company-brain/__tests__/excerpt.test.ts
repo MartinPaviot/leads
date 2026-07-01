@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { activityExcerpt, ACTIVITY_EXCERPT_MAX } from "../excerpt";
+import { activityExcerpt, decisionAwareExcerpt, ACTIVITY_EXCERPT_MAX } from "../excerpt";
 
 describe("activityExcerpt", () => {
   it("returns null for empty/whitespace/null/undefined bodies", () => {
@@ -30,5 +30,48 @@ describe("activityExcerpt", () => {
   it("does not append an ellipsis when exactly at the cap", () => {
     const exact = "y".repeat(ACTIVITY_EXCERPT_MAX);
     expect(activityExcerpt(exact)).toBe(exact);
+  });
+});
+
+describe("decisionAwareExcerpt", () => {
+  it("returns null for empty/null bodies", () => {
+    expect(decisionAwareExcerpt(null)).toBeNull();
+    expect(decisionAwareExcerpt("   ")).toBeNull();
+  });
+
+  it("is byte-identical to the head cap when there is NO decision cue", () => {
+    const body = "Thanks for the update, I'll take a look and circle round to you when I can.";
+    expect(decisionAwareExcerpt(body)).toBe(activityExcerpt(body));
+  });
+
+  it("is byte-identical to the head cap when the cue is already in the head window", () => {
+    const body = "We're good to go — send the contract and we'll sign this week.";
+    expect(decisionAwareExcerpt(body)).toBe(activityExcerpt(body));
+  });
+
+  it("windows onto a BURIED cue the head cap would miss (EN)", () => {
+    const pleasantries = "x".repeat(300); // pushes the cue well past the 160 head
+    const body = `${pleasantries} bottom line: we're good to go, send the order form.`;
+    const out = decisionAwareExcerpt(body)!;
+    expect(out).toContain("good to go");
+    expect(out).toContain("order form");
+    expect(out.startsWith("…")).toBe(true); // leading ellipsis = windowed, not head
+    // the OLD head-only excerpt genuinely loses it
+    expect(activityExcerpt(body)!).not.toContain("good to go");
+  });
+
+  it("windows onto a buried cue (FR)", () => {
+    const pleasantries = "a".repeat(300);
+    const body = `${pleasantries} en résumé, c'est bon pour nous, on signe.`;
+    const out = decisionAwareExcerpt(body)!.toLowerCase();
+    expect(out).toContain("c'est bon");
+    expect(out.startsWith("…")).toBe(true);
+  });
+
+  it("stays within the cap (+ at most two ellipses)", () => {
+    const body = "z".repeat(300) + " let's proceed and " + "w".repeat(300);
+    const out = decisionAwareExcerpt(body)!;
+    expect(out.length).toBeLessThanOrEqual(ACTIVITY_EXCERPT_MAX + 2);
+    expect(out).toContain("let's proceed");
   });
 });

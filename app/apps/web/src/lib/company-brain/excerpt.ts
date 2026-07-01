@@ -18,6 +18,8 @@
  */
 export const ACTIVITY_EXCERPT_MAX = 160;
 
+/** Head-only cap — the baseline. Kept as the comparison point the deal-signal
+ *  eval measures `decisionAwareExcerpt` against (see lib/evals/deal-signal). */
 export function activityExcerpt(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const collapsed = raw.replace(/\s+/g, " ").trim();
@@ -25,4 +27,47 @@ export function activityExcerpt(raw: string | null | undefined): string | null {
   return collapsed.length > ACTIVITY_EXCERPT_MAX
     ? collapsed.slice(0, ACTIVITY_EXCERPT_MAX) + "…"
     : collapsed;
+}
+
+/**
+ * Decision cues a deal read must not miss — the buyer's "go", objection,
+ * next-step, or churn signal, EN + FR (the two product languages). Deliberately
+ * broad: this is the deterministic FLOOR that centres the excerpt window; the
+ * LLM judge tier (deal-signal-recall-gate) catches the paraphrases it misses.
+ */
+export const DECISION_CUE_RE =
+  /\b(good to go|let'?s proceed|ready to (?:sign|move|go)|send (?:the|over) (?:the )?(?:contract|paperwork|agreement|order form|msa)|go ahead|we'?re in|sign(?:ed|-?off)?|approv(?:e|ed|al)|move forward|green ?light|kick ?off|too expensive|out of budget|over budget|no budget|blocker|concern|need (?:sign-?off|approval|buy-?in)|security review|legal review|procurement|not (?:sure|moving forward|a fit)|going with|chose (?:another|someone)|by (?:mon|tues|wednes|thurs|fri)day|next (?:week|month|steps?|quarter)|circle back|follow up|schedule (?:a )?(?:call|demo)|pilot|proof of concept|\bpoc\b|board meeting|q[1-4]\b|on signe|c'est bon|on y va|feu vert|validé|je valide|je dois (?:valider|en (?:parler|discuter))|trop cher|hors budget|pas (?:pour nous|le bon moment)|on passe|on abandonne|prochaine étape|on se recale|la semaine prochaine)\b/i;
+
+/**
+ * Excerpt that WINDOWS on the buyer's decision instead of blindly taking the
+ * head. `activityExcerpt` (head-only) silently loses a "go" / objection buried
+ * after a paragraph of pleasantries — the exact 30%-of-context gap Claap's pitch
+ * names. This finds the earliest decision cue and centres the capped window on
+ * it; with no cue (or a cue already inside the head window) it degrades to the
+ * plain head, so the common case is byte-identical to `activityExcerpt`.
+ *
+ * Callers fetch a larger `left(rawContent, N)` (N≈2000) so a mid-thread cue is
+ * actually in range; a cue past N is still out of reach (bounded, documented).
+ */
+export function decisionAwareExcerpt(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const s = raw.replace(/\s+/g, " ").trim();
+  if (!s) return null;
+
+  const m = s.match(DECISION_CUE_RE);
+  const idx = m ? s.indexOf(m[0]) : -1;
+
+  // No cue, or the cue already sits inside the head window → plain head cap
+  // (identical to activityExcerpt, so head-positioned signals are unchanged).
+  if (idx < 0 || idx <= ACTIVITY_EXCERPT_MAX - 24) {
+    return s.length > ACTIVITY_EXCERPT_MAX
+      ? s.slice(0, ACTIVITY_EXCERPT_MAX) + "…"
+      : s;
+  }
+
+  // Buried cue → centre the window on it, with a little lead-in context.
+  const start = Math.max(0, idx - 24);
+  const end = Math.min(s.length, start + ACTIVITY_EXCERPT_MAX);
+  const body = s.slice(start, end);
+  return `${start > 0 ? "…" : ""}${body}${end < s.length ? "…" : ""}`;
 }

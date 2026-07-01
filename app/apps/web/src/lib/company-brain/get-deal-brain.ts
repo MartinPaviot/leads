@@ -15,7 +15,7 @@
  */
 
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
-import { activityExcerpt } from "./excerpt";
+import { decisionAwareExcerpt } from "./excerpt";
 import { db as defaultDb } from "@/db";
 import {
   deals as dealsTable,
@@ -134,7 +134,7 @@ export async function getDealBrain(
       summary: activitiesTable.summary,
       entityType: activitiesTable.entityType,
       entityId: activitiesTable.entityId,
-      excerptRaw: sql<string | null>`left(${activitiesTable.rawContent}, 300)`,
+      excerptRaw: sql<string | null>`left(${activitiesTable.rawContent}, 2000)`,
     })
     .from(activitiesTable)
     .where(
@@ -158,7 +158,7 @@ export async function getDealBrain(
       summary: r.summary,
       entityType: r.entityType,
       entityId: r.entityId,
-      excerpt: activityExcerpt(r.excerptRaw),
+      excerpt: decisionAwareExcerpt(r.excerptRaw),
     }));
   const dealActivitiesTruncated =
     dealActivityRows.length > dealActivityCap;
