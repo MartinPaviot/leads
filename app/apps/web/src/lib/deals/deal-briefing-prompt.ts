@@ -96,5 +96,7 @@ Produce a structured brief with:
 7. **healthScore**: 0-100 based on engagement, velocity, sentiment, and risk signals.
 8. **riskLevel**: "low" (progressing normally), "medium" (slowing), "high" (stalled or negative signals), "critical" (likely to lose).
 
+Do NOT let a warm, grateful, or enthusiastic tone mask a stall. A deal that has been in-stage >14 days AND is either blocked on an external gate (procurement, legal, security review, budget/CFO approval) OR has had no buyer reply to your most recent outreach is HIGH or CRITICAL risk — however friendly the last message read. Weight elapsed time and buyer silence above sentiment.
+
 Base everything on EVIDENCE from the timeline, not assumptions.`;
 }
