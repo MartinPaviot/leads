@@ -72,3 +72,14 @@ supabase/.temp/
 # kept locally as evidence, far too large to belong in git history).
 /_research/upstream/
 /_research/raw/pr277-merge-prep/
+
+# ── Research / audit / eval evidence IMAGES ──────────────────────────────
+# Screenshots, teardown frames and captured pages under the _*-process dirs
+# (research, audit, reports, specs, fixtures, artifacts, ...) are kept ON DISK
+# as local evidence but never tracked — they added ~137 MB of PNGs to git.
+# Non-image docs (.md/.json/.html) in these dirs STAY tracked.
+_*/**/*.png
+_*/**/*.jpg
+_*/**/*.jpeg
+_*/**/*.gif
+_*/**/*.webp

@@ -20,5 +20,4 @@ _fixtures/
 _calibration/
 _specs/
 _credentials/
-fuse-analysis/
 .playwright-mcp/
