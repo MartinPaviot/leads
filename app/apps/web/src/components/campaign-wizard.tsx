@@ -3,13 +3,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   ArrowRight, ArrowLeft, Loader2, Check, Target, Users, Mail,
   Zap, X, Send,
 } from "lucide-react";
 import { INDUSTRIES, COMPANY_SIZES, GEOGRAPHIES, DECISION_MAKER_ROLES } from "@/lib/config/icp-constants";
-import { sanitizeHtml } from "@/lib/infra/sanitize-html";
+import { DraftReviewCard } from "@/components/campaign-draft-card";
 import type { PageAction, PageActionResult } from "@/lib/chat/page-actions/types";
 import { useRegisterPageActions } from "@/lib/chat/page-actions/registry";
 
@@ -544,25 +543,11 @@ export function CampaignWizard({ onClose, onComplete, sequenceId: existingSequen
               ) : (
                 <div className="space-y-2">
                   {emails.filter((e) => reviewFilter === "draft" ? e.status === "draft" : e.status === "queued").slice(0, 30).map((email) => (
-                    <div key={email.id} className="rounded-lg p-4" style={{ background: "var(--color-bg-page)", border: "1px solid var(--color-border-default)" }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[12px] font-medium" style={{ color: "var(--color-text-primary)" }}>
-                            {email.contact ? `${email.contact.firstName || ""} ${email.contact.lastName || ""}`.trim() : email.toAddress}
-                          </span>
-                          {email.contact?.title && (
-                            <span className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>{email.contact.title}</span>
-                          )}
-                          {email.stepNumber && (
-                            <Badge variant="neutral" size="sm">Step {email.stepNumber}</Badge>
-                          )}
-                        </div>
-                        <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>{email.toAddress}</span>
-                      </div>
-                      <p className="text-[13px] font-medium mb-1" style={{ color: "var(--color-text-primary)" }}>{email.subject}</p>
-                      <div className="text-[12px] leading-relaxed line-clamp-3" style={{ color: "var(--color-text-secondary)" }}
-                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(email.bodyHtml.slice(0, 300)) }} />
-                    </div>
+                    <DraftReviewCard
+                      key={email.id}
+                      email={email}
+                      onApproved={() => { if (sequenceId) loadReviewEmails(sequenceId); }}
+                    />
                   ))}
                 </div>
               )}
