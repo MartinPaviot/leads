@@ -6,6 +6,21 @@ const nextConfig: NextConfig = {
   // standalone is only needed for Docker / self-hosted Node.js deployments.
   poweredByHeader: false,
 
+  async rewrites() {
+    // CHAT-08 Part B — RFC 8414 fixes the OAuth authorization-server
+    // metadata path at /.well-known/oauth-authorization-server (no
+    // negotiation, external MCP clients hit this literal path). Routed via
+    // a rewrite to a normal internal route path rather than a literal
+    // `.well-known` App Router folder, to avoid relying on undocumented
+    // dot-folder routing behavior for a spec-mandated public endpoint.
+    return [
+      {
+        source: "/.well-known/oauth-authorization-server",
+        destination: "/api/mcp/well-known-metadata",
+      },
+    ];
+  },
+
   async headers() {
     // H10 + H11 — explicit CSP.
     //

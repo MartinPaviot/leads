@@ -115,6 +115,19 @@ export default auth((req) => {
     // DB work. Listed here as public so the middleware's session gate
     // doesn't redirect the 404 to /sign-in.
     "/api/test-e2e",
+    // CHAT-08 Part B — MCP: LeadSens acting as an OAuth *provider* (issuing
+    // tokens to external MCP clients) plus the actual tool-call transport,
+    // NOT the NextAuth session-cookie gate this middleware otherwise
+    // enforces. /api/mcp/authorize checks getAuthContext() itself and
+    // redirects to /sign-in?callbackUrl=... when absent — if middleware
+    // intercepted it first, the plain (no-callbackUrl) redirect here would
+    // drop the whole OAuth request (client_id/redirect_uri/code_challenge/
+    // state) on the floor. Registration, token exchange, and the tool-call
+    // route are all called by the external client directly with either no
+    // auth yet or a Bearer access token (never our session cookie), and
+    // metadata discovery is a public well-known document by definition.
+    "/.well-known/oauth-authorization-server",
+    "/api/mcp",
   ];
 
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
