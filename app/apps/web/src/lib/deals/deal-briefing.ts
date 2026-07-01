@@ -23,22 +23,18 @@ import {
 } from "@/db/schema";
 import { and, desc, eq, isNull, notInArray, or, inArray } from "drizzle-orm";
 import { tracedGenerateObject } from "@/lib/ai/traced-ai";
-import { anthropic } from "@/lib/ai/ai-provider";
 import { openai } from "@ai-sdk/openai";
 import { llmCall } from "@/lib/ai/llm-call";
 import { ageInStage } from "./deal-helpers";
 import { dealBriefSchema, type DealBrief } from "./deal-briefing-schema";
+import {
+  buildDealBriefPrompt,
+  formatDealTimeline,
+  getDealBriefModel,
+} from "./deal-briefing-prompt";
 
 export { dealBriefSchema } from "./deal-briefing-schema";
 export type { DealBrief } from "./deal-briefing-schema";
-
-// ── LLM Model ────────────────────────────────────────────
-
-function getLLMModel() {
-  if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-sonnet-4-6");
-  if (process.env.OPENAI_API_KEY) return openai("gpt-4o-mini");
-  return null;
-}
 
 // ── Core: Build Brief for One Deal ───────────────────────
 
@@ -120,15 +116,7 @@ export async function buildDealBrief(
   const age = ageInStage(deal.updatedAt, deal.stage);
 
   // 7. Format activity timeline for LLM
-  const timeline = dealActivities
-    .map((a) => {
-      const date = a.occurredAt?.toISOString().split("T")[0] ?? "unknown";
-      const bodySnippet = a.rawContent ? a.rawContent.slice(0, 500) : "";
-      const meta = (a.metadata || {}) as Record<string, unknown>;
-      const subject = (meta.subject as string) || "";
-      return `[${date}] ${a.channel}/${a.activityType} (${a.direction ?? "?"}) — ${a.summary || "no summary"}${subject ? `\n  Subject: ${subject}` : ""}${bodySnippet ? `\n  Excerpt: ${bodySnippet}` : ""}`;
-    })
-    .join("\n\n");
+  const timeline = formatDealTimeline(dealActivities);
 
   // 8. Format graph facts for LLM
   const graphSection = graphFacts.length > 0
@@ -139,7 +127,7 @@ export async function buildDealBrief(
   const signalSection = formatSignals(enrichmentSignals);
 
   // 10. LLM call to synthesize brief
-  const model = getLLMModel();
+  const model = getDealBriefModel();
   if (!model) {
     throw new Error("No LLM API key configured");
   }
@@ -171,39 +159,21 @@ export async function buildDealBrief(
         companyName: true,
         daysInStage: true,
       }),
-      prompt: `You are a senior sales analyst producing a deal briefing. Be specific and use evidence from the timeline. Include verbatim quotes when available.
-
-## Deal
-- Name: ${deal.name}
-- Stage: ${deal.stage}
-- Value: ${deal.value ? `$${deal.value}` : "unset"}
-- Company: ${companyName || "unknown"}
-- Contact: ${contactName || "unknown"}${contact?.title ? ` (${contact.title})` : ""}
-- Days in current stage: ${age?.days ?? "unknown"}
-- Stall status: ${age?.bucket ?? "unknown"}
-- Deal summary: ${deal.summary || "none"}
-
-## Activity Timeline (${dealActivities.length} interactions, most recent first)
-${timeline || "No activities recorded"}
-
-## Knowledge Graph Facts
-${graphSection}
-
-## Extracted Signals from Emails
-${signalSection}
-
-## Your Task
-Produce a structured brief with:
-1. **summary**: 2-3 sentence overview of where this deal stands
-2. **keyDiscussions**: The 3-5 most important conversations, with dates and topics. Include verbatim quotes if available from the excerpts.
-3. **promisesMade**: Commitments made by us ("we'll send the spec by Friday") or them ("we'll review internally"). Mark fulfilled if evidence exists, null if unknown.
-4. **objectionsRaised**: Concerns raised by the prospect. Status: "open" if unaddressed, "addressed" if we responded, "resolved" if they accepted.
-5. **stallReason**: If the deal is stalled (>14 days in stage), explain WHY based on the evidence. null if not stalled.
-6. **nextAction**: The single most important thing to do next. Be specific.
-7. **healthScore**: 0-100 based on engagement, velocity, sentiment, and risk signals.
-8. **riskLevel**: "low" (progressing normally), "medium" (slowing), "high" (stalled or negative signals), "critical" (likely to lose).
-
-Base everything on EVIDENCE from the timeline, not assumptions.`,
+      prompt: buildDealBriefPrompt({
+        dealName: deal.name,
+        stage: deal.stage,
+        value: deal.value,
+        companyName,
+        contactName,
+        contactTitle: contact?.title ?? null,
+        daysInStage: age?.days ?? "unknown",
+        stallBucket: age?.bucket ?? "unknown",
+        dealSummary: deal.summary,
+        activityCount: dealActivities.length,
+        timeline,
+        graphSection,
+        signalSection,
+      }),
       _trace: {
         agentId: "deal-briefing",
         tenantId,
