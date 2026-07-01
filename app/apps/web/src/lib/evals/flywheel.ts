@@ -30,7 +30,7 @@ import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { AGENT_REGISTRY } from "../observability/observability";
 import logger from "../observability/logger";
-import { captureDistillationSample } from "../distillation/pipeline";
+import { captureDistillationSample, type DistillationQualitySource } from "../distillation/pipeline";
 
 // ─── 1. Failure → Eval Case ─────────────────────────────────
 
@@ -885,6 +885,13 @@ export async function recordFlywheelCandidate(
   input: string,
   output: string,
   tenantId: string,
+  // Where this candidate came from. An unedited founder approval
+  // ("user_approved") says the AI got it right; the founder's EDITED
+  // final ("user_edited") is the stronger teaching signal — the same
+  // insert-inactive path, tagged distinctly so its downstream value
+  // can be measured separately. Defaulted so existing 4-arg callers
+  // (e.g. the reply-flywheel listener) are unchanged.
+  qualitySource: DistillationQualitySource = "user_approved",
 ): Promise<{ id: string } | null> {
   try {
     if (!input || !output) return null;
@@ -926,7 +933,11 @@ export async function recordFlywheelCandidate(
         output: safeOutput,
         evalScore: INITIAL_CANDIDATE_SCORE,
         isActive: false, // not active until curateFewShotExamples promotes it
-        tags: [agentId, "user-approved", `tenant:${tenantId}`],
+        tags: [
+          agentId,
+          qualitySource === "user_edited" ? "user-edited" : "user-approved",
+          `tenant:${tenantId}`,
+        ],
       })
       .returning({ id: agentFewShotExamples.id });
 
@@ -943,7 +954,7 @@ export async function recordFlywheelCandidate(
       systemPrompt: "", // system prompt not available here; captured at trace level
       userInput: input,
       assistantOutput: output,
-      qualitySource: "user_approved",
+      qualitySource,
       qualityScore: INITIAL_CANDIDATE_SCORE,
       tenantId,
     }).catch(() => {}); // swallow errors

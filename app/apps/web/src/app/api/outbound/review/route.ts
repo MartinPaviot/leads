@@ -107,37 +107,42 @@ export async function PUT(req: Request) {
         // Swallow — trust scoring must never block the approval flow.
       });
 
-      // Flywheel: when approved without edits, the AI output is a
-      // candidate few-shot example. Fetch the original draft to capture
-      // the input/output pair for the flywheel.
-      if (!hasEdits) {
-        const [emailRow] = await db
-          .select({
-            subject: outboundEmails.subject,
-            bodyHtml: outboundEmails.bodyHtml,
-            contactId: outboundEmails.contactId,
-          })
-          .from(outboundEmails)
-          .where(
-            and(
-              eq(outboundEmails.id, emailId),
-              eq(outboundEmails.tenantId, authCtx.tenantId),
-            ),
-          )
-          .limit(1);
+      // Flywheel: capture the approved draft as a few-shot / distillation
+      // example. An unedited approval ("user_approved") says the AI got it
+      // right; an approval WITH edits ("user_edited") captures the founder's
+      // corrected final — the strongest teaching signal, and the only one
+      // with fuel from the very first edit (no deal volume or outcome
+      // resolution needed). Trust scoring above still treats an edit as
+      // weaker autonomy; here the edited FINAL is a first-class example.
+      // The row was just updated above, so this re-fetch returns the edited
+      // final whenever hasEdits is true.
+      const [emailRow] = await db
+        .select({
+          subject: outboundEmails.subject,
+          bodyHtml: outboundEmails.bodyHtml,
+          contactId: outboundEmails.contactId,
+        })
+        .from(outboundEmails)
+        .where(
+          and(
+            eq(outboundEmails.id, emailId),
+            eq(outboundEmails.tenantId, authCtx.tenantId),
+          ),
+        )
+        .limit(1);
 
-        if (emailRow) {
-          const input = `Draft email to contact ${emailRow.contactId || "unknown"}`;
-          const output = `Subject: ${emailRow.subject || ""}\n\n${emailRow.bodyHtml || ""}`;
-          recordFlywheelCandidate(
-            "draft-email",
-            input,
-            output,
-            authCtx.tenantId,
-          ).catch(() => {
-            // Swallow — flywheel is best-effort, never blocks approval.
-          });
-        }
+      if (emailRow) {
+        const input = `Draft email to contact ${emailRow.contactId || "unknown"}`;
+        const output = `Subject: ${emailRow.subject || ""}\n\n${emailRow.bodyHtml || ""}`;
+        recordFlywheelCandidate(
+          "draft-email",
+          input,
+          output,
+          authCtx.tenantId,
+          hasEdits ? "user_edited" : "user_approved",
+        ).catch(() => {
+          // Swallow — flywheel is best-effort, never blocks approval.
+        });
       }
       break;
     }

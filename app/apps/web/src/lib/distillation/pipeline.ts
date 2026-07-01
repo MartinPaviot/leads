@@ -19,6 +19,21 @@ import logger from "../observability/logger";
 
 // ── Types ──────────────────────────────────────────────────────
 
+/**
+ * Where a captured training sample came from.
+ * - user_approved: a draft the founder approved WITHOUT edits (the AI got it right).
+ * - user_edited: the founder's EDITED final of a draft (the strongest teaching
+ *   signal — "here is what I actually want sent" — kept separable from
+ *   user_approved so its downstream value can be measured on its own).
+ * - eval_high_score: auto-curated from a high-scoring production trace.
+ * - explicit_feedback: an explicit thumbs-up / correction.
+ */
+export type DistillationQualitySource =
+  | "user_approved"
+  | "user_edited"
+  | "eval_high_score"
+  | "explicit_feedback";
+
 export interface DistillationSample {
   id: string;
   agentId: string;
@@ -26,7 +41,7 @@ export interface DistillationSample {
   userInput: string;          // anonymized
   assistantOutput: string;    // anonymized
   toolCalls: string[];        // tool names only, no args
-  qualitySource: "user_approved" | "eval_high_score" | "explicit_feedback";
+  qualitySource: DistillationQualitySource;
   qualityScore: number;       // 0-1
   createdAt: string;
 }
@@ -37,7 +52,7 @@ export interface CaptureParams {
   userInput: string;
   assistantOutput: string;
   toolCalls?: string[];
-  qualitySource: "user_approved" | "eval_high_score" | "explicit_feedback";
+  qualitySource: DistillationQualitySource;
   qualityScore: number;
   tenantId: string;
   traceId?: string;
