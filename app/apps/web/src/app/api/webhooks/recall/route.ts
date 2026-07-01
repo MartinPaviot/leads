@@ -1,7 +1,8 @@
 import { db } from "@/db";
 import { activities, contacts, companies, deals } from "@/db/schema";
 import { eq, and, sql, ilike } from "drizzle-orm";
-import { getBotStatus, getBotTranscript, transcriptToText, mapBotStatus } from "@/lib/integrations/recall";
+import { getBotStatus, getBotTranscript, transcriptToText, mapBotStatus, recallSegmentsToChunkSegments } from "@/lib/integrations/recall";
+import { indexTranscript } from "@/lib/coaching/index-transcript";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { summarizeMeetingTranscript } from "@/lib/meetings/summarize-transcript";
 
@@ -175,6 +176,8 @@ async function processTranscriptFromBot(
   // 1. Fetch transcript + recording URL from Recall.ai
   let transcriptText: string;
   let recordingUrl: string | null = null;
+  // Hoisted so the speaker-aware segments survive to the RAG-indexing step below.
+  let botSegments: Awaited<ReturnType<typeof getBotTranscript>> = [];
   try {
     // Get bot details for recording URL
     const botDetails = await getBotStatus(botId);
@@ -182,6 +185,7 @@ async function processTranscriptFromBot(
     recordingUrl = recording?.media_shortcuts?.video_mixed?.data?.download_url || null;
 
     const segments = await getBotTranscript(botId);
+    botSegments = segments;
     transcriptText = transcriptToText(segments);
   } catch (err) {
     console.error(`[Recall] Failed to fetch transcript for bot ${botId}:`, err);
@@ -353,6 +357,23 @@ async function processTranscriptFromBot(
       });
       await embedEntity(tenantId, "activity", activityId, activityText);
     } catch { /* non-critical */ }
+  }
+
+  // 6b. Index the FULL transcript into transcript_chunks (pgvector), speaker- and
+  // timestamp-aware, exactly like the calls path (indexTranscript, source
+  // "cold_call"). Until now only the ~3k-char head reached RAG via embedEntity;
+  // long meetings lost their middle + tail. Idempotent (wipes prior chunks for
+  // this meeting) + fail-soft. rawText is the fallback when segments are empty.
+  try {
+    await indexTranscript({
+      tenantId,
+      meetingId: activityId,
+      segments: recallSegmentsToChunkSegments(botSegments),
+      rawText: transcriptText,
+      source: "recall_bot",
+    });
+  } catch (e) {
+    console.warn(`[Recall] indexTranscript failed for activity ${activityId} (non-blocking)`, e);
   }
 
   // 7. Ingest to context graph

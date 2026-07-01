@@ -4,6 +4,7 @@
  */
 
 import { withCircuitBreaker, RECALL_CIRCUIT } from "../infra/circuit-breaker";
+import type { TranscriptSegment as ChunkTranscriptSegment } from "@/lib/coaching/chunk-transcript";
 
 const RECALL_BASE = "https://us-east-1.recall.ai/api/v1";
 
@@ -216,6 +217,31 @@ export function transcriptToText(segments: TranscriptSegment[]): string {
       return `${speaker}: ${text}`;
     })
     .join("\n\n");
+}
+
+/**
+ * Map Recall.ai's per-turn transcript segments onto the speaker-aware
+ * `TranscriptSegment` shape the transcript chunker/indexer expects
+ * (`lib/coaching/chunk-transcript`). One Recall segment = one speaker turn; we
+ * take its first word's relative start and last word's relative end as the
+ * time window, and join the words as the turn text. Empty turns are dropped.
+ * Pure — unit-tested so the mapping stays locked as the indexer relies on it.
+ */
+export function recallSegmentsToChunkSegments(segments: TranscriptSegment[]): ChunkTranscriptSegment[] {
+  const out: ChunkTranscriptSegment[] = [];
+  for (const seg of segments) {
+    const text = seg.words.map((w) => w.text).join(" ").trim();
+    if (!text) continue;
+    const startSec = seg.words[0]?.start_timestamp?.relative ?? 0;
+    const endSec = seg.words[seg.words.length - 1]?.end_timestamp?.relative ?? startSec;
+    out.push({
+      speaker: seg.participant.name || (seg.participant.id != null ? `Speaker ${seg.participant.id}` : null),
+      startSec,
+      endSec: Math.max(endSec, startSec),
+      text,
+    });
+  }
+  return out;
 }
 
 /**

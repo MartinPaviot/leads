@@ -216,6 +216,17 @@ export async function applyTranscript(
     }
   }
 
+  // Index the FULL transcript into transcript_chunks (pgvector) for RAG, like
+  // the calls path — until now only the ~3k-char head reached RAG via
+  // embedEntity. This path has no speaker-diarised segments, so it indexes the
+  // raw text (time-window chunks). Idempotent + fail-soft.
+  try {
+    const { indexTranscript } = await import("@/lib/coaching/index-transcript");
+    await indexTranscript({ tenantId, meetingId: activityId, rawText: transcriptText, source });
+  } catch (e) {
+    console.warn(`[apply-transcript] indexTranscript failed for activity ${activityId} (non-blocking)`, e);
+  }
+
   // Ingest into the context graph (non-critical).
   try {
     const { ingestEpisode } = await import("@/lib/ai/context-graph");
