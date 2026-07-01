@@ -66,6 +66,18 @@ export const DESTRUCTIVE_TOOLS = new Set<string>([
   "deleteContact",
   "deleteAccount",
   "deleteDeal",
+  // Found via live CHAT-08 MCP OAuth verification (2026-07-01): these 4
+  // delete-prefixed tools existed in the registry but were never added
+  // here, so they were reachable over MCP despite allowDestructive being
+  // hard-coded false in build-mcp-server.ts — the "no destructive actions
+  // over MCP" guarantee (design.md, settings/mcp copy) was false for them.
+  // See __tests__/capability-resolver.test.ts's registry-drift regression
+  // test, which now fails the build if a delete/merge-prefixed tool is
+  // ever added to the real registry without being added here too.
+  "deleteSharedPrompt",
+  "deleteWorkflow",
+  "deleteAccountList",
+  "deleteSearchMonitor",
 ]);
 
 /** Surface context that seeds prompt + tool priority. */
