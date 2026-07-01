@@ -10,17 +10,17 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "bullmq": "^5.78.0",
+    "bullmq": "^5.79.2",
     "ioredis": "^5.11.1",
     "postgres": "^3.4.9",
     "drizzle-orm": "^0.45.2",
-    "@anthropic-ai/sdk": "^0.104.1",
+    "@anthropic-ai/sdk": "^0.109.0",
     "dotenv": "^16.5.0"
   },
   "devDependencies": {
     "tsx": "^4.22.4",
     "typescript": "^5.8.0",
     "@types/node": "^22.0.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.9"
   }
 }

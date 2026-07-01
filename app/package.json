@@ -9,12 +9,12 @@
     "tsc": "turbo tsc"
   },
   "devDependencies": {
-    "turbo": "^2.9.17",
+    "turbo": "^2.10.2",
     "typescript": "^5.8.0"
   },
   "packageManager": "pnpm@10.15.1",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.104.1"
+    "@anthropic-ai/sdk": "^0.109.0"
   },
   "pnpm": {
     "overrides": {
