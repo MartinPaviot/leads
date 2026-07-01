@@ -387,6 +387,9 @@ export const generateMeetingPrep = inngest.createFunction(
     const { deals } = await import("@/db/schema");
     const { deriveMoment } = await import("@/lib/motion/moment");
     const { getStepDoctrine } = await import("@/lib/motion/doctrine");
+    const { buildDoctrineBlock, buildMeetingPrepPrompt } = await import(
+      "@/lib/meetings/meeting-prep-prompt"
+    );
 
     // Best available deal for this meeting: a directly linked deal, else the
     // most recently touched open deal at any attendee's company.
@@ -436,25 +439,11 @@ export const generateMeetingPrep = inngest.createFunction(
       : (meetingTypeMoment[(meta.meetingType as string) ?? ""] ?? "discovery");
 
     const { rubric } = getStepDoctrine(moment);
-    const doctrineBlock = rubric
-      ? `\n## Method doctrine for a ${moment.replace("_", " ")} meeting (apply these rules to THIS account; do not restate them)\n${rubric}\n`
-      : "";
+    const doctrineBlock = buildDoctrineBlock(moment, rubric);
 
     const { text: prepDoc } = await tracedGenerateText({
       model,
-      prompt: `Generate a concise, tactical prep document for an upcoming ${moment.replace("_", " ")} meeting. Specialize it to this moment: a discovery diagnoses and quantifies the gap, a demo proves the gap closes against named pains, a proposal/close drives the decision.
-
-${context}
-${doctrineBlock}
-Tailor every section to a ${moment.replace("_", " ")} meeting:
-1. Account snapshot (what we know about the company/contact)
-2. Key attendees and their roles
-3. Recent interaction summary
-4. The specific play for this moment (apply the doctrine above to THIS account)
-5. Questions or talking points that fit this moment
-6. Likely objections for this moment, with responses
-
-Ground everything in the data above; never invent a fact (write "unknown" if needed). Keep it actionable and under 500 words.`,
+      prompt: buildMeetingPrepPrompt(moment, context, doctrineBlock),
       _trace: { agentId: "generate-meeting-prep", tenantId },
     });
 
