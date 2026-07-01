@@ -27,6 +27,28 @@ export function dealReadHaystack(b: DealBriefBody): string {
   return parts.join(" \n ").toLowerCase();
 }
 
+/**
+ * A forbidden term only counts as a fabrication when the read ASSERTS it, not
+ * when it negates it. On a healthy deal the model naturally writes "not stalled"
+ * / "no sign it's lost" — a naive substring match would flag that as an invented
+ * stall (observed: healthy-progressing false-failed on "stalled"). Treat an
+ * occurrence as negated when a negator sits in the short window right before it;
+ * the term is a real claim only if ≥1 occurrence has no nearby negator.
+ */
+const NEGATORS = ["not ", "no ", "never ", "without ", "cannot ", "n't ", "isn't", "aren't", "wasn't"];
+
+export function assertsToken(haystack: string, term: string): boolean {
+  const hay = haystack.toLowerCase();
+  const t = term.toLowerCase();
+  let idx = hay.indexOf(t);
+  while (idx !== -1) {
+    const before = hay.slice(Math.max(0, idx - 24), idx);
+    if (!NEGATORS.some((n) => before.includes(n))) return true; // un-negated → real claim
+    idx = hay.indexOf(t, idx + t.length);
+  }
+  return false;
+}
+
 export interface DealReadGrade {
   pass: boolean;
   failures: string[];
@@ -52,7 +74,7 @@ export function gradeDealRead(
     }
   }
   for (const f of golden.mustNotFabricate) {
-    if (hay.includes(f.toLowerCase())) failures.push(`fabricated "${f}"`);
+    if (assertsToken(hay, f)) failures.push(`fabricated "${f}"`);
   }
 
   return { pass: failures.length === 0, failures };
