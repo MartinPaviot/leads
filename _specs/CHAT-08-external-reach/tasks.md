@@ -4,8 +4,13 @@ Copy of the implementation plan. Design rationale lives in office-hours.md + des
 
 ## Phase A — Slack integration (≈3 weeks)
 
-- **A.1** Schema + migration 0016_slack.sql (slack_installations + pending_slack_approvals tables).
-- **A.2** Install `@slack/bolt` + `@slack/web-api`. Add SLACK_CLIENT_ID / SLACK_CLIENT_SECRET / SLACK_SIGNING_SECRET env vars.
+- **A.1** ✅ DONE (2026-07-01) — Schema + migration `0109_chat08_slack_and_mcp_traces.sql`
+  (`slack_installations` + `pending_slack_approvals` tables). See `src/db/schema/slack.ts`.
+- **A.2** 🛑 BLOCKED — needs a human (Martin) to register a Slack app at
+  api.slack.com/apps and provide `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`/
+  `SLACK_SIGNING_SECRET`. Everything below is deliberately NOT built yet —
+  see design.md "don't build the Bolt app wiring speculatively against
+  unregistered scopes."
 - **A.3** `GET /api/slack/install` + `GET /api/slack/oauth/callback`. UI "Connect Slack" button in /settings/integrations.
 - **A.4** `lib/slack/app.ts` factory (per-installation Bolt app); `lib/slack/user-map.ts` Slack↔LeadSens user via email.
 - **A.5** `/leadsens` slash command handler. Ack ≤3s, run async, post via response_url. Uses buildAllChatTools + resolver(surface="slack").
@@ -15,13 +20,37 @@ Copy of the implementation plan. Design rationale lives in office-hours.md + des
 
 ## Phase B — Public MCP (≈2 weeks)
 
-- **B.1** Install `@modelcontextprotocol/sdk`.
-- **B.2** Migration 0017: agent_traces.mcp_client column. Extend TraceMetadata.
-- **B.3** `lib/mcp/zod-to-jsonschema.ts` adapter (zod → JSON-Schema 7).
-- **B.4** `lib/mcp/server.ts` — per-request MCP Server instance, ToolContext derived from session, buildAllChatTools + resolver(surface="mcp").
-- **B.5** `GET /api/mcp/sse` (SSE transport).
-- **B.6** `POST /api/mcp/messages` (JSON-RPC). Parse User-Agent → trace.mcpClient.
-- **B.7** Subdomain `mcp.leadsens.com` via DNS + route config.
+- **B.1** ✅ DONE (2026-07-01) — Installed `@modelcontextprotocol/sdk@1.29.0`
+  (peers cleanly on zod@4.4.3, already this repo's zod version).
+- **B.2** ✅ DONE — same migration as A.1 also adds `agent_traces.surface_type`
+  + `agent_traces.mcp_client`. Extended `TraceMetadata` (`mcpClient` field)
+  and, importantly, fixed all 6 `recordTrace()` call sites in
+  `traced-ai.ts` that were silently DROPPING the existing `surfaceType`
+  field — a pre-existing bug affecting in-app chat attribution too, not
+  just new MCP/Slack traffic. See design.md's "Schema gap found" section.
+- **B.3** ❌ REMOVED — moot. `McpServer.registerTool` converts Zod → JSON
+  Schema internally (confirmed by reading the SDK source); no custom
+  adapter needed. What WAS needed and isn't in the original plan: a
+  `.shape`-extraction step, since this SDK version wants a raw
+  `ZodRawShape`, not a wrapped `z.object(...)` — see `toMcpShape()` in
+  `lib/mcp/build-mcp-server.ts`.
+- **B.4** ✅ DONE — `lib/mcp/build-mcp-server.ts#buildMcpServerForContext()` +
+  `lib/mcp/identify-client.ts#identifyMcpClient()`. Builds a fresh,
+  stateless, per-request `McpServer` from `buildAllChatTools` +
+  `resolveCapabilities(surface: {type:"mcp"}, allowDestructive: false — HARD-CODED, not a param)`.
+  15 tests (10 unit + regression coverage for the traced-ai.ts fix).
+  Independently correct and tested WITHOUT a transport/OAuth in front of it.
+- **B.5 / B.6** 🛑 NOT STARTED — the real remaining unknown. Needs an actual
+  OAuth 2.1 **authorization server** implementation (LeadSens issuing
+  tokens to external clients), not just "reuse NextAuth" (NextAuth makes
+  US a Google/MS OAuth *client*, not a *provider* — see design.md's
+  correction to office-hours.md's premise). The SDK's `ProxyOAuthServerProvider`
+  is Express-`Response`-coupled, not Fetch-API compatible — using it as-is
+  inside a Next.js Route Handler doesn't work. The transport itself IS
+  solved: `WebStandardStreamableHTTPServerTransport.handleRequest(req: Request): Promise<Response>`
+  maps directly onto a Next.js route handler once auth exists in front of
+  it. This is its own multi-day pass.
+- **B.7** Subdomain `mcp.leadsens.com` via DNS + route config. Infra change — confirm with Martin first.
 - **B.8** E2E with Claude Desktop, Cursor, ChatGPT.
 
 ## Phase C — Hardening + launch (≈1 week)

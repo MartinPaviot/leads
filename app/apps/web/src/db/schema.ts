@@ -28,3 +28,4 @@ export * from "./schema/segments";
 export * from "./schema/account-lists";
 export * from "./schema/linkedin";
 export * from "./schema/search-monitors";
+export * from "./schema/slack";

@@ -40,6 +40,9 @@ interface TraceMetadata {
   surfaceType?: string;
   allowedToolCount?: number;
   droppedToolCount?: number;
+  // CHAT-08: external MCP client identified via User-Agent, e.g. "claude" |
+  // "cursor" | "chatgpt" | "unknown". Absent for non-MCP surfaces.
+  mcpClient?: string;
   // Orchestrator telemetry
   orchestratorRouted?: boolean;
   orchestratorSpecialists?: string;
@@ -192,7 +195,7 @@ export async function tracedGenerateText(
 
     // Record trace (async, don't block)
     recordTrace(
-      { agentId: _trace.agentId, tenantId: _trace.tenantId, traceId: _trace.traceId },
+      { agentId: _trace.agentId, tenantId: _trace.tenantId, traceId: _trace.traceId, surfaceType: _trace.surfaceType, mcpClient: _trace.mcpClient },
       {
         input: _trace.inputPreview || extractInput(aiParams),
         output: result.text?.slice(0, 2000),
@@ -211,7 +214,7 @@ export async function tracedGenerateText(
   } catch (err) {
     const latencyMs = Date.now() - start;
     recordTrace(
-      { agentId: _trace.agentId, tenantId: _trace.tenantId },
+      { agentId: _trace.agentId, tenantId: _trace.tenantId, surfaceType: _trace.surfaceType, mcpClient: _trace.mcpClient },
       {
         input: _trace.inputPreview || extractInput(aiParams),
         model: extractModelId(aiParams),
@@ -257,7 +260,7 @@ export async function tracedGenerateObject(
     const latencyMs = Date.now() - start;
 
     recordTrace(
-      { agentId: _trace.agentId, tenantId: _trace.tenantId, traceId: _trace.traceId },
+      { agentId: _trace.agentId, tenantId: _trace.tenantId, traceId: _trace.traceId, surfaceType: _trace.surfaceType, mcpClient: _trace.mcpClient },
       {
         input: _trace.inputPreview || extractInput(aiParams),
         output: JSON.stringify(result.object)?.slice(0, 2000),
@@ -273,7 +276,7 @@ export async function tracedGenerateObject(
   } catch (err) {
     const latencyMs = Date.now() - start;
     recordTrace(
-      { agentId: _trace.agentId, tenantId: _trace.tenantId },
+      { agentId: _trace.agentId, tenantId: _trace.tenantId, surfaceType: _trace.surfaceType, mcpClient: _trace.mcpClient },
       {
         input: _trace.inputPreview || extractInput(aiParams),
         model: extractModelId(aiParams),
@@ -337,6 +340,8 @@ export async function tracedStreamText(
         tenantId: _trace.tenantId,
         traceId: _trace.traceId,
         metadata: toolSelectionMeta,
+        surfaceType: _trace.surfaceType,
+        mcpClient: _trace.mcpClient,
       },
       {
         input: _trace.inputPreview || "chat message",
@@ -359,7 +364,7 @@ export async function tracedStreamText(
   } catch (err) {
     const latencyMs = Date.now() - start;
     recordTrace(
-      { agentId: _trace.agentId, tenantId: _trace.tenantId },
+      { agentId: _trace.agentId, tenantId: _trace.tenantId, surfaceType: _trace.surfaceType, mcpClient: _trace.mcpClient },
       {
         input: _trace.inputPreview || "chat message",
         model: extractModelId(aiParams),

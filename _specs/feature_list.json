@@ -123,9 +123,9 @@
       "description": "Slack app: /leadsens query + @leadsens mentions, WITH write support (beat Attio's read-only limitation). Interactive buttons for approvals. Public MCP at mcp.leadsens.com, OAuth-only, exposes ≥50 tools (parity + enrich). Tested against Claude Desktop, Cursor, ChatGPT.",
       "dependencies": ["CHAT-02", "CHAT-04"],
       "milestone": "M4-external",
-      "status": "spec_ready",
+      "status": "in_progress",
       "estimate_days": 14,
-      "progress": "Kiro spec committed at _specs/CHAT-08-external-reach/ (office-hours, requirements AC1-AC6, tasks Phase A/B/C with 20 tasks across 6 weeks). No code yet — Slack requires OAuth app registration and MCP requires DNS subdomain, both external deps. Ready for a dedicated execution session.",
+      "progress": "2026-07-01: design.md written (was missing). Shipped this pass: A.1 schema (slack_installations + pending_slack_approvals, migration 0109) + B.1/B.2/B.4 MCP core (buildMcpServerForContext, stateless per-request McpServer via buildAllChatTools+resolveCapabilities, allowDestructive hard-coded false; identifyMcpClient) + fixed a pre-existing bug where agentTraces never persisted surfaceType at all (only toolCallEvents had it) — 15 tests, tsc clean. B.3 (zod adapter) turned out unneeded — the SDK converts Zod->JSON-Schema internally. BLOCKED: A.2+ needs Martin to register a Slack app (SLACK_CLIENT_ID/SECRET/SIGNING_SECRET); B.5/B.6 need a real OAuth 2.1 authorization-server implementation (NextAuth is an OAuth *client*, not *provider* — this was underspecified in office-hours.md's premise) — the SDK's ProxyOAuthServerProvider is Express-coupled, not Fetch-API compatible, so it doesn't drop into Next.js as-is. Transport itself IS solved (WebStandardStreamableHTTPServerTransport maps directly onto a Route Handler). See design.md for full detail.",
       "acceptance": "'@leadsens create a task for Acme follow-up next Tuesday' in Slack → Slack interactive approval button → task created. Claude Desktop connecting to mcp.leadsens.com lists 50+ tools.",
       "checkpoint": true
     },

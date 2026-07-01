@@ -37,6 +37,12 @@ export interface TraceContext {
   traceId?: string;
   parentSpanId?: string;
   metadata?: Record<string, unknown>;
+  // CHAT-08 — first-class surface attribution (was silently dropped before:
+  // callers set _trace.surfaceType but no recordTrace() call site read it
+  // back out into this object, so agentTraces had no queryable surface
+  // column at all — only toolCallEvents did). See agentTraces schema.
+  surfaceType?: string;
+  mcpClient?: string;
 }
 
 interface TraceResult {
@@ -111,6 +117,8 @@ export async function recordTrace(
       correctionApplied: result.correctionApplied,
       evalScore: result.evalScore,
       metadata: ctx.metadata || {},
+      surfaceType: ctx.surfaceType || null,
+      mcpClient: ctx.mcpClient || null,
     });
 
     // Also track cost in the billing system
