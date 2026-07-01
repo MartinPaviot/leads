@@ -397,6 +397,15 @@ export const agentTraces = pgTable(
     correctionApplied: text("correction_applied"), // describes what correction was made
     evalScore: real("eval_score"), // online eval score (0.0-1.0) if sampled
     metadata: jsonb("metadata").default({}),
+    // CHAT-08 — first-class surface attribution. TraceMetadata.surfaceType was
+    // already passed by callers (e.g. chat/route.ts) but recordTrace() never
+    // wrote it to a queryable column before this — it silently landed nowhere.
+    // Fixed as part of CHAT-08's AC6 (agentTraces GROUP BY surfaceType), which
+    // also fixes the pre-existing in-app attribution gap, not just MCP/Slack.
+    surfaceType: text("surface_type"), // "global" | "contact" | ... | "slack" | "mcp"
+    // External MCP client identified via User-Agent (lib/mcp/identify-client.ts):
+    // "claude" | "cursor" | "chatgpt" | "unknown" | null (non-MCP traces).
+    mcpClient: text("mcp_client"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (table) => [
@@ -405,6 +414,7 @@ export const agentTraces = pgTable(
     index("at_trace_idx").on(table.traceId),
     index("at_created_idx").on(table.createdAt),
     index("at_status_idx").on(table.status),
+    index("at_surface_type_idx").on(table.surfaceType),
   ]
 );
 
