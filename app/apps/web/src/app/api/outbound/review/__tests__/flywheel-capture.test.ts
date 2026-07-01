@@ -19,12 +19,22 @@ const h = vi.hoisted(() => ({
     stepNumber: number | null;
     enrollmentId: string | null;
   }>,
+  // rows returned by fetchContactMeta's contacts⨝companies query (leftJoin path)
+  metaRows: [] as Array<{ id: string; title: string | null; industry: string | null }>,
 }));
 
 vi.mock("@/db", () => {
+  const metaChain = (result: unknown) => {
+    const c: Record<string, unknown> = {};
+    for (const m of ["from", "where"]) c[m] = () => c;
+    (c as { then: unknown }).then = (res: (v: unknown) => unknown) => res(result);
+    return c;
+  };
   const chain = (result: unknown) => {
     const c: Record<string, unknown> = {};
     for (const m of ["from", "where", "limit", "set", "values", "returning"]) c[m] = () => c;
+    // fetchContactMeta is the only query that joins → resolve the meta rows.
+    c.leftJoin = () => metaChain(h.metaRows);
     (c as { then: unknown }).then = (res: (v: unknown) => unknown) => res(result);
     return c;
   };
@@ -47,8 +57,14 @@ vi.mock("@/db/schema", () => ({
     enrollmentId: "outbound_emails.enrollment_id",
     status: "outbound_emails.status",
   },
-  contacts: { id: "contacts.id", tenantId: "contacts.tenant_id", deletedAt: "contacts.deleted_at" },
-  companies: {},
+  contacts: {
+    id: "contacts.id",
+    tenantId: "contacts.tenant_id",
+    title: "contacts.title",
+    companyId: "contacts.company_id",
+    deletedAt: "contacts.deleted_at",
+  },
+  companies: { id: "companies.id", industry: "companies.industry" },
   sequenceEnrollments: { id: "seq.id", sequenceId: "seq.sequence_id" },
 }));
 
@@ -88,6 +104,7 @@ function postReq(payload: Record<string, unknown>) {
 describe("PUT /api/outbound/review — single approve feeds the flywheel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    h.metaRows = [];
     // interactive draft (no enrollment) → agentId "draft-email"
     h.rows = [{ subject: "Subject line", bodyHtml: "<p>final body</p>", contactId: "c-1", stepNumber: 2, enrollmentId: null }];
     (getAuthContext as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -129,6 +146,7 @@ describe("PUT /api/outbound/review — single approve feeds the flywheel", () =>
 describe("POST /api/outbound/review — bulk approve_all (the real UI path) feeds the flywheel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    h.metaRows = [];
     (getAuthContext as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       tenantId: "tenant-1",
       userId: "user-1",
@@ -177,5 +195,19 @@ describe("POST /api/outbound/review — bulk approve_all (the real UI path) feed
     await route.POST(postReq({ emailIds: ["e-9"], action: "approve_all" }));
     expect(fw()).toHaveBeenCalledTimes(1);
     expect(fw().mock.calls[0][1]).toBe("Draft email to contact c-9");
+  });
+
+  it("conditions the input on the contact's role + industry when known", async () => {
+    h.rows = [
+      { subject: "S1", bodyHtml: "<p>b1</p>", contactId: "c-1", stepNumber: 1, enrollmentId: "enr-1" },
+      { subject: "S2", bodyHtml: "<p>b2</p>", contactId: "c-2", stepNumber: 1, enrollmentId: "enr-2" },
+    ];
+    // c-1 has a role+industry → conditioned; c-2 has none → contactId fallback.
+    h.metaRows = [{ id: "c-1", title: "VP Sales", industry: "SaaS" }];
+    await route.POST(postReq({ emailIds: ["e-1", "e-2"], action: "approve_all" }));
+
+    const inputs = fw().mock.calls.map((c) => c[1]);
+    expect(inputs[0]).toBe("Draft a cold email to a VP Sales in SaaS (step 1)");
+    expect(inputs[1]).toBe("Draft email to contact c-2 (step 1)");
   });
 });

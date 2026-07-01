@@ -5,26 +5,55 @@ import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import { recordAutonomyEvent } from "@/lib/guardrails/trust-score";
 import { recordFlywheelCandidate } from "@/lib/evals/flywheel";
 
+/** The contact facts that condition a flywheel example's input. */
+type ContactMeta = { title: string | null; industry: string | null };
+
+/**
+ * Batch-resolve the conditioning facts (role + industry) for the approved
+ * contacts, tenant-scoped. Safe to put in the few-shot input because reads are
+ * now tenant-isolated (getFewShotExamples filters by the tenant tag) — an
+ * example only ever surfaces to the tenant that produced it.
+ */
+async function fetchContactMeta(
+  contactIds: Array<string | null>,
+  tenantId: string,
+): Promise<Map<string, ContactMeta>> {
+  const ids = [...new Set(contactIds.filter((id): id is string => !!id))];
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select({ id: contacts.id, title: contacts.title, industry: companies.industry })
+    .from(contacts)
+    .leftJoin(companies, eq(contacts.companyId, companies.id))
+    .where(and(eq(contacts.tenantId, tenantId), inArray(contacts.id, ids)));
+  return new Map(rows.map((r) => [r.id, { title: r.title, industry: r.industry }]));
+}
+
 /**
  * Build the (input, output) pair recorded into the drafting flywheel from an
- * approved outbound email. The input carries contactId + step so distinct
- * drafts don't collide on recordFlywheelCandidate's input-equality dedup:
- * keyed by contactId alone, every step to the same contact would dedup to the
- * first draft ever approved. The output is the approved subject + body — the
- * example future draft-email generations imitate. NOTE: this is a style/quality
- * exemplar, not a situation-conditioned pair — the drafting context isn't
- * persisted on the row, so the input stays coarse (see the follow-up to snapshot
- * generation context at draft time).
+ * approved outbound email. When the contact's role is known the input is a
+ * SITUATION-conditioned prompt ("a cold email to a VP Sales in SaaS") — a
+ * better demonstration for future drafts to a similar prospect. Without a role
+ * it falls back to the contactId form so title-less contacts still stay
+ * distinct under recordFlywheelCandidate's input-equality dedup. The output is
+ * the approved subject + body — the exemplar to imitate. (The TRUE generation
+ * context would be snapshotted at draft time, which needs a prod migration —
+ * still blocked; this reconstructs the salient facts at approval instead.)
  */
-function draftFlywheelPair(row: {
-  subject: string | null;
-  bodyHtml: string | null;
-  contactId: string | null;
-  stepNumber: number | null;
-}): { input: string; output: string } {
+function draftFlywheelPair(
+  row: {
+    subject: string | null;
+    bodyHtml: string | null;
+    contactId: string | null;
+    stepNumber: number | null;
+  },
+  meta?: ContactMeta,
+): { input: string; output: string } {
   const stepSuffix = row.stepNumber != null ? ` (step ${row.stepNumber})` : "";
+  const input = meta?.title
+    ? `Draft a cold email to a ${meta.title}${meta.industry ? ` in ${meta.industry}` : ""}${stepSuffix}`
+    : `Draft email to contact ${row.contactId || "unknown"}${stepSuffix}`;
   return {
-    input: `Draft email to contact ${row.contactId || "unknown"}${stepSuffix}`,
+    input,
     output: `Subject: ${row.subject || ""}\n\n${row.bodyHtml || ""}`,
   };
 }
@@ -171,7 +200,13 @@ export async function PUT(req: Request) {
         .limit(1);
 
       if (emailRow) {
-        const { input, output } = draftFlywheelPair(emailRow);
+        const meta = await fetchContactMeta([emailRow.contactId], authCtx.tenantId).catch(
+          () => new Map<string, ContactMeta>(),
+        );
+        const { input, output } = draftFlywheelPair(
+          emailRow,
+          emailRow.contactId ? meta.get(emailRow.contactId) : undefined,
+        );
         recordFlywheelCandidate(
           draftAgentId(emailRow),
           input,
@@ -272,9 +307,17 @@ export async function POST(req: Request) {
           ),
         );
 
+      const meta = await fetchContactMeta(
+        approvedRows.map((r) => r.contactId),
+        authCtx.tenantId,
+      );
+
       Promise.allSettled(
         approvedRows.map((row) => {
-          const { input, output } = draftFlywheelPair(row);
+          const { input, output } = draftFlywheelPair(
+            row,
+            row.contactId ? meta.get(row.contactId) : undefined,
+          );
           return recordFlywheelCandidate(
             draftAgentId(row),
             input,
