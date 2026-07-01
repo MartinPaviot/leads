@@ -5,6 +5,30 @@ import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import { recordAutonomyEvent } from "@/lib/guardrails/trust-score";
 import { recordFlywheelCandidate } from "@/lib/evals/flywheel";
 
+/**
+ * Build the (input, output) pair recorded into the drafting flywheel from an
+ * approved outbound email. The input carries contactId + step so distinct
+ * drafts don't collide on recordFlywheelCandidate's input-equality dedup:
+ * keyed by contactId alone, every step to the same contact would dedup to the
+ * first draft ever approved. The output is the approved subject + body — the
+ * example future draft-email generations imitate. NOTE: this is a style/quality
+ * exemplar, not a situation-conditioned pair — the drafting context isn't
+ * persisted on the row, so the input stays coarse (see the follow-up to snapshot
+ * generation context at draft time).
+ */
+function draftFlywheelPair(row: {
+  subject: string | null;
+  bodyHtml: string | null;
+  contactId: string | null;
+  stepNumber: number | null;
+}): { input: string; output: string } {
+  const stepSuffix = row.stepNumber != null ? ` (step ${row.stepNumber})` : "";
+  return {
+    input: `Draft email to contact ${row.contactId || "unknown"}${stepSuffix}`,
+    output: `Subject: ${row.subject || ""}\n\n${row.bodyHtml || ""}`,
+  };
+}
+
 export async function GET(req: Request) {
   const authCtx = await getAuthContext();
   if (!authCtx) {
@@ -121,6 +145,7 @@ export async function PUT(req: Request) {
           subject: outboundEmails.subject,
           bodyHtml: outboundEmails.bodyHtml,
           contactId: outboundEmails.contactId,
+          stepNumber: outboundEmails.stepNumber,
         })
         .from(outboundEmails)
         .where(
@@ -132,8 +157,7 @@ export async function PUT(req: Request) {
         .limit(1);
 
       if (emailRow) {
-        const input = `Draft email to contact ${emailRow.contactId || "unknown"}`;
-        const output = `Subject: ${emailRow.subject || ""}\n\n${emailRow.bodyHtml || ""}`;
+        const { input, output } = draftFlywheelPair(emailRow);
         recordFlywheelCandidate(
           "draft-email",
           input,
@@ -211,6 +235,43 @@ export async function POST(req: Request) {
         }),
       ),
     ).catch(() => {});
+
+    // Flywheel: THIS is the approval path the review UI actually calls
+    // (campaign-wizard bulk-approves via POST approve_all). Record each
+    // approved draft as a `user_approved` few-shot / distillation example —
+    // the UI has no inline edit, so a bulk approval is always an unedited
+    // accept. Best-effort: a failure here must never block the approval.
+    try {
+      const approvedRows = await db
+        .select({
+          subject: outboundEmails.subject,
+          bodyHtml: outboundEmails.bodyHtml,
+          contactId: outboundEmails.contactId,
+          stepNumber: outboundEmails.stepNumber,
+        })
+        .from(outboundEmails)
+        .where(
+          and(
+            eq(outboundEmails.tenantId, authCtx.tenantId),
+            inArray(outboundEmails.id, emailIds),
+          ),
+        );
+
+      Promise.allSettled(
+        approvedRows.map((row) => {
+          const { input, output } = draftFlywheelPair(row);
+          return recordFlywheelCandidate(
+            "draft-email",
+            input,
+            output,
+            authCtx.tenantId,
+            "user_approved",
+          );
+        }),
+      ).catch(() => {});
+    } catch {
+      // Swallow — flywheel is best-effort, never blocks bulk approval.
+    }
   }
 
   return Response.json({ success: true, count: emailIds.length });
