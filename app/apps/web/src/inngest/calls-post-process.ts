@@ -34,6 +34,7 @@ import { recordCapturedActivity, getCaptureApprovalMode } from "@/lib/capture/ap
 import { recordCallOutcomeForCampaigns } from "@/lib/voice/campaign";
 import { applyCallToCrm } from "@/lib/voice/post-call-crm";
 import { indexTranscript } from "@/lib/coaching/index-transcript";
+import { transcribeRecording } from "@/lib/voice/deepgram-batch";
 import { scoreTranscriptLevers } from "@/lib/voice/lever-scoring";
 import { ingestEpisode } from "@/lib/ai/context-graph";
 import { logger } from "@/lib/observability/logger";
@@ -92,12 +93,24 @@ export const postProcessCall = inngest.createFunction(
     });
 
     const transcriptText = await step.run("assemble-transcript", async () => {
-      const chunks = (callRow.transcript as TranscriptChunk[] | null) ?? [];
+      let chunks = (callRow.transcript as TranscriptChunk[] | null) ?? [];
       if (chunks.length === 0) {
-        // Phase 1 fallback: if Media Streams dropped, the recording is
-        // still there — Deepgram batch transcription is wired in Phase 2.
-        // For now we surface the empty case as outcome=no_answer.
-        return "";
+        // Phase 2: the live Media Stream dropped (no streamed chunks), but the
+        // recording is still there — transcribe it via Deepgram batch so an
+        // answered, recorded call is NOT silently discarded as no_answer with
+        // its whole transcript lost. Fail-soft: [] falls through to the exact
+        // former no_answer behaviour (never a regression). Batch diarization is
+        // mono → "speaker N" labels (role-dependent lever scores skip on this
+        // path), but the transcript itself is recovered for summary + RAG.
+        const recovered = await transcribeRecording(callRow.recordingUrl);
+        if (recovered.length === 0) return "";
+        chunks = recovered as TranscriptChunk[];
+        callRow.transcript = chunks;
+        await db
+          .update(calls)
+          .set({ transcript: chunks, updatedAt: new Date() })
+          .where(eq(calls.id, callId))
+          .catch(() => {});
       }
       return chunks
         .map((c) => `${c.speaker ?? "?"}: ${c.text}`)
