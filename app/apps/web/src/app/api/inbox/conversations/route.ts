@@ -24,6 +24,7 @@ import { bundleConversations } from "@/lib/inbox/bundle";
 import { matchesSearch, isActiveQuery, parseSearchQuery } from "@/lib/inbox/search-match";
 import { selectCatchUp } from "@/lib/inbox/catch-up";
 import { getLastSeen } from "@/lib/inbox/seen-store";
+import { isInboxSort, sortRows } from "@/lib/inbox/inbox-sort";
 
 const LANES: Lane[] = ["attention", "handled", "snoozed", "done"];
 const PAGE_SIZE = 30;
@@ -246,7 +247,27 @@ export async function GET(req: Request) {
                     : resolveCustomSplit(c.fromAddress, userSplits)?.id === splitParam)),
             )
           : visible.filter(({ c }) => c.lane === lane);
-    const pageRows = inLane.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+    // Sort the FULL filtered lane BEFORE paginating — sorting only the visible
+    // page would be a lie (inbox-sort.ts header). Default = date, newest first:
+    // a real inbox is a chronological folder. The SortMenu lets the user opt into
+    // priority (the explainable importance ranking), unread-first, oldest, or
+    // sender. `buildConversations` already pre-sorts, but re-sorting here makes
+    // the chosen mode explicit and consistent across attention + handled rows.
+    const sortParam = url.searchParams.get("sort");
+    const sortMode = isInboxSort(sortParam) ? sortParam : "date";
+    const sortedLane = sortRows(inLane, sortMode, ({ c }) => ({
+      importanceTier: c.importanceTier,
+      importanceScore: c.importanceScore,
+      followupOverdue: c.followup?.overdue ?? false,
+      lastInboundAt: c.lastInboundAt,
+      lastMessageAt: c.lastMessageAt,
+      unread: unreadOf(c),
+      // Sender sort keys on the from-address here (contact names load post-slice);
+      // display still shows the resolved contact name.
+      sortName: (c.fromAddress ?? "").toLowerCase(),
+    }));
+    const pageRows = sortedLane.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     // Per-custom-lane counts for the tabs (honour "hide when empty").
     const customLanes = userLanes

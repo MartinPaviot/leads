@@ -30,6 +30,8 @@ import { CommandPalette } from "./_command-palette";
 import { buildInboxPaletteCommands, type PaletteCommand } from "@/lib/inbox/palette-commands";
 import { tomorrowMorning } from "@/lib/inbox/snooze-presets";
 import { InboxFolders } from "./_inbox-folders";
+import { SortMenu } from "./_sort-menu";
+import { isInboxSort, type InboxSort } from "@/lib/inbox/inbox-sort";
 import { EmailComposerPanel } from "@/components/email-composer-panel";
 import { type SendableMailbox } from "@/lib/inbox/pick-from-mailbox";
 import { SplitStrip } from "./_split-strip";
@@ -227,6 +229,11 @@ export default function InboxPage() {
   // "compact" = one dense single line. Starts comfortable → matches SSR, then a
   // mount effect reads the persisted choice (no hydration gap).
   const [density, setDensity] = useState<InboxDensity>("comfortable");
+  // Sort order (the header SortMenu). Default = "date" (newest received first) —
+  // a real inbox is a chronological folder, not a triage queue; the importance
+  // ranking is opt-in via Priority. Starts "date" on SSR (matches the server
+  // default → no hydration gap); a mount effect reads the persisted choice.
+  const [sort, setSort] = useState<InboxSort>("date");
   // Resizable list width (3-column mode). Default on SSR → first paint matches;
   // a mount effect reads the persisted px, and a persist effect saves it.
   const [listW, setListW] = useState(LIST_W_DEFAULT);
@@ -335,6 +342,7 @@ export default function InboxPage() {
         if (pendingTriage.current) await pendingTriage.current.catch(() => {});
         const mailboxQuery = selectedMailbox ? `&mailbox=${encodeURIComponent(selectedMailbox)}` : "";
         const searchQuery = debouncedSearch ? `&q=${encodeURIComponent(debouncedSearch)}` : "";
+        const sortQuery = `&sort=${sort}`;
         // Inbox/Primary → the email-client primary view (lane=primary): the default
         // Inbox (no split) and the "Primary" split both show all primary-category mail
         // in the inbox, not just the triage attention subset (Upstream model).
@@ -342,7 +350,7 @@ export default function InboxPage() {
         const effLane = isPrimaryView ? "primary" : lane;
         // B3: only sub-segment the attention lane (not a custom lane / the primary view).
         const splitQuery = activeSplit && lane === "attention" && !isPrimaryView ? `&split=${activeSplit}` : "";
-        const res = await fetch(`/api/inbox/conversations?lane=${effLane}&page=${pageNum}${mailboxQuery}${searchQuery}${splitQuery}`, {
+        const res = await fetch(`/api/inbox/conversations?lane=${effLane}&page=${pageNum}${mailboxQuery}${searchQuery}${splitQuery}${sortQuery}`, {
           signal: append ? undefined : abortRef.current?.signal,
         });
         if (!res.ok) throw new Error(`${res.status}`);
@@ -409,7 +417,7 @@ export default function InboxPage() {
         }
       }
     },
-    [toast, selectedMailbox, debouncedSearch, activeSplit],
+    [toast, selectedMailbox, debouncedSearch, activeSplit, sort],
   );
 
   // Debounce the search box so each keystroke doesn't refetch (INBOX-Q04).
@@ -448,6 +456,28 @@ export default function InboxPage() {
       }
       return next;
     });
+  }, []);
+
+  // Restore the persisted sort order once on mount (client-only — SSR stays
+  // "date" so first paint never mismatches the server default).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("inbox-sort");
+      if (isInboxSort(saved)) setSort(saved);
+    } catch {
+      /* localStorage unavailable — keep the default */
+    }
+  }, []);
+
+  // Change the sort + persist it. The loadLane dep on `sort` refetches page 1 in
+  // the new order (server sorts the full lane before paginating).
+  const handleSortChange = useCallback((s: InboxSort) => {
+    setSort(s);
+    try {
+      window.localStorage.setItem("inbox-sort", s);
+    } catch {
+      /* ignore — persistence is best-effort */
+    }
   }, []);
 
   // Restore the persisted list width once on mount, then persist on change.
@@ -1292,6 +1322,11 @@ export default function InboxPage() {
             >
               {density === "comfortable" ? <AlignJustify size={15} /> : <Rows2 size={15} />}
             </button>
+            {/* Sort order (Date newest ↔ oldest, Priority, Unread first, Sender).
+                Not shown on the Outbound/Bundles tables — they carry their own order. */}
+            {tab !== "outbound" && tab !== "bundles" && (
+              <SortMenu value={sort} onChange={handleSortChange} />
+            )}
           </>
         )}
       </PageHeader>
