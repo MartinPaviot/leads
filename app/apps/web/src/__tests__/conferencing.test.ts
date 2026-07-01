@@ -5,7 +5,12 @@ import {
   nativeAgendaText,
   nativeHtmlBody,
   whenLine,
+  descriptionText,
+  htmlBody,
 } from "@/lib/integrations/calendar-write";
+
+/** Distinctive fragment of RECORDING_NOTICE (the constant is module-private). */
+const NOTICE = "sera enregistré pour en garder un compte rendu";
 
 /** A minimal EventCore for the pure helpers. */
 function core(
@@ -118,6 +123,39 @@ describe("native Meet/Teams invite body carries the agenda (no visio line)", () 
     expect(nativeAgendaText("Ordre du jour", "Jeudi 9 juillet, 09:00")).toContain("Jeudi 9 juillet, 09:00");
     // when-only (no agenda) still carries the when.
     expect(nativeAgendaText(undefined, "Jeudi 9 juillet")).toBe("Jeudi 9 juillet");
+  });
+});
+
+describe("recording disclosure — appears only when Jibri will record (recorded=true)", () => {
+  const URL = "https://visio.pilae.ch/rdv-ab3k";
+
+  it("descriptionText omits the notice by default and when recorded is false", () => {
+    expect(descriptionText(URL)).not.toContain(NOTICE);
+    expect(descriptionText(URL, "Agenda", "Jeudi 09:00", false)).not.toContain(NOTICE);
+  });
+
+  it("descriptionText appends the notice after the join line when recorded", () => {
+    const txt = descriptionText(URL, undefined, undefined, true);
+    expect(txt).toContain(NOTICE);
+    // Non-alarming placement: the notice comes AFTER the join link, at the bottom.
+    expect(txt.indexOf("Rejoindre la visio")).toBeLessThan(txt.indexOf(NOTICE));
+  });
+
+  it("htmlBody omits the notice by default and when recorded is false", () => {
+    expect(htmlBody("Rdv", URL)).not.toContain(NOTICE);
+    expect(htmlBody("Rdv", URL, "Agenda", "Jeudi 09:00", false)).not.toContain(NOTICE);
+  });
+
+  it("htmlBody renders the notice as a muted trailing line when recorded", () => {
+    const html = htmlBody("Rdv", URL, undefined, undefined, true);
+    expect(html).toContain(NOTICE);
+    expect(html).toMatch(/color:#6b7280/); // muted grey, not an alarm banner
+    expect(html.indexOf("Rejoindre la visio")).toBeLessThan(html.indexOf(NOTICE));
+  });
+
+  it("native bodies never carry the recording notice (Meet/Teams aren't Jibri-recorded)", () => {
+    expect(nativeHtmlBody("Rdv", "Agenda", "Jeudi 09:00")).not.toContain(NOTICE);
+    expect(nativeAgendaText("Agenda", "Jeudi 09:00")).not.toContain(NOTICE);
   });
 });
 

@@ -29,6 +29,13 @@ import { createSovereignMeeting } from "./video-meeting";
 import { createZoomMeeting, zoomConfigured } from "./zoom";
 import { toRRule, toGraphRecurrence, type MeetingRecurrence } from "./recurrence";
 import { isValidTimeZone, toZonedNaiveIso } from "./tz";
+import { isSovereignRecordingEnabled } from "@/lib/recording/sovereign-recording";
+
+/** Soft, professional recording disclosure appended to the invite body ONLY when
+ *  Jibri will actually record the room (sovereign mode + flag on). Kept to one
+ *  line with a gentle opt-out so it discloses (CH/RGPD) without alarming. */
+const RECORDING_NOTICE =
+  "Cet échange sera enregistré pour en garder un compte rendu — dites-le-nous si vous préférez sans.";
 
 export type CalendarProvider = "google" | "microsoft" | "caldav" | "smtp";
 /** "sovereign" = Jitsi visio (default); the rest are opt-in "si besoin". */
@@ -79,6 +86,10 @@ interface EventCore {
    *  their local wall-clock across DST instead of drifting with a UTC instant.
    *  Single events stay UTC (an instant is unambiguous). */
   organizerTimeZone?: string;
+  /** True when Jibri will actually record this room (flag on + sovereign mode) →
+   *  the invite carries the recording disclosure. Set per provider branch in
+   *  bookSovereignMeeting; native Meet/Teams and Zoom stay false. */
+  recorded?: boolean;
 }
 
 /**
@@ -165,19 +176,23 @@ export function whenLine(core: EventCore): string {
   return `${dayCap}, ${hm(core.startTime)}–${hm(end)} (${tzName})`;
 }
 
-function descriptionText(joinUrl: string, agenda?: string, when?: string): string {
+export function descriptionText(joinUrl: string, agenda?: string, when?: string, recorded?: boolean): string {
   const parts: string[] = [];
   if (when) parts.push(when);
   if (agenda?.trim()) parts.push(agenda.trim());
   parts.push(`Rejoindre la visio : ${joinUrl}`);
+  if (recorded) parts.push(RECORDING_NOTICE);
   return parts.join("\n\n");
 }
-function htmlBody(title: string, joinUrl: string, agenda?: string, when?: string): string {
+export function htmlBody(title: string, joinUrl: string, agenda?: string, when?: string, recorded?: boolean): string {
   const whenHtml = when ? `<p><strong>${escapeHtml(when)}</strong></p>` : "";
   const agendaHtml = agenda?.trim()
     ? `<p>${escapeHtml(agenda.trim()).replace(/\n/g, "<br>")}</p>`
     : "";
-  return `<p>${escapeHtml(title)}</p>${whenHtml}${agendaHtml}<p><a href="${joinUrl}">Rejoindre la visio</a><br>${joinUrl}</p>`;
+  const noticeHtml = recorded
+    ? `<p style="color:#6b7280;font-size:12px">${escapeHtml(RECORDING_NOTICE)}</p>`
+    : "";
+  return `<p>${escapeHtml(title)}</p>${whenHtml}${agendaHtml}<p><a href="${joinUrl}">Rejoindre la visio</a><br>${joinUrl}</p>${noticeHtml}`;
 }
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -269,6 +284,7 @@ export async function bookSovereignMeeting(opts: {
   if (mailbox) {
     const provider: CalendarProvider = mailbox.calendarUrl ? "caldav" : "smtp";
     const mode = resolveConferencing(requested, provider, zoomConfigured());
+    core.recorded = isSovereignRecordingEnabled() && mode === "sovereign";
     const link = await injectedLink(mode, meeting.joinUrl, core);
     const w = mailbox.calendarUrl
       ? await writeCalDavEvent(mailbox, core, link, meeting.roomName)
@@ -280,6 +296,7 @@ export async function bookSovereignMeeting(opts: {
   const msToken = await getMicrosoftAccessToken(opts.userId);
   if (msToken) {
     const mode = resolveConferencing(requested, "microsoft", zoomConfigured());
+    core.recorded = isSovereignRecordingEnabled() && mode === "sovereign";
     const link = await injectedLink(mode, meeting.joinUrl, core);
     const w = await writeMicrosoftEvent(
       msToken,
@@ -293,6 +310,7 @@ export async function bookSovereignMeeting(opts: {
   const google = await getCalendarClient(opts.userId);
   if (google) {
     const mode = resolveConferencing(requested, "google", zoomConfigured());
+    core.recorded = isSovereignRecordingEnabled() && mode === "sovereign";
     const link = await injectedLink(mode, meeting.joinUrl, core);
     const w = await writeGoogleEvent(
       google,
@@ -386,7 +404,7 @@ async function writeGoogleEvent(
     sendUpdates: "all",
     requestBody: {
       summary: core.title,
-      description: descriptionText(wopts.link, core.agenda, whenLine(core)),
+      description: descriptionText(wopts.link, core.agenda, whenLine(core), core.recorded),
       location: locationText(wopts.link, core),
       start,
       end: endTime,
@@ -448,7 +466,7 @@ async function writeMicrosoftEvent(
       }
     : {
         ...base,
-        body: { contentType: "HTML", content: htmlBody(core.title, wopts.link, core.agenda, whenLine(core)) },
+        body: { contentType: "HTML", content: htmlBody(core.title, wopts.link, core.agenda, whenLine(core), core.recorded) },
         location: { displayName: locationText(wopts.link, core) },
       };
 
@@ -545,7 +563,7 @@ async function writeCalDavEvent(
     start: core.startTime,
     end,
     summary: core.title,
-    description: descriptionText(link, core.agenda, whenLine(core)),
+    description: descriptionText(link, core.agenda, whenLine(core), core.recorded),
     location: locationText(link, core),
     url: link,
     organizer: { email: box.email, name: box.displayName },
@@ -589,7 +607,7 @@ async function writeCalDavEvent(
           to: core.contactEmail,
           cc: extraCcEmails(core, [box.email]) || undefined,
           subject: core.title,
-          html: htmlBody(core.title, link, core.agenda, whenLine(core)),
+          html: htmlBody(core.title, link, core.agenda, whenLine(core), core.recorded),
           icsInvite: { method: "REQUEST", content: ics, filename: "invite.ics" },
         },
       );
@@ -619,7 +637,7 @@ async function writeSmtpIcsEvent(
     start: core.startTime,
     end,
     summary: core.title,
-    description: descriptionText(link, core.agenda, whenLine(core)),
+    description: descriptionText(link, core.agenda, whenLine(core), core.recorded),
     location: locationText(link, core),
     url: link,
     organizer: { email: box.email, name: box.displayName },
@@ -651,7 +669,7 @@ async function writeSmtpIcsEvent(
       to: core.contactEmail,
       cc,
       subject: core.title,
-      html: htmlBody(core.title, link, core.agenda),
+      html: htmlBody(core.title, link, core.agenda, undefined, core.recorded),
       icsInvite: { method: "REQUEST", content: ics, filename: "invite.ics" },
     },
   );
