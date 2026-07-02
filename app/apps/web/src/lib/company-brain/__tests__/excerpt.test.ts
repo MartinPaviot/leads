@@ -74,4 +74,36 @@ describe("decisionAwareExcerpt", () => {
     expect(out.length).toBeLessThanOrEqual(ACTIVITY_EXCERPT_MAX + 2);
     expect(out).toContain("let's proceed");
   });
+
+  // ── 2026-07-02 hostile-audit regressions ──────────────────────────────
+  // JS `\b` after an accented char never matches, so every FR cue ending in
+  // an accent was DEAD ("validé" next to a space = no boundary). And the
+  // window anchored via s.indexOf(m[0]), which an earlier CONTAINING word
+  // ("concerning" ⊃ "concern") could pull off the real cue.
+
+  it("matches FR cues ending in an accented char (the dead \\b branch)", () => {
+    const pad = "a".repeat(300);
+    const out = decisionAwareExcerpt(`${pad} le budget est validé par la direction.`)!;
+    expect(out.toLowerCase()).toContain("validé");
+    const out2 = decisionAwareExcerpt(`${pad} honnêtement c'est trop cher pour nous.`)!;
+    expect(out2.toLowerCase()).toContain("trop cher");
+  });
+
+  it("matches FR internal-validation phrasings", () => {
+    const pad = "b".repeat(300);
+    const out = decisionAwareExcerpt(`${pad} on doit valider en interne avant.`)!;
+    expect(out.toLowerCase()).toContain("valider en interne");
+  });
+
+  it("anchors the window at the MATCH, not at an earlier containing word", () => {
+    // "concerning" sits in the head; the real standalone cue is buried. The old
+    // indexOf(m[0]) anchor resolved inside "concerning" (head) and returned the
+    // head cap, losing the actual signal.
+    const body =
+      "It was concerning weather all week here in Lyon honestly. " +
+      "c".repeat(250) +
+      " our main concern is the seat price for this year.";
+    const out = decisionAwareExcerpt(body)!;
+    expect(out).toContain("concern is the seat price");
+  });
 });

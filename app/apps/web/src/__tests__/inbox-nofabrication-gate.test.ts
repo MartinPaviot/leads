@@ -39,6 +39,17 @@ describe("unsourcedAmounts — deterministic detector", () => {
   it("normalizes 12k → 12000 and detects the fabrication", () => {
     expect(unsourcedAmounts("we're around 12k a year", "no figures in here")).toEqual(["12000"]);
   });
+
+  // 2026-07-02 audit regression: k-normalization must be SYMMETRIC. A draft
+  // echoing the thread's own "$40k" was false-flagged as fabricating "40000"
+  // because only the draft side was k-expanded.
+  it("a draft echoing the source's own $40k is grounded, in both spellings", () => {
+    const source = "at $40k a year we're above what finance planned for this.";
+    expect(unsourcedAmounts("I hear you on the $40k constraint.", source)).toEqual([]);
+    expect(unsourcedAmounts("I hear you on the $40,000 constraint.", source)).toEqual([]);
+    // …and a DIFFERENT invented figure still flags.
+    expect(unsourcedAmounts("what if we did $32k instead?", source)).toEqual(["32000"]);
+  });
 });
 
 // Pricing-question threads with NO price in-thread — a faithful reply must not invent one.

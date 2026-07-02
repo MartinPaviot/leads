@@ -19,6 +19,7 @@
 
 import { describe, it, expect } from "vitest";
 import { buildReplyPrompt, composeReply } from "@/lib/inbox/compose-reply";
+import { unsourcedAmounts } from "@/lib/evals/inbox-metrics";
 import type { ThreadMessage } from "@/lib/inbox/summarize-thread";
 
 const HAS_LLM = !!process.env.ANTHROPIC_API_KEY;
@@ -97,10 +98,11 @@ describe("inbox-objection gate — the prompt carries the objection + the must-h
 
 describe.skipIf(!HAS_LLM)("inbox-objection gate — the draft SURFACES the objection, not a warm deflection (LLM tier)", () => {
   it(
-    "surfaces the open objection's lexical field in ≥3/4 warm-tone scenarios",
+    "surfaces the open objection's lexical field in ≥3/4 warm-tone scenarios, inventing no figure",
     async () => {
       let surfaced = 0;
       const detail: string[] = [];
+      const fabricated: string[] = [];
       const byId: Record<string, boolean> = {};
       for (const s of SCENARIOS) {
         const draft = await composeReply(warmThread(s.from, s.warmBody), { context: s.context });
@@ -108,16 +110,24 @@ describe.skipIf(!HAS_LLM)("inbox-objection gate — the draft SURFACES the objec
         byId[s.id] = hit;
         if (hit) surfaced++;
         else detail.push(`${s.id}: deflected (no ${s.lexis.slice(0, 3).join("/")})`);
+        // The directive pushes the model to COUNTER the objection — counter-
+        // pressure must not become invented ROI numbers or discounts (2026-07-02
+        // audit: this exact interaction was unmeasured).
+        const bad = unsourcedAmounts(draft.text ?? "", `${s.warmBody}\n${s.context}`);
+        if (bad.length) fabricated.push(`${s.id}: invented ${bad.join(",")}`);
       }
       // eslint-disable-next-line no-console
       console.log(
         `[inbox-objection] surfaced ${surfaced}/${SCENARIOS.length}` +
-          (detail.length ? ` — ${detail.join(" | ")}` : " (all addressed)"),
+          (detail.length ? ` — ${detail.join(" | ")}` : " (all addressed)") +
+          (fabricated.length ? ` — FABRICATED: ${fabricated.join(" | ")}` : ""),
       );
       // Aggregate floor tolerates ONE stochastic flip.
       expect(surfaced, detail.join(" | ")).toBeGreaterThanOrEqual(3);
       // The canonical warm-tone-hides-a-pricing-stall case must never regress.
       expect(byId["seat-pricing"], "seat-pricing objection was deflected").toBe(true);
+      // Countering an objection must never invent a money figure (target 0).
+      expect(fabricated, fabricated.join(" | ")).toEqual([]);
     },
     120_000,
   );

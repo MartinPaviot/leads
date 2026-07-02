@@ -17,14 +17,27 @@
 
 import { describe, it, expect } from "vitest";
 import { MEETING_PREP_SCENARIOS } from "@/lib/evals/meeting-prep-cases";
-import { gradeMeetingPrepGrounding, ungroundedInPrep } from "@/lib/evals/meeting-prep-grade";
+import {
+  gradeMeetingPrepGrounding,
+  ungroundedInPrep,
+  numberTokens,
+} from "@/lib/evals/meeting-prep-grade";
 import {
   buildMeetingPrepPrompt,
   buildDoctrineBlock,
   getMeetingPrepModel,
 } from "@/lib/meetings/meeting-prep-prompt";
+import { getStepDoctrine } from "@/lib/motion/doctrine";
+import type { Moment } from "@/lib/motion/moment";
 
 const HAS_LLM = !!process.env.ANTHROPIC_API_KEY || !!process.env.OPENAI_API_KEY;
+
+/** The EXACT prod prompt shape: real doctrine rubric, real envelope. The prompt
+ *  itself is the ground truth — everything the model was legitimately given. */
+function promptFor(s: (typeof MEETING_PREP_SCENARIOS)[number]): string {
+  const { rubric } = getStepDoctrine(s.moment as Moment);
+  return buildMeetingPrepPrompt(s.moment, s.context, buildDoctrineBlock(s.moment, rubric));
+}
 
 describe("meeting-prep grounding grader is sound (keyless)", () => {
   it("flags an invented tech stack + headcount absent from a thin context", () => {
@@ -45,12 +58,53 @@ describe("meeting-prep grounding grader is sound (keyless)", () => {
     expect(gradeMeetingPrepGrounding(groundedPrep, rich.context)).toEqual({ pass: true, ungrounded: [] });
   });
 
+  // ── 2026-07-02 hostile-audit regressions ────────────────────────────────
+  it("no digit-soup false grounding: an invented number does not pass by substring luck", () => {
+    const rich = MEETING_PREP_SCENARIOS.find((s) => s.id === "rich-discovery")!;
+    // context digits: 10:00, 140, 8, 100 → old soup "10001408100…" contained "1000".
+    const prep =
+      "Account snapshot: Northwind runs about 1000 client projects across the logistics space today.";
+    expect(ungroundedInPrep(prep, rich.context)).toContain("1000");
+  });
+
+  it("k/M-suffixed invented figures are visible ($50k budget on a thin context)", () => {
+    const thin = MEETING_PREP_SCENARIOS.find((s) => s.id === "thin-discovery")!;
+    const prep =
+      "Account snapshot: Acme likely has a $50k tooling budget and is evaluating options this quarter now.";
+    expect(ungroundedInPrep(prep, thin.context)).toContain("50000");
+    // …and a grounded "$8M" echo of the context is NOT flagged.
+    const rich = MEETING_PREP_SCENARIOS.find((s) => s.id === "rich-discovery")!;
+    expect(numberTokens(rich.context).has("8000000")).toBe(true);
+    expect(ungroundedInPrep("They raised $8M in their Series A round recently.", rich.context)).toEqual([]);
+  });
+
+  it("ordinary GTM English 'segment'/'notion' is not an invented tech stack", () => {
+    const thin = MEETING_PREP_SCENARIOS.find((s) => s.id === "thin-demo")!;
+    const prep =
+      "Play: qualify which customer segment they serve and whether they have any notion of pipeline coverage.";
+    expect(ungroundedInPrep(prep, thin.context)).toEqual([]);
+  });
+
+  it("an empty or refusal completion fails instead of passing vacuously", () => {
+    const thin = MEETING_PREP_SCENARIOS.find((s) => s.id === "thin-discovery")!;
+    expect(gradeMeetingPrepGrounding("", thin.context).pass).toBe(false);
+    expect(gradeMeetingPrepGrounding("I can't help with that.", thin.context).pass).toBe(false);
+  });
+
+  it("the prod prompt (with its real doctrine rubric) grounds its own vocabulary", () => {
+    // The model may echo the prompt's "500 words" or doctrine terms — grading
+    // against the FULL prompt makes those legitimately grounded.
+    const thin = MEETING_PREP_SCENARIOS.find((s) => s.id === "thin-discovery")!;
+    const prompt = promptFor(thin);
+    expect(ungroundedInPrep("Keep it under 500 words as instructed.", prompt)).toEqual([]);
+  });
+
   it("every scenario's groundedSpecifics are actually present in its context", () => {
     for (const s of MEETING_PREP_SCENARIOS) {
       const gt = s.context.toLowerCase();
-      const gtDigits = gt.replace(/\D/g, "");
+      const gtNums = numberTokens(s.context);
       for (const spec of s.groundedSpecifics) {
-        const present = /^\d+$/.test(spec) ? gtDigits.includes(spec) : gt.includes(spec.toLowerCase());
+        const present = /^\d+$/.test(spec) ? gtNums.has(spec) : gt.includes(spec.toLowerCase());
         expect(present, `${s.id}: "${spec}" not in context`).toBe(true);
       }
     }
@@ -69,20 +123,27 @@ describe.skipIf(!HAS_LLM)("meeting-prep — the generated prep invents no ungrou
       const detail: string[] = [];
       const byId: Record<string, boolean> = {};
       for (const s of MEETING_PREP_SCENARIOS) {
-        const prompt = buildMeetingPrepPrompt(s.moment, s.context, buildDoctrineBlock(s.moment, null));
+        // Full prod shape: real doctrine rubric; the prompt IS the ground truth.
+        const prompt = promptFor(s);
         let prep = "";
-        try {
-          const res = await generateText({
-            model: model as unknown as Parameters<typeof generateText>[0]["model"],
-            prompt,
-          });
-          prep = res.text;
-        } catch (e) {
-          detail.push(`${s.id}: generate error ${(e as Error).message}`);
+        let lastErr: unknown;
+        for (let attempt = 0; attempt < 2 && !prep; attempt++) {
+          try {
+            const res = await generateText({
+              model: model as unknown as Parameters<typeof generateText>[0]["model"],
+              prompt,
+            });
+            prep = res.text;
+          } catch (e) {
+            lastErr = e; // one retry — a transient 429 must not read as "fabricated"
+          }
+        }
+        if (!prep && lastErr) {
+          detail.push(`${s.id}: generate error ${(lastErr as Error).message}`);
           byId[s.id] = false;
           continue;
         }
-        const grade = gradeMeetingPrepGrounding(prep, s.context);
+        const grade = gradeMeetingPrepGrounding(prep, prompt);
         byId[s.id] = grade.pass;
         if (!grade.pass) detail.push(`${s.id}: invented ${grade.ungrounded.slice(0, 6).join(", ")}`);
       }

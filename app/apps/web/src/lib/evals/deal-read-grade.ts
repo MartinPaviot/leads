@@ -6,6 +6,19 @@
  * designed golden: right risk, stall flagged when it should be, the decisive
  * signal surfaced (synonym-tolerant), nothing fabricated. Deterministic grading
  * of a structured read is more reliable + cheaper than an LLM judge.
+ *
+ * HARDENED after the 2026-07-02 hostile audit, which produced three confirmed
+ * false-verdict classes in the original grader:
+ *  - substring matches with no word boundary ("assigned" asserted "signed",
+ *    "installed" asserted "stalled") — could fail the PINNED scenario on a
+ *    perfectly correct read;
+ *  - the 24-char negator window missed long-range negation ("no indication
+ *    that the deal has stalled" flagged as fabrication);
+ *  - mustCatch counted NEGATED mentions ("no specific competitor was
+ *    mentioned" satisfied the competitor group).
+ * All three checks now share assertsToken: word-boundary occurrences, negation
+ * judged over the containing CLAUSE (up to the previous ./!/?/;/newline), with
+ * "not only" excluded from negators.
  */
 
 import type { DealBrief } from "@/lib/deals/deal-briefing-schema";
@@ -27,24 +40,44 @@ export function dealReadHaystack(b: DealBriefBody): string {
   return parts.join(" \n ").toLowerCase();
 }
 
-/**
- * A forbidden term only counts as a fabrication when the read ASSERTS it, not
- * when it negates it. On a healthy deal the model naturally writes "not stalled"
- * / "no sign it's lost" — a naive substring match would flag that as an invented
- * stall (observed: healthy-progressing false-failed on "stalled"). Treat an
- * occurrence as negated when a negator sits in the short window right before it;
- * the term is a real claim only if ≥1 occurrence has no nearby negator.
- */
-const NEGATORS = ["not ", "no ", "never ", "without ", "cannot ", "n't ", "isn't", "aren't", "wasn't"];
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** Word-boundary occurrences of `term` in `hay` (unicode letters/digits bound). */
+function tokenIndices(hay: string, term: string): number[] {
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(term)}(?![\\p{L}\\p{N}])`, "giu");
+  const out: number[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(hay))) out.push(m.index);
+  return out;
+}
+
+/**
+ * A negator that plausibly scopes over a term up to 6 words later, anchored at
+ * the end of the clause-prefix before the term. "not only" is exempt (it
+ * AFFIRMS: "not only is it stalled…").
+ */
+const NEGATION_BEFORE =
+  /(?:\bnot(?!\s+only\b)|\bno\b|\bnever\b|\bwithout\b|\bisn'?t\b|\bwasn'?t\b|\baren'?t\b|\bdoesn'?t\b|\bdidn'?t\b|\bhasn'?t\b|\bhaven'?t\b)(?:\s+\S+){0,6}\s*$/i;
+
+/**
+ * True when the haystack ASSERTS the term: at least one word-boundary
+ * occurrence whose containing clause does not negate it. Clause = text since
+ * the previous sentence/clause delimiter (./!/?/;/newline).
+ */
 export function assertsToken(haystack: string, term: string): boolean {
   const hay = haystack.toLowerCase();
   const t = term.toLowerCase();
-  let idx = hay.indexOf(t);
-  while (idx !== -1) {
-    const before = hay.slice(Math.max(0, idx - 24), idx);
-    if (!NEGATORS.some((n) => before.includes(n))) return true; // un-negated → real claim
-    idx = hay.indexOf(t, idx + t.length);
+  for (const idx of tokenIndices(hay, t)) {
+    const clauseStart =
+      Math.max(
+        hay.lastIndexOf(".", idx - 1),
+        hay.lastIndexOf("!", idx - 1),
+        hay.lastIndexOf("?", idx - 1),
+        hay.lastIndexOf(";", idx - 1),
+        hay.lastIndexOf("\n", idx - 1),
+      ) + 1;
+    const before = hay.slice(clauseStart, idx);
+    if (!NEGATION_BEFORE.test(before)) return true; // un-negated → real claim
   }
   return false;
 }
@@ -66,10 +99,16 @@ export function gradeDealRead(
   if (golden.expectedStalled && !body.stallReason) {
     failures.push("expected a stallReason, got null");
   }
+  // Only enforced where the golden explicitly forbids it — some non-stalled
+  // scenarios (e.g. an explicit churn) can legitimately carry a stallReason.
+  if (golden.forbidStallReason && body.stallReason) {
+    failures.push(`unexpected stallReason on a healthy deal: "${body.stallReason.slice(0, 60)}"`);
+  }
 
   const hay = dealReadHaystack(body);
   for (const group of golden.mustCatch) {
-    if (!group.some((m) => hay.includes(m.toLowerCase()))) {
+    // The signal must be ASSERTED, not merely mentioned-and-denied.
+    if (!group.some((m) => assertsToken(hay, m))) {
       failures.push(`missed the signal [${group.join("|")}]`);
     }
   }
@@ -83,14 +122,16 @@ export function gradeDealRead(
 /**
  * Fixture soundness (keyless): every mustCatch group has ≥1 member verbatim in
  * the scenario's timeline — so a grading miss is the READ's fault, not a broken
- * fixture, and the gate carries a real signal even in a keyless CI run.
+ * fixture — and no mustNotFabricate token is ASSERTED by the timeline itself
+ * (else a faithful quote of the evidence would grade as fabrication).
  */
 export function timelineGroundsGolden(
   scenario: DealReadScenario,
-): { ok: boolean; ungrounded: string[][] } {
+): { ok: boolean; ungrounded: string[][]; contaminated: string[] } {
   const hay = formatDealTimeline(scenario.activities).toLowerCase();
   const ungrounded = scenario.golden.mustCatch.filter(
     (group) => !group.some((m) => hay.includes(m.toLowerCase())),
   );
-  return { ok: ungrounded.length === 0, ungrounded };
+  const contaminated = scenario.golden.mustNotFabricate.filter((f) => assertsToken(hay, f));
+  return { ok: ungrounded.length === 0 && contaminated.length === 0, ungrounded, contaminated };
 }

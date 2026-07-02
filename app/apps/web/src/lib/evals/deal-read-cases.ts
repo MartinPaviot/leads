@@ -26,6 +26,10 @@ export interface DealReadGolden {
   mustCatch: string[][];
   /** Tokens a faithful read must NOT invent (absent from the evidence). */
   mustNotFabricate: string[];
+  /** True → the read must NOT emit a stallReason (genuinely healthy scenarios
+   *  only; left unset where a non-stalled read can legitimately carry one,
+   *  e.g. an explicit churn). */
+  forbidStallReason?: boolean;
 }
 
 export interface DealReadScenario {
@@ -117,6 +121,7 @@ export const DEAL_READ_SCENARIOS: DealReadScenario[] = [
       expectedStalled: false,
       mustCatch: [["order form", "contract", "good to go", "sign"]],
       mustNotFabricate: ["stalled", "lost", "no budget"],
+      forbidStallReason: true,
     },
   },
   {
@@ -171,6 +176,7 @@ export const DEAL_READ_SCENARIOS: DealReadScenario[] = [
       expectedStalled: false,
       mustCatch: [["security", "next week", "tuesday", "scheduled", "schedule a call", "meeting"]],
       mustNotFabricate: ["stalled", "no response", "lost"],
+      forbidStallReason: true,
     },
   },
 ];

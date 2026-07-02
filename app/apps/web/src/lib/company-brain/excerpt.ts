@@ -34,9 +34,15 @@ export function activityExcerpt(raw: string | null | undefined): string | null {
  * next-step, or churn signal, EN + FR (the two product languages). Deliberately
  * broad: this is the deterministic FLOOR that centres the excerpt window; the
  * LLM judge tier (deal-signal-recall-gate) catches the paraphrases it misses.
+ *
+ * Boundary note: JS `\b` uses the ASCII word definition, so a TRAILING `\b`
+ * right after an accented char never matches ("validé " ends é→space = two
+ * non-word chars, no boundary) — the exact trap generate-message.ts documents.
+ * The 2026-07-02 audit found every FR cue ending in an accent was dead. Both
+ * edges now use unicode-aware lookarounds instead of `\b`.
  */
 export const DECISION_CUE_RE =
-  /\b(good to go|let'?s proceed|ready to (?:sign|move|go)|send (?:the|over) (?:the )?(?:contract|paperwork|agreement|order form|msa)|go ahead|we'?re in|sign(?:ed|-?off)?|approv(?:e|ed|al)|move forward|green ?light|kick ?off|too expensive|out of budget|over budget|no budget|blocker|concern|need (?:sign-?off|approval|buy-?in)|security review|legal review|procurement|not (?:sure|moving forward|a fit)|going with|chose (?:another|someone)|by (?:mon|tues|wednes|thurs|fri)day|next (?:week|month|steps?|quarter)|circle back|follow up|schedule (?:a )?(?:call|demo)|pilot|proof of concept|\bpoc\b|board meeting|q[1-4]\b|on signe|c'est bon|on y va|feu vert|validé|je valide|je dois (?:valider|en (?:parler|discuter))|trop cher|hors budget|pas (?:pour nous|le bon moment)|on passe|on abandonne|prochaine étape|on se recale|la semaine prochaine)\b/i;
+  /(?<![\p{L}\p{N}])(good to go|let'?s proceed|ready to (?:sign|move|go)|send (?:the|over) (?:the )?(?:contract|paperwork|agreement|order form|msa)|go ahead|we'?re in|sign(?:ed|-?off)?|approv(?:e|ed|al)|move forward|green ?light|kick ?off|too expensive|out of budget|over budget|no budget|blocker|concern|need (?:sign-?off|approval|buy-?in)|security review|legal review|procurement|not (?:sure|moving forward|a fit)|going with|chose (?:another|someone)|by (?:mon|tues|wednes|thurs|fri)day|next (?:week|month|steps?|quarter)|circle back|follow up|schedule (?:a )?(?:call|demo)|pilot|proof of concept|poc|board meeting|q[1-4]|on signe|c'est bon|on y va|feu vert|valid(?:é|ée|és|ées|er)|je valide|(?:je|on|nous) (?:doi[st]|devons) (?:valider|en (?:parler|discuter))|trop ch(?:er|ère)|hors budget|pas (?:pour nous|le bon moment)|on passe|on abandonne|prochaine étape|on se recale|la semaine prochaine)(?![\p{L}\p{N}])/iu;
 
 /**
  * Excerpt that WINDOWS on the buyer's decision instead of blindly taking the
@@ -54,8 +60,11 @@ export function decisionAwareExcerpt(raw: string | null | undefined): string | n
   const s = raw.replace(/\s+/g, " ").trim();
   if (!s) return null;
 
+  // m.index, NOT s.indexOf(m[0]): an EARLIER word can contain the matched text
+  // as a substring ("concerning" ⊃ "concern") and indexOf would anchor the
+  // window there, off the actual cue (2026-07-02 audit finding).
   const m = s.match(DECISION_CUE_RE);
-  const idx = m ? s.indexOf(m[0]) : -1;
+  const idx = m?.index ?? -1;
 
   // No cue, or the cue already sits inside the head window → plain head cap
   // (identical to activityExcerpt, so head-positioned signals are unchanged).

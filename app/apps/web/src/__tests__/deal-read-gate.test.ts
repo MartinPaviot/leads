@@ -17,6 +17,7 @@
 import { describe, it, expect } from "vitest";
 import { DEAL_READ_SCENARIOS } from "@/lib/evals/deal-read-cases";
 import {
+  assertsToken,
   gradeDealRead,
   timelineGroundsGolden,
   type DealBriefBody,
@@ -41,9 +42,79 @@ const BODY_SCHEMA = dealBriefSchema.omit({
 });
 
 describe("deal-read fixtures are sound (keyless)", () => {
-  it("every scenario's mustCatch signal is grounded verbatim in its timeline", () => {
+  it("every scenario's mustCatch is grounded in its timeline and no mustNotFabricate is asserted by it", () => {
     const broken = DEAL_READ_SCENARIOS.filter((s) => !timelineGroundsGolden(s).ok);
     expect(broken.map((s) => s.id)).toEqual([]);
+  });
+});
+
+// Regression locks for the 2026-07-02 hostile-audit findings: each of these was
+// a REAL false verdict the original grader produced. They must never come back.
+describe("deal-read grader soundness (keyless)", () => {
+  it("word boundaries: 'assigned'/'installed' do not assert 'signed'/'stalled'", () => {
+    expect(assertsToken("sarah was assigned to chase procurement", "signed")).toBe(false);
+    expect(assertsToken("the proposal is designed to fit their rollout", "signed")).toBe(false);
+    expect(assertsToken("the platform will be installed after signature", "stalled")).toBe(false);
+    expect(assertsToken("the msa was signed yesterday", "signed")).toBe(true);
+  });
+
+  it("long-range negation in the clause is not a fabrication", () => {
+    expect(assertsToken("there is no indication that the deal has stalled", "stalled")).toBe(false);
+    expect(assertsToken("we have not heard that they chose a competitor", "competitor")).toBe(false);
+    // …but a negation in a PREVIOUS clause does not neutralize an assertion.
+    expect(assertsToken("we should not delay; the deal has stalled", "stalled")).toBe(true);
+  });
+
+  it("'not only' affirms rather than negates", () => {
+    expect(assertsToken("not only is it stalled, the champion left", "stalled")).toBe(true);
+  });
+
+  it("terms that BEGIN with a negator still assert (ghosting vocabulary)", () => {
+    expect(assertsToken("there was no response to three follow-ups", "no response")).toBe(true);
+    expect(assertsToken("we haven't heard back since the demo", "haven't heard")).toBe(true);
+  });
+
+  it("mustCatch requires an ASSERTED mention — a denied signal does not count", () => {
+    const body = {
+      summary: "no specific competitor was mentioned; they chose to defer this cycle",
+      riskLevel: "high",
+      healthScore: 30,
+      stallReason: null,
+      nextAction: { action: "requalify next quarter", priority: "medium" },
+      keyDiscussions: [],
+      promisesMade: [],
+      objectionsRaised: [],
+    } as unknown as Parameters<typeof gradeDealRead>[0];
+    const grade = gradeDealRead(body, {
+      expectedRisk: ["high", "critical"],
+      expectedStalled: false,
+      mustCatch: [["another vendor", "competitor", "other vendor"]],
+      mustNotFabricate: [],
+    });
+    expect(grade.pass).toBe(false);
+    expect(grade.failures.join(" ")).toContain("missed the signal");
+  });
+
+  it("forbidStallReason fails a stallReason on a designed-healthy golden", () => {
+    const body = {
+      summary: "progressing well",
+      riskLevel: "low",
+      healthScore: 85,
+      stallReason: "waiting on security review",
+      nextAction: { action: "confirm Tuesday call", priority: "high" },
+      keyDiscussions: [],
+      promisesMade: [],
+      objectionsRaised: [],
+    } as unknown as Parameters<typeof gradeDealRead>[0];
+    const grade = gradeDealRead(body, {
+      expectedRisk: ["low", "medium"],
+      expectedStalled: false,
+      forbidStallReason: true,
+      mustCatch: [],
+      mustNotFabricate: [],
+    });
+    expect(grade.pass).toBe(false);
+    expect(grade.failures.join(" ")).toContain("unexpected stallReason");
   });
 });
 

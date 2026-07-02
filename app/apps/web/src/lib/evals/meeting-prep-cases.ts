@@ -79,7 +79,7 @@ Headcount: 210.
 
 ## Contact
 Mia Bloom — COO (economic buyer).`,
-    groundedSpecifics: ["45", "210"],
+    groundedSpecifics: ["45000", "210"],
   },
   {
     id: "thin-demo",

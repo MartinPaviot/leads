@@ -176,10 +176,16 @@ export function moneyTokens(text: string): string[] {
  * could send a wrong quote). The 2026-06-20 live finding (a draft inventing
  * "$4,800/month" for an 8-seat ask with no price in the thread) is exactly this.
  * Returns the fabricated digit cores; empty = grounded.
+ *
+ * The source is ALSO passed through moneyTokens so k-normalization is symmetric:
+ * a draft echoing the thread's "$40k" (normalized "40000") must match a source
+ * whose raw digits are only "40" — found live 2026-07-02, where a grounded echo
+ * false-flagged as fabricating "40000".
  */
 export function unsourcedAmounts(draft: string, source: string): string[] {
   const srcDigits = (source || "").replace(/[^\d]/g, "");
-  return moneyTokens(draft).filter((d) => !srcDigits.includes(d));
+  const srcTokens = new Set(moneyTokens(source));
+  return moneyTokens(draft).filter((d) => !srcDigits.includes(d) && !srcTokens.has(d));
 }
 
 export type RefineInstruction =
